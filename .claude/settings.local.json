@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where claude *)",
+      "Bash(npm root *)",
+      "Bash(C:\\\\\\\\Users\\\\\\\\llapl\\\\\\\\AppData\\\\\\\\Roaming\\\\\\\\npm\\\\\\\\claude.cmd *)",
+      "PowerShell(& \"C:\\\\Users\\\\llapl\\\\AppData\\\\Roaming\\\\npm\\\\claude.cmd\" --version)",
+      "Bash(npm uninstall *)"
+    ]
+  }
+}

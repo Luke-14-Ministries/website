@@ -5,7 +5,7 @@ accounts platform (Camp Celebrate registration for families & volunteers, and on
 Every page shows a red **PREVIEW / TEST BUILD** banner so camp administrators know it is not
 the official site.
 
-**Live preview:** <https://luke-14-ministries.github.io/>
+**Live preview:** <https://luke14-ministries.vercel.app>
 
 ## Run locally
 
@@ -19,12 +19,18 @@ covers setup, the everyday git workflow, project layout, and the security rules.
 
 ## How it deploys
 
-`.github/workflows/deploy.yml` builds the static export and publishes it to GitHub Pages on
-every push to `main`. Nothing is uploaded by hand. Because the repository is named
-`luke-14-ministries.github.io`, the site serves from the domain root, so no `basePath` is
-needed — the same configuration the eventual Vercel deployment will use.
+**Vercel** watches `main` and rebuilds on every push. Nothing is uploaded by hand, and there
+is no deploy workflow in this repository to maintain — Vercel's GitHub integration does the
+watching.
 
-Pages source is set to **GitHub Actions** under Settings → Pages.
+`NEXT_PUBLIC_BASE_PATH` must stay **unset** on Vercel. It exists only so a site can be served
+from a subfolder; setting it breaks every link and every image, and it fails in a way that
+looks like a styling problem rather than a configuration one.
+
+Until 5 August 2026 this repository was named `luke-14-ministries.github.io` and published to
+GitHub Pages by `.github/workflows/deploy.yml`. Pages is unpublished, the workflow is deleted,
+and `output: 'export'` is out of `next.config.mjs` — a static export cannot run server code,
+which blocked every part of the registration platform.
 
 ## What's here
 
@@ -44,12 +50,18 @@ Pages source is set to **GitHub Actions** under Settings → Pages.
 
 ## Roadmap to the live platform
 
-1. Gather admin feedback on the flows via the GitHub Pages preview.
-2. Backend: Supabase (auth + database) — real accounts, saved registrations, admin views.
-3. Payments: Stripe (camp fees + donations, recurring giving, receipts). Apply for the Stripe
-   nonprofit rate. Remove `output: 'export'` from `next.config.mjs` and host on Vercel.
-4. Before going public on the ministry's own domain, remove `components/PreviewBanner.jsx`
-   from `app/layout.jsx`.
+1. **Done — 5 August 2026.** Hosting moved to Vercel; `output: 'export'` removed, so server
+   code is possible at all.
+2. Gather admin feedback on the flows via the Vercel preview.
+3. Backend: Supabase (auth + database) — real accounts, saved registrations, admin views,
+   with row-level security enforced in the database rather than in application code.
+4. Payments: Stripe (camp fees + donations, recurring giving, receipts). Test keys only until
+   launch. The nonprofit discount does **not** apply to registration fees.
+5. Before going public on the ministry's own domain, reverse all four preview switches
+   together: `components/PreviewBanner.jsx` out of `app/layout.jsx`, `public/robots.txt`, the
+   `robots: { index: false }` block in `app/layout.jsx`, and the "(Preview Build)" title
+   suffix. Board approval gates this. Missing one fails silently — the site simply never
+   appears in search results.
 
 ## Content notes (gaps found during capture)
 

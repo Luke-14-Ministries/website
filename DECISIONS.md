@@ -85,6 +85,9 @@ organization root, which is also the reason `basePath` exists in the Next config
 will be renamed to something ordinary once Pages is switched off, in that order — renaming it first
 turns Pages off abruptly.
 
+*Carried out on 5 August 2026 exactly in that order. See the entry of that date for what was done
+and what was checked first.*
+
 ---
 
 ## 2026-08-04 — The preview URL is `luke14-ministries.vercel.app`, and it is public
@@ -195,14 +198,14 @@ those are free.
 
 **Do not reverse without reading this.**
 
-`luke14ministries.net` still serves the existing WordPress site. Pointing it retires that site,
+`luke14ministries.net` still serves the existing Squarespace site. Pointing it retires that site,
 which is a board decision rather than a technical step, and it happens in Phase 4.
 
 Worth stating separately because it does not look like the same decision: Cloudflare's "Add a site"
 flow *is* pointing the domain. It ends at "change your nameservers at your registrar." The
 Cloudflare account therefore stays empty — no zone — until Phase 4.
 
-It is also possible the domain is already on Cloudflare via the current WordPress host, in which
+It is also possible the domain is already on Cloudflare via the current site host, in which
 case the eventual move is a zone transfer between accounts rather than a fresh add. That depends on
 the still-outstanding question of which registrar holds the domain.
 
@@ -255,32 +258,25 @@ the documents live in a permission-restricted SharePoint folder.
 
 ---
 
-## 2026-08-04 — Neither Stripe's nor PayPal's nonprofit rate applies to camp registration
+## 2026-08-04 — Stripe's nonprofit rate does not apply to camp registration
 
-**Do not reverse without reading this.**
-
-Recorded because it corrects an assumption that had been repeated through the plan and the
-checklist for weeks, and because someone will otherwise "discover" the nonprofit rate again and
-re-run the same dead end.
+**Do not reverse without reading this.** Recorded because someone will otherwise "discover" the
+nonprofit rate and re-run the same dead end.
 
 Stripe's discounted rate of 2.2% + 30¢ is for **donations**. Eligibility requires that more than
-**80% of the account's payment volume be tax-deductible gifts**, and Stripe names ticket sales and
-similar non-gift revenue as not qualifying. A camp registration is a fee for a service the family
-receives, so a registration account fails the test. Applying would waste the review and return a
-refusal.
-
-PayPal's confirmed-charity rate of 1.99% + 49¢ is subject to the same kind of limit in vaguer
-language: its Confirmed Charity terms say "Not all Payment Types are eligible for charity
-transaction pricing," and its help material describes the rate around donation products. Square
-publishes no nonprofit rate at all.
+**80% of the account's payment volume be tax-deductible gifts**, and Stripe explicitly names
+registration fees, tuition and ticket sales as not qualifying. A camp registration is a fee for a
+service the family receives, so a registration account fails the test. Applying would waste the
+review and return a refusal. Square publishes no nonprofit rate at all.
 
 **The planning number for registration is therefore 2.9% + 30¢.** The project's case is unharmed —
-that is still under half of Campsite's 6% — but the plan should not quote a rate the ministry will
-never be charged. Checked against each vendor's published terms on 4 August 2026.
+still under half of Campsite's 6% — but the plan should not quote a rate the ministry will never be
+charged.
 
-One open item follows from this: ask PayPal in writing whether the charity rate would cover
-registration fees. If it does, PayPal is $6.46 on a $300 registration against Stripe's $9.00, which
-is worth re-examining on real volume.
+**PayPal's confirmed-charity rate is a genuinely open question**, and the reason is set out in the
+5 August processor entry below: its terms exclude some "Payment Types" without publishing a list,
+and "Payment Type" means PayPal's products rather than the nature of the income. The open item is
+to ask PayPal in writing.
 
 ---
 
@@ -304,8 +300,9 @@ difference between card processors.
 donors already have accounts and trust the button. Moving gifts to a processor that charges more
 for them would be a mistake.
 
-**Square keeps in-person.** At 2.6% + 15¢ it beats every online rate here, and the hardware is
-already bought. Square's online rate of 3.3% + 30¢ on the free plan is the worst in the comparison,
+**Square keeps in-person.** At 2.6% + 15¢ it beats every online rate here and the hardware is
+already bought, though it is not the cheapest card-present option available — see the PayPal POS
+entry below. Square's online rate of 3.3% + 30¢ on the free plan is the worst in the comparison,
 which is why it is not the answer for registration.
 
 *Cost of this decision, stated plainly:* three sets of deposits to reconcile rather than one. It is
@@ -355,7 +352,7 @@ each time.
 There is also a timing trap worth recording. **Transferring to Cloudflare Registrar requires the
 domain to use Cloudflare for authoritative DNS first** — Cloudflare's documentation is explicit that
 you must add the domain to Cloudflare before you can transfer it. Adding the domain means changing
-nameservers, which *is* pointing the domain away from the current WordPress site. **A registrar
+nameservers, which *is* pointing the domain away from the current Squarespace site. **A registrar
 transfer to Cloudflare is the domain switch wearing a different hat**, and the domain switch is a
 board decision in Phase 4. Anyone who treats it as tidy-up housekeeping will retire the ministry's
 live website by accident.
@@ -363,6 +360,19 @@ live website by accident.
 *Alternative considered:* moving to Cloudflare Registrar at Phase 4, when the domain is being
 pointed anyway and the nameserver requirement costs nothing extra. That remains genuinely open and
 is a reasonable thing to do — it is only the *sequencing* that is decided here.
+
+**One distinction to keep straight, because the two vendors sit in different positions.** The rule
+is that the domain must not live inside **the account that hosts the site** — Vercel. Cloudflare is
+not the host; it is DNS and edge protection, the place you would re-point *toward*, not away from,
+and its at-cost registrar is perfectly defensible on the principle above. The only thing standing
+in the way today is the nameserver sequencing described just above.
+
+**Named independent alternative, if one is ever wanted: Porkbun** — `.net` at $12.52 for both
+registration and renewal, free WHOIS privacy, SSL and email forwarding, and no relationship to any
+other vendor in this stack. Namecheap ($18.58) is the more conservative, better-known option. This
+only becomes relevant if the domain turns out to sit somewhere the ministry cannot reach, in which
+case moving it to a neutral registrar is a clean step that touches neither DNS nor the live
+Squarespace site.
 
 *What is not decided:* where the domain currently is. Tracing that, and getting the ministry onto
 that account on `admin@` with 2FA, is Phase 0 work and blocks GitHub domain verification and the
@@ -372,17 +382,17 @@ launch DNS change. Reasoning in full: Implementation Plan §8.
 
 ## 2026-08-05 — Background checks are an open question, not a requirement
 
-Earlier drafts of the plan treated volunteer background checks as settled, with a design rule
+The project's documentation treats volunteer background checks as settled, with a design rule
 attached: the database stores only `background_check_on_file` and `background_check_date`, while the
-paperwork lives in a permission-restricted SharePoint folder. That rule appeared in the
+paperwork lives in a permission-restricted SharePoint folder. That rule appears in the
 Implementation Plan, `CLAUDE.md`, `CONTRIBUTING.md`, the board packet and the phase roadmap.
 
-Traced on 5 August 2026, the requirement came from **one line in the July 2026 decision brief** —
+Traced back, the requirement comes from **one line in the July 2026 decision brief** —
 "volunteer applications: application form, the $495/week volunteer fee, and coordination with
 background-check paperwork" — plus a second line about sensitive paperwork belonging in
 access-controlled storage. Nobody at the ministry has confirmed that Luke 14 runs background checks
-today or intends to. An assumption load-bearing in five documents should not rest on one line of a
-superseded draft.
+today or intends to. An assumption load-bearing in five documents should not rest on one line of an
+early brief.
 
 **Decided:** the design rule is kept — it is the right answer *if* checks exist, and it costs
 nothing to hold in reserve — but it is now labelled unconfirmed everywhere it appears, and **Phase 2
@@ -392,36 +402,6 @@ otherwise.** The question is on the open list (Implementation Plan §11, questio
 *Why this matters beyond the field itself:* building storage for a compliance process the ministry
 does not actually run creates an appearance of compliance that nobody is maintaining, which is worse
 than not having the field.
-
----
-
-## 2026-08-05 — Clarification: the registrar rule is about Vercel, not Cloudflare
-
-The entry above was read as advising against Cloudflare Registrar. It was not meant to, and the
-distinction is worth pinning down because the two vendors sit in completely different positions.
-
-**The rule is: the domain must not live inside the account that hosts the site.** That account is
-**Vercel**. The domain is the lever used to recover from a lockout, an outage or a billing dispute
-at the host; if it lives inside the locked account, there is no lever. This part is a permanent
-rule and should not be revisited.
-
-**Cloudflare is not the host.** It is DNS and edge protection — the place you would re-point
-*toward*, not away from. Its registrar sells at cost with no renewal markup, which makes it the
-best-priced option in the comparison and perfectly defensible on the principle above. The only
-reason it is not the answer today is **timing**: Cloudflare requires the domain to use its
-nameservers before it will accept a transfer, so moving the registration there is the domain switch
-performed under another name. That is a Phase 4 board decision.
-
-**Named independent alternative, if one is ever wanted: Porkbun** — `.net` at $12.52 for both
-registration and renewal, free WHOIS privacy, SSL and email forwarding, and no relationship to any
-other vendor in this stack. Namecheap ($18.58) is the more conservative, better-known option. This
-only becomes relevant if the domain turns out to sit somewhere the ministry cannot reach, in which
-case moving it to a neutral registrar is a clean step that touches neither DNS nor the live
-WordPress site.
-
-*Alternative considered:* leaving the earlier entry as written. Rejected because it stated the
-conclusion for two vendors that deserve different answers, and a decision log that blurs a
-distinction is how the wrong lesson gets carried forward.
 
 ---
 
@@ -454,3 +434,422 @@ framing was right and this entry should be amended rather than deleted.
 *Alternative considered:* waiting for the invoice before writing any of it down. Rejected — four
 sources agreeing is enough to plan against, and an unrecorded finding is one that gets rediscovered
 from scratch in three months.
+
+---
+
+## 2026-08-05 — GitHub Pages is retired, the repository is renamed `website`, and the static export is gone
+
+**Do not reverse without reading this.**
+
+Three things happened in one sitting on 5 August 2026, and they are recorded together because
+they are one decision, not three. GitHub Pages is unpublished and its deploy workflow deleted.
+The repository is renamed from `luke-14-ministries.github.io` to **`website`**. And
+`output: 'export'`, `basePath` and `images: { unoptimized: true }` are removed from
+`next.config.mjs`.
+
+**Why they are one decision.** Publishing to GitHub Pages requires compiling the site to flat
+HTML — a static export — and a static export has no server behind it, so it cannot query a
+database, run an API route, or talk to Stripe. That single setting blocked every item in
+Phase 1. It also could not be removed in isolation: take it out and the Pages workflow starts
+failing on every push. The coupling is the whole point. Doing Pages-off first and the config
+later would have left a window where the project had two broken halves; doing both together
+means the coupling simply stops existing.
+
+**The order was deliberate and should be understood before anyone repeats it.** Confirm Vercel
+renders. Unpublish Pages. Delete the workflow — skip this and a workflow keeps running and
+failing; skip the unpublish and a frozen copy of the site lives at the `github.io` address
+indefinitely. Delete the leftover `github-pages` environment. **Rename last**, because
+`<org>.github.io` is a Pages *instruction* rather than a label: renaming while Pages was still
+live would have stopped the site abruptly instead of gracefully. Only then the config commit.
+
+**What was checked rather than assumed.** The three usual hazards of removing an export config
+were all verified absent in the code first: nothing uses `next/image`, so the image-optimiser
+setting was inert; nothing calls `generateStaticParams` or any other export-specific API; and
+the `asset()` helper reads `NEXT_PUBLIC_BASE_PATH` at runtime rather than depending on the
+config's `basePath`, so removing `basePath` could not break it. An earlier draft of this plan
+recommended deferring the config change on general caution. That recommendation did not survive
+checking the actual code, and was reversed.
+
+**`trailingSlash: true` stays.** It is a URL preference, not a hosting accommodation. Removing
+it would turn `/about/` into `/about` across every link in the site.
+
+**No DNS was touched.** The Pages settings screen showed an empty Custom domain field, which is
+what made it certain that unpublishing could not affect `luke14ministries.net`. That domain
+still serves the existing Squarespace site, and pointing it remains a Phase 4 board decision.
+
+*Alternative considered:* Pages-off and rename now, config change later in the sprint. Rejected
+once the code was actually inspected — the risks it guarded against were not present, and the
+only reason the Pages retirement was urgent at all was the coupling to the export setting.
+
+---
+
+## 2026-08-05 — `asset()` in `lib/site.js` is left in place as known dead weight
+
+`lib/site.js` exports `asset(p)`, which prefixes a path with `NEXT_PUBLIC_BASE_PATH`. That
+variable is unset on Vercel and must stay unset, so the helper now returns every path unchanged.
+It is, functionally, a no-op.
+
+It is used in 16 files that otherwise did not need touching on 5 August. Removing it would mean
+16 edits across pages nobody was working on, for zero functional gain, with a real chance of a
+typo in a file that is currently correct.
+
+So it stays, and this entry exists so that the next person who finds it knows it is deliberate
+rather than overlooked. It is fair to remove during unrelated work in those files. It is not
+worth a commit of its own.
+
+*Alternative considered:* removing it in the same pass as the config change. Rejected — a
+cleanup commit that touches 16 files is exactly the kind of change that hides a real mistake in
+a wall of diff.
+
+---
+
+## 2026-08-05 — Stripe keeps registration on approval timing, not on rate
+
+**Do not reverse without reading this.** The processor question was put again — should the ministry
+drop Square, and even Stripe, for PayPal? — and answered against PayPal's published fee schedule
+(last updated 15 July 2026), its User Agreement, its Confirmed Charity terms and its developer
+documentation. The outcome is unchanged; the reason is sharper.
+
+**On rate, Stripe does not win.** On cards the two are a tie ($9.00 against $8.96 on a $300
+registration), and if PayPal grants its charity rate — **2.19% + 29¢** on embedded card fields, not
+the widely-quoted 1.99% + 49¢ wallet rate — PayPal is cheaper by about $2.14, worth roughly
+**$300–600 a season**. Ask in writing; it remains unconfirmed.
+
+**Stripe wins on being able to go live on a date we choose.** PayPal will not process a live card
+through Expanded Checkout — the embedded product carrying the good rates — until its underwriting
+approves the account. Until then live mode returns `NOT_ENABLED_FOR_CARD_PROCESSING` while
+**sandbox works fine**, so the whole flow can be built, tested and demonstrated and still be unable
+to take a real card, and **no timeline is published**. Four separate approvals would be needed in
+total: Expanded Checkout, ACH Services, POS and the charity rate. Stripe needs none. Against a fixed
+registration-opening date and a maintainer whose availability collapses in September, an unbounded
+approval queue on the critical path is the wrong risk.
+
+**PayPal cannot put a cheap bank payment in a checkout.** Its ACH Services at 0.80% capped $5 is
+rate-identical to Stripe but sits behind its own approval and **does not appear in PayPal's Checkout
+SDK at all**; Pay by Bank at 1% capped $10 is **invoicing only**; and a family funding an ordinary
+PayPal payment from their bank is charged the ordinary card rate under the fee schedule's E-check
+section, saving the ministry nothing. Braintree offers 0.75% but is excluded from its own drop-in UI
+and gated behind sales. Stripe's 0.8%/$5 sits in the same checkout as the cards.
+
+**Stripe's bank payment carries caveats that must be designed around**, and the plan previously
+understated them: it is a *delayed notification* method confirming in **up to four business days**
+(two for eligible accounts), first-time payers verify by bank login or by microdeposits with a
+**ten-day** window to complete, and **new accounts carry weekly volume limits** that Stripe does not
+publish. A registration season is exactly the volume burst those limits exist to catch. Action:
+open the Stripe account early, season it with test volume, and request a limit increase before
+registration opens.
+
+**The webhook cannot be rehearsed on PayPal.** Its simulator events cannot be verified through the
+production signature path, and the code that marks a registration paid is the riskiest in the
+system.
+
+*Checked and closed:* using PayPal *inside* Stripe's Payment Element is not available to US
+merchants (eligibility is the EU except Hungary, Liechtenstein, Norway, the UK and Switzerland).
+Worth re-checking before Phase 2; nothing should be planned on it.
+
+*On fund holds:* **both** vendors name prepaid goods with long delivery windows and volume spikes as
+reserve triggers. Stripe is not immune. The mitigation is the same either way — the ministry's own
+database, not the processor, is the authoritative record of who has paid.
+
+**What would reverse this:** PayPal confirming charity pricing on registration *in writing* **and**
+granting Expanded Checkout approval, both before mid-September; or Stripe declining or restricting
+the account. Even a favourable answer in November is an off-season migration for the following year
+— a rate saving that arrives after registration has run is worth nothing.
+
+Reasoning in full: Implementation Plan §3b.
+
+---
+
+## 2026-08-05 — Square is displaced on price by PayPal POS, and nothing is being done about it yet
+
+Recorded so that the next person does not have to rediscover it, and so that "Square keeps
+in-person" above is not read as a finding that Square is the cheapest option.
+
+PayPal's own point-of-sale product is **2.29% + $0.09** card-present, with a **$29** first reader
+(additional readers $79) and **no monthly or setup fee**. Square is **2.6% + 15¢**. On a $40 sale
+that is $1.01 against $1.19. PayPal wins, plainly.
+
+**No change is being made.** On perhaps $5,000 of in-person volume across a hundred sales the
+difference is about **$21 a year**, against the cost of a new account, new hardware, a fourth
+statement for the treasurer to reconcile, and an August afternoon that is needed elsewhere. The
+correct time to act on this is when a Square reader needs replacing, or if in-person volume grows
+enough to matter.
+
+*Alternative considered:* switching now while the comparison is fresh. Rejected on the arithmetic
+above — $21 does not buy a distraction during the one month the maintainer is actually available.
+
+---
+
+## 2026-08-05 — Zeffy is not the registration platform, and a dated fallback trigger is set
+
+Zeffy charges nonprofits nothing — no monthly fee, no percentage — and it is not a trick. The
+ministry would hold **its own Stripe Connected Account** underneath, staying merchant of record and
+keeping its payment history if it left. It was taken seriously because it is the only option raised
+that could make this project unnecessary.
+
+**It is rejected for registration on four grounds, in order of weight.**
+
+*The cost moves onto families rather than disappearing.* Zeffy lives on a **pre-selected** tip added
+on top — roughly 17–22% on small amounts, 11–15% on large — prompted **twice** in the flow, with a
+documented case of a $400 registration defaulting to add over $40. On roughly $45,000 of season
+volume that is about **$1,100 a year** asked of families who are not asked for it today. Zeffy's own
+users requested a $0 default; the request drew **224 votes** and was **closed 11 March 2026 without
+being granted**, so it is deliberate design rather than a backlog item.
+
+*There is a documented accessibility failure on the opt-out control.* Users report **screen readers
+did not work with the dropdown used to reduce or remove the tip.** For a disability ministry, a
+payment page whose assistive-technology failure lands exactly on the control for declining an
+optional charge is close to disqualifying on its own.
+
+*It cannot do the job.* No instalments, no waivers or e-signature, no file upload, no waitlist, and
+a **read-only API** — so no front end can be built on it. The ministry would be sending families to
+Zeffy's forms instead of its own site, which is the thing this project exists to stop doing. Camps
+using Zeffy in the wild take **deposits** on it and handle the rest elsewhere.
+
+*Vendor durability.* About $4.5M raised, last verified round November 2021, on thin margins. Not a
+prediction of failure — a reason not to make it the only registration system.
+
+**The arithmetic, stated honestly**, on roughly $45,000 of season volume: Campsite costs the
+ministry about $5,700/yr (if the $249/month fee is real) and families nothing; Zeffy costs the
+ministry $0 and families about $1,100/yr; the platform being built costs the ministry about
+$1,600/yr all-in and families nothing. **Zeffy therefore undercuts about $1,600 a year of the
+financial case for building — not the case itself.**
+
+**Two things follow.** Zeffy for the *donation* page is a reasonable thing to look at separately and
+on its own timetable, since a gift page has none of the four problems above except the tip, and on a
+gift an optional tip is an ordinary ask. And a fallback is set now rather than in a panic: **if by
+1 February 2027 the registration platform is not taking test payments end to end, Zeffy becomes the
+season's fallback for taking deposits** while the build continues.
+
+Reasoning in full: Implementation Plan §3b.
+
+---
+
+## 2026-08-06 — Migrations are plain SQL files in the repository, pasted into the SQL Editor
+
+`supabase/migrations/` holds numbered `.sql` files. They are run by opening the Supabase dashboard,
+going to SQL Editor, and pasting the file in. Nothing is installed, nothing is generated, and there
+is no state held anywhere except the files themselves and the database.
+
+The Supabase CLI is the tool that would normally do this. It was rejected because it adds Docker, a
+linked project reference, a login token, and a shadow database — four things that can be in a wrong
+state, on a machine that may not be the same machine next August. The paste-in workflow has one
+failure mode, and it is visible: the query either ran or it did not.
+
+**The rule that makes this work: a migration is never edited after it has been run.** The file
+records what was done to the database, not what we wish it looked like. A change is always a new
+numbered file. Break this and the repository stops describing the real database, which is the only
+thing it is for.
+
+---
+
+## 2026-08-06 — Phase 1 schema: what is stored, and what is deliberately not
+
+`0001_core_schema.sql` creates sixteen tables. The decisions inside it that are not obvious from
+reading it:
+
+**Whether a family has paid is never stored on the registration.** `registrations.status` is
+lifecycle only — draft, submitted, waitlisted, confirmed, cancelled. Money is answered by the
+`payments` table through the `registration_balances` view, and by nothing else. Two places that both
+claim to know whether a fee arrived is how a family gets chased for money they already sent, and it
+is the single most common way a registration system loses a family's trust.
+
+**Bank payments are slow, and the schema says so.** `payments.status` includes `processing`, and the
+table carries `expected_settlement_on`. Stripe's ACH debit is a delayed-notification method — up to
+four business days before success or failure is known. A registration sitting in `processing` is
+normal, not a problem to chase. Had this been discovered after launch it would have been a schema
+change during registration week.
+
+**Support needs live in their own table, not on the person.** `person_support` is separate from
+`people` so it can carry a stricter policy than the row it describes. The fields are free text on
+purpose; structure gets added only if the Campsite inventory shows staff genuinely sorting on one.
+
+**Staff notes live in their own table.** Row-level security controls which *rows* are visible, not
+which *columns*. A `staff_notes` column on the registration was written first, and the test harness
+caught families reading it — a table-level `grant select` covers every column and a column-level
+`revoke` does not take it back. `registration_notes` cannot be got wrong by forgetting, and it
+carries authorship and history as a side benefit.
+
+**Agreements are versioned and signatures cannot be edited.** "She signed the waiver" is worth
+nothing if nobody can say which waiver. `agreement_signatures` has insert policies and no update or
+delete policy at all.
+
+**Background checks stay a flag and a date.** `volunteer_clearances` holds
+`background_check_on_file`, `background_check_date` and an expiry. No documents, no findings, no
+vendor reference numbers. If a column is ever proposed here that would hold the *content* of a
+check, the answer is no.
+
+**Age is not stored.** `date_of_birth` is, and age is derived against the session start date. A
+stored age is wrong within a year and nobody notices.
+
+Text columns with `CHECK` constraints are used instead of Postgres `ENUM` types throughout: altering
+an enum is a migration with transaction restrictions attached, changing a `CHECK` is one plain
+statement a volunteer can write. Money is integer cents everywhere, never a float.
+
+---
+
+## 2026-08-06 — Row-level security is proved by a test harness, not by a clean migration
+
+`supabase/migrations/rls_test.sql` seeds four personas — two parents in different households, a
+registrar, and a stranger belonging to no household — and asserts forty-two times that each sees
+exactly what they should. It runs against a throwaway local Postgres, never the real project.
+
+It exists because a migration that runs without error proves the SQL parsed, and nothing else. Both
+of the ways row-level security fails silently — a table with RLS switched off, and a table with RLS
+on but no policy at all, which denies everyone including staff — look identical to a successful
+migration. The schema file ends with a self-check that raises on either. The harness covers the
+harder question of whether the policies that *do* exist are the right ones.
+
+On its first run it found a real hole. That is the argument for keeping it.
+
+---
+
+## 2026-08-06 — Match Campsite's information architecture, not its interface
+
+The existing Campsite portal is being walked and written down before more of the registration flow
+is built, using `Luke14-Portal-Inventory.xlsx` (SharePoint, `02 Accounts and Setup`).
+
+**What is being copied:** what a family is asked, in what order, which answers are required, what
+the dropdown choices are, what states a registration can be in, which emails fire and when, and what
+staff see on the other side. This is where an omission costs a season — a field nobody remembered is
+a field a hundred families have to be emailed about in July.
+
+**What is not being copied:** the interface. Campsite's is a PHP-era design and accessibility is the
+one dimension where a disability ministry should beat the incumbent rather than tie it.
+
+*Constraint on the exercise:* the workbook records structure only — labels, choices, screen order.
+No camper names, no medical details, no addresses, no payment records, and none of that into a chat
+transcript either. The portal holds real family data; the inventory must not.
+
+---
+
+## 2026-08-06 — Authentication is Supabase Auth, with the session refreshed in middleware
+
+Families and volunteers log in with an email address and a password, held by Supabase Auth. No
+password ever reaches this codebase; nothing about a login is stored in our own tables except the
+profile row that a database trigger creates.
+
+Three Supabase clients exist, and using the wrong one is the mistake this note is here to prevent:
+
+- `lib/supabase/client.js` — for components with `'use client'`. Runs in the browser.
+- `lib/supabase/server.js` — for pages without `'use client'`, route handlers, and server actions.
+  Built fresh per request from that request's cookies, because one shared client would leak one
+  visitor's session into another's page.
+- `lib/supabase/middleware.js` — used only by `middleware.js` at the repository root.
+
+**Server code asks `getUser()`, never `getSession()`.** `getSession()` reads the cookie and believes
+it. `getUser()` asks Supabase to verify the token. On the server, where the answer decides what data
+someone sees, only the verified one is worth having.
+
+**`middleware.js` is not optional and must stay at the repository root.** A Supabase access token
+expires after an hour, and nothing in the browser can refresh a cookie for a server-rendered page
+that is already being requested. The refresh happens in middleware, before any page runs. Delete it
+and the site works for about an hour, then people begin getting logged out mid-form, with no error
+and no pattern anyone can reproduce. Next.js finds this file by location, not by import: move it
+into `app/` or `lib/` and it silently stops running.
+
+**Middleware redirects, row-level security protects.** The redirect on `/account/dashboard` is a
+courtesy so anonymous visitors see a login screen instead of an empty page. It is not the security
+boundary — the policies in `0001_core_schema.sql` are. If middleware were deleted tomorrow, nobody
+could read another family's data.
+
+**Log out is a POST, not a link.** A GET that logs you out can be fired by anything that makes a
+browser fetch a URL — an image tag in an email, a link on another site. That is how people end up
+mysteriously logged out halfway through a registration.
+
+**Wrong-password and unknown-email give the same message.** Supabase tells the difference; the form
+deliberately does not repeat it. Otherwise the login page becomes a way of finding out which
+families have accounts here. The forgot-password form ignores its result for the same reason.
+
+**Email confirmation stays on.** It is what stops someone registering a family under an address they
+do not own. The consequence is that `signUp()` returns no session, so nothing can be written to the
+database on the signing-up person's behalf until they click the link — which is why the profile row
+is created by a trigger running as the database owner rather than by the app.
+
+**Emailed links all land on `/auth/callback/`**, which handles both link shapes Supabase can send
+(`?code=` and `?token_hash=&type=`) so that editing an email template later cannot silently break
+confirmation for every new family. It only ever redirects to a path on this site; taking a full URL
+from the query string is the open-redirect bug.
+
+The alternative considered was server actions rather than browser-side calls in the form components.
+Browser-side won because it leaves the existing form files the same shape — a volunteer reading the
+diff sees the same file with the fake submit replaced by a real one — and because inline error
+messages need no extra plumbing.
+
+---
+
+## 2026-08-06 — `handle_new_user()` also copies the phone number
+
+`0001_core_schema.sql` was amended before it had been run anywhere, which is the only time a
+migration may be edited. The trigger now writes `phone` into `public.profiles` alongside the two
+names.
+
+It matters because there is no other moment to do it. With email confirmation on there is no session
+immediately after `signUp()`, so a follow-up write from the app would be refused by row-level
+security — correctly. The three metadata keys `first_name`, `last_name` and `phone` are set in
+`app/account/signup/SignupForm.jsx` and read in the trigger; rename one on either side and nothing
+errors, the profile simply comes out blank.
+
+---
+
+## 2026-08-07 — Automated email goes through Resend, from the ministry's own domain
+
+Every message the system sends — email confirmation, password reset, registration received, balance
+due, forms outstanding — is sent by Resend from `registration@luke14ministries.net`.
+
+Free to 3,000 messages a month on one verified domain, with a 100-a-day cap; $20/month lifts both,
+which we will want the first time anyone emails every family at once.
+
+Postmark was the alternative and is the better-known name, but its free plan is 100 messages a
+month — an evaluation sandbox, not a usable tier. Resend gives the ministry a functional free tier
+at our volume and is built for the same Next.js ecosystem this site is written in, which is one
+less unfamiliar thing for a future volunteer. Switching later is an API key and a template port.
+
+This is not optional infrastructure. Supabase's built-in sender is explicitly for development, so
+sign-up confirmation and password-reset messages need a real sender before launch regardless of
+whether a single reminder is ever sent.
+
+Setup means SPF, DKIM and DMARC records at the registrar. Those are TXT records; they do **not**
+move where `luke14ministries.net` points, so this can be done before Phase 4 without touching the
+Squarespace site. It does need coordinating with whoever administers the Microsoft 365 mail — a
+careless SPF edit breaks the ministry's existing email.
+
+Every message sent is logged: recipient, template, timestamp, and what it referred to. "We told you
+on the first" needs to be answerable from a record.
+
+---
+
+## 2026-08-07 — Payment plans are billed as statements, not pre-authorised charges
+
+Installments are emailed as a statement with a button to pay that exact amount. The ministry does
+not store a card and draw on it.
+
+The reason is the blast radius of a mistake. When the ministry can initiate a charge, every bug,
+mis-set date and duplicated row is capable of taking money out of a family's account with nobody
+present — which has already happened once under CampSite, where an unauthorised draft bounced and
+cost more to unpick than the payment was worth. A wrong number in a statement email is embarrassing
+and fixable by apologising. A wrong number in an automatic draft is somebody's rent.
+
+It is also less work, which is the rare case where the safer option is the cheaper one. Automatic
+collection is four features, not one: storing a card under a compliant agreement, charging it
+off-session, handling the substantial share that fail on expired cards or bank authentication, and
+chasing the family back online. That last part is most of the effort.
+
+It can be layered on later without rework, because the schedule and the amounts are already
+calculated. It should be a deliberate decision with real numbers in hand, not a Phase 2 default.
+
+---
+
+## 2026-08-07 — Pricing arithmetic lives in our database; Stripe is handed a settled figure
+
+Fees, early-bird rates, coupon codes, scholarships and discounts are calculated in Postgres. Stripe
+collects one number.
+
+Stripe can do this work — its promotion codes support single-use and multi-use redemption limits,
+expiry dates, minimum amounts and codes tied to one customer — so this is a decision, not an
+oversight.
+
+Two reasons against using it. Cost: Stripe adds 0.4% per invoice for its invoicing product and 0.7%
+of volume for subscription billing, and this project exists to get fees down from 6%. And the
+books: what a family owes must be answerable from one place. Two pricing engines eventually
+disagree, and that is the day the treasurer cannot reconcile the year.

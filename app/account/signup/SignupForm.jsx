@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SignupForm() {
@@ -16,6 +16,18 @@ export default function SignupForm() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Where to land after the account is confirmed. A guest sent here from
+  // /register/family arrives with ?next=/register/family/, so we return them
+  // to the form instead of dumping them on the dashboard. Only ever an internal
+  // path -- never a full URL -- so this can't be turned into an open redirect.
+  const rawNext = searchParams.get('next');
+  const nextPath =
+    rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+      ? rawNext
+      : '/account/dashboard/';
+
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   async function handleSubmit(e) {
@@ -24,29 +36,22 @@ export default function SignupForm() {
     setBusy(true);
 
     const supabase = createClient();
-    // One destination for everyone. Camper, volunteer, parent, sibling —
-    // those are ROLES, and a role belongs to a person at one event, not to
-    // an account. Asking at sign-up implied the account had a type, which
-    // is the assumption that makes people create a second login later.
-    const nextPath = '/account/dashboard/';
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
-        // Where the link in the confirmation email lands. It has to be an
-        // absolute URL, and it has to match one of the entries in Supabase
-        // under Authentication -> URL Configuration -> Redirect URLs, or
-        // Supabase will refuse it and send the family to the site root with
-        // no explanation.
+        // The link in the confirmation email lands here; ?next= is carried
+        // through so the callback drops them back where they were headed. This
+        // absolute URL must match a Redirect URL in Supabase (Authentication ->
+        // URL Configuration) or Supabase silently sends them to the site root.
         emailRedirectTo: `${window.location.origin}/auth/callback/?next=${encodeURIComponent(
           nextPath
         )}`,
-        // These land in auth.users.raw_user_meta_data, which is where the
-        // handle_new_user() trigger reads them from to create the row in
-        // public.profiles. Rename a key here and the matching name in
-        // supabase/migrations/0001_core_schema.sql has to change with it --
-        // nothing will error, the profile will just come out blank.
+        // These land in auth.users.raw_user_meta_data, where the
+        // handle_new_user() trigger reads them to create public.profiles. Rename
+        // a key here and the matching name in 0001_core_schema.sql must change
+        // with it -- nothing errors, the profile just comes out blank.
         data: {
           first_name: form.first,
           last_name: form.last,
@@ -61,15 +66,8 @@ export default function SignupForm() {
       return;
     }
 
-    // Two possible outcomes, and which one happens depends on a Supabase
-    // project setting (Authentication -> Providers -> Email -> Confirm email):
-    //
-    //   confirmation ON  -- no session yet. They must click the emailed link
-    //                       first. data.session is null.
-    //   confirmation OFF -- signed in immediately. data.session is present.
-    //
-    // Confirmation stays ON for this ministry: it is what stops someone
-    // registering a family under an address they do not own.
+    // confirmation ON  -> no session yet; they must click the emailed link.
+    // confirmation OFF -> signed in immediately. Confirmation stays ON here.
     if (data.session) {
       router.push(nextPath);
       router.refresh();

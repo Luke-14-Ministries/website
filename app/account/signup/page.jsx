@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import SignupForm from './SignupForm';
 
 export const metadata = { title: 'Create Account' };
@@ -13,7 +14,12 @@ export default function SignupPage() {
           One account for camp registration and giving — for both families and
           volunteers.
         </p>
-        <SignupForm />
+        {/* Suspense is required, not decorative: SignupForm reads the ?next=
+            query string, and Next.js refuses to prerender a page that does that
+            without a boundary. Same pattern as app/account/page.jsx. */}
+        <Suspense fallback={<div className="h-96 rounded-lg bg-white/60" />}>
+          <SignupForm />
+        </Suspense>
       </div>
     </section>
   );

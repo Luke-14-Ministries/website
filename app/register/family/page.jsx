@@ -1,8 +1,68 @@
+import Link from 'next/link';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import FamilyWizard from './FamilyWizard';
 
 export const metadata = { title: 'Family Registration — Camp Celebrate' };
 
-export default function FamilyRegisterPage() {
+// A server component: it runs on the server, so it can check who is logged in and
+// read the published camp weeks straight from the database before rendering.
+export default async function FamilyRegisterPage() {
+  const user = await getCurrentUser();
+
+  // Registration saves to the family's own account, and row-level security ties
+  // every write to a logged-in user -- so the door is a login, not an anonymous
+  // form. Send guests to log in (or sign up) and back here.
+  if (!user) {
+    const next = encodeURIComponent('/register/family/');
+    return (
+      <section className="bg-neutral-50 py-12">
+        <div className="container-site max-w-xl mx-auto text-center">
+          <h1 className="text-4xl font-bold">
+            Camp Celebrate 2026 — Family Registration
+          </h1>
+          <p className="mt-4 text-neutral-700">
+            Please log in or create an account first. Your registration is saved to
+            your account so you can leave and come back to it, and only you and camp
+            staff can ever see it.
+          </p>
+          <div className="mt-6 flex gap-3 justify-center">
+            <Link href={`/account/?next=${next}`} className="btn-primary">
+              Log In
+            </Link>
+            <Link href={`/account/signup/?next=${next}`} className="btn-outline">
+              Create Account
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Published Camp Celebrate weeks and their single enrollment option each.
+  // RLS already limits this to published rows, so this is safe to run as the family.
+  const supabase = await createClient();
+  const { data: events } = await supabase
+    .from('events')
+    .select('id, name, starts_on, ends_on, event_options ( id, fee_cents, published )')
+    .eq('published', true)
+    .order('starts_on', { ascending: true });
+
+  const weeks = (events ?? [])
+    .map((e) => {
+      const opt = (e.event_options ?? []).find((o) => o.published);
+      return opt
+        ? {
+            eventId: e.id,
+            optionId: opt.id,
+            name: e.name,
+            startsOn: e.starts_on,
+            endsOn: e.ends_on,
+            feeCents: opt.fee_cents,
+          }
+        : null;
+    })
+    .filter(Boolean);
+
   return (
     <section className="bg-neutral-50 py-12">
       <div className="container-site max-w-3xl mx-auto">
@@ -10,9 +70,15 @@ export default function FamilyRegisterPage() {
           Camp Celebrate 2026 — Family Registration
         </h1>
         <p className="text-center text-neutral-600 mt-3 mb-8">
-          Campers: Week 1 July 20–24 · Week 2 July 27–31 · $495 per family
+          Signed in as {user.email}. Your answers save to your account.
         </p>
-        <FamilyWizard />
+        {weeks.length === 0 ? (
+          <p className="text-center text-neutral-600">
+            Registration isn&rsquo;t open just yet. Please check back soon.
+          </p>
+        ) : (
+          <FamilyWizard weeks={weeks} defaultEmail={user.email} />
+        )}
       </div>
     </section>
   );

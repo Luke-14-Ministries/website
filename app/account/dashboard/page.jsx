@@ -186,7 +186,9 @@ export default async function DashboardPage() {
                   return (
                     <li key={m.id}>
                       {m.first_name} {m.last_name}
-                      {age != null && <span className="text-neutral-500"> (age {age})</span>}
+                      <span className="text-neutral-500">
+                        {age != null ? ` (age ${age})` : ' (no DOB provided)'}
+                      </span>
                     </li>
                   );
                 })}

@@ -2,18 +2,31 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-
-const weeks = [
-  'Week 1: July 20–24, 2026',
-  'Week 2: July 27–31, 2026',
-];
+import { submitFamilyRegistration } from './actions';
 
 const emptyMember = {
-  name: '',
-  age: '',
+  firstName: '',
+  lastName: '',
+  dob: '',
   role: 'Camper with disability',
   needs: '',
   diet: '',
+};
+
+const money = (cents) =>
+  `$${((cents ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}`;
+
+const fmtWeek = (w) => {
+  // startsOn / endsOn are ISO date strings (YYYY-MM-DD). Format without timezone
+  // surprises by parsing the parts directly.
+  const d = (s) => {
+    const [y, m, day] = s.split('-').map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+  return `${w.name} · ${d(w.startsOn)}–${d(w.endsOn)}`;
 };
 
 function Steps({ step }) {
@@ -41,19 +54,26 @@ function Steps({ step }) {
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
 const label = 'block font-semibold mb-1.5 mt-4 first:mt-0';
 
-export default function FamilyWizard() {
+export default function FamilyWizard({ weeks, defaultEmail = '' }) {
   const [step, setStep] = useState(0);
   const [family, setFamily] = useState({
-    contact: '',
-    email: '',
+    contactFirst: '',
+    contactLast: '',
+    email: defaultEmail,
     phone: '',
     address: '',
     church: '',
   });
   const [members, setMembers] = useState([{ ...emptyMember }]);
-  const [week, setWeek] = useState(weeks[0]);
+  const [weekIdx, setWeekIdx] = useState(0);
   const [notes, setNotes] = useState('');
-  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
+
+  const week = weeks[weekIdx] ?? weeks[0];
+  const namedCount = members.filter((m) => m.firstName.trim() && m.lastName.trim()).length;
+  const total = (week?.feeCents ?? 0) * namedCount;
 
   const setF = (k) => (e) => setFamily({ ...family, [k]: e.target.value });
   const setM = (i, k) => (e) => {
@@ -61,20 +81,43 @@ export default function FamilyWizard() {
     setMembers(next);
   };
 
-  if (done) {
+  async function handleSubmit() {
+    setError('');
+    setBusy(true);
+    try {
+      const res = await submitFamilyRegistration({
+        family,
+        members,
+        eventId: week.eventId,
+        optionId: week.optionId,
+        notes,
+      });
+      if (res?.ok) {
+        setResult(res);
+      } else {
+        setError(res?.error || 'Something went wrong. Please try again.');
+      }
+    } catch (e) {
+      setError('Something went wrong submitting your registration. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (result) {
     return (
       <div className="rounded-lg border-2 border-brand bg-brand-light p-8 text-center">
-        <h2 className="text-2xl font-bold text-brand-dark">
-          Registration submitted (preview only)
-        </h2>
+        <h2 className="text-2xl font-bold text-brand-dark">Registration submitted</h2>
         <p className="mt-3 text-lg">
-          In the live version this saves your registration, emails a
-          confirmation, and takes you to secure payment of the $495 camp fee
-          (deposit or pay-in-full) through Stripe. Camp staff would see your
-          family in their admin dashboard immediately.
+          Thank you! We saved {result.saved} {result.saved === 1 ? 'person' : 'people'} for{' '}
+          <strong>{week?.name}</strong>. Camp staff will review your registration and follow
+          up. You can see it any time on your dashboard.
         </p>
-        <Link href="/account/dashboard" className="btn-primary mt-6">
-          View Sample Dashboard
+        <p className="mt-2 text-sm text-neutral-600">
+          Payment isn&rsquo;t collected yet in this build &mdash; that step is coming.
+        </p>
+        <Link href="/account/dashboard/" className="btn-primary mt-6">
+          Go to My Dashboard
         </Link>
       </div>
     );
@@ -86,8 +129,16 @@ export default function FamilyWizard() {
 
       {step === 0 && (
         <div>
-          <label className={label}>Primary contact name</label>
-          <input className={input} value={family.contact} onChange={setF('contact')} />
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={label}>Primary contact first name</label>
+              <input className={input} value={family.contactFirst} onChange={setF('contactFirst')} />
+            </div>
+            <div>
+              <label className={label}>Primary contact last name</label>
+              <input className={input} value={family.contactLast} onChange={setF('contactLast')} />
+            </div>
+          </div>
           <label className={label}>Email</label>
           <input type="email" className={input} value={family.email} onChange={setF('email')} />
           <label className={label}>Phone</label>
@@ -117,21 +168,29 @@ export default function FamilyWizard() {
               </div>
               <div className="grid sm:grid-cols-2 gap-4 mt-2">
                 <div>
-                  <label className={label}>Full name</label>
-                  <input className={input} value={m.name} onChange={setM(i, 'name')} />
+                  <label className={label}>First name</label>
+                  <input className={input} value={m.firstName} onChange={setM(i, 'firstName')} />
                 </div>
                 <div>
-                  <label className={label}>Age</label>
-                  <input type="number" className={input} value={m.age} onChange={setM(i, 'age')} />
+                  <label className={label}>Last name</label>
+                  <input className={input} value={m.lastName} onChange={setM(i, 'lastName')} />
                 </div>
               </div>
-              <label className={label}>Role</label>
-              <select className={input} value={m.role} onChange={setM(i, 'role')}>
-                <option>Camper with disability</option>
-                <option>Parent/Guardian</option>
-                <option>Sibling</option>
-                <option>Caregiver</option>
-              </select>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={label}>Date of birth</label>
+                  <input type="date" className={input} value={m.dob} onChange={setM(i, 'dob')} />
+                </div>
+                <div>
+                  <label className={label}>Role</label>
+                  <select className={input} value={m.role} onChange={setM(i, 'role')}>
+                    <option>Camper with disability</option>
+                    <option>Parent/Guardian</option>
+                    <option>Sibling</option>
+                    <option>Caregiver</option>
+                  </select>
+                </div>
+              </div>
               <label className={label}>
                 Disability / support needs (buddies, mobility, medical)
               </label>
@@ -154,24 +213,22 @@ export default function FamilyWizard() {
         <div>
           <label className={label}>Choose your week</label>
           <div className="space-y-2 mt-2">
-            {weeks.map((w) => (
+            {weeks.map((w, i) => (
               <label
-                key={w}
+                key={w.optionId}
                 className="flex items-center gap-3 rounded border border-neutral-300 p-3 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-light"
               >
                 <input
                   type="radio"
                   name="week"
-                  checked={week === w}
-                  onChange={() => setWeek(w)}
+                  checked={weekIdx === i}
+                  onChange={() => setWeekIdx(i)}
                 />
-                <span className="font-semibold">{w}</span>
+                <span className="font-semibold">{fmtWeek(w)}</span>
               </label>
             ))}
           </div>
-          <label className={label}>
-            Anything else camp staff should know?
-          </label>
+          <label className={label}>Anything else camp staff should know?</label>
           <textarea
             className={input}
             rows={4}
@@ -179,11 +236,12 @@ export default function FamilyWizard() {
             onChange={(e) => setNotes(e.target.value)}
           />
           <div className="mt-4 rounded bg-brand-light p-4">
-            <p className="font-semibold">Camp fee: $495 per family</p>
+            <p className="font-semibold">
+              Camp fee: {money(week?.feeCents)} per person
+            </p>
             <p className="text-sm text-neutral-600">
-              Payment (deposit or pay-in-full) happens on the next screen in
-              the live version. Scholarships available — contact
-              camp@luke14ministries.net.
+              Scholarships available &mdash; contact camp@luke14ministries.net. Payment is
+              collected in a later step (not in this build).
             </p>
           </div>
         </div>
@@ -193,20 +251,24 @@ export default function FamilyWizard() {
         <div className="space-y-4">
           <h3 className="text-xl font-bold">Review</h3>
           <p>
-            <strong>Contact:</strong> {family.contact || '—'} ·{' '}
-            {family.email || '—'} · {family.phone || '—'}
+            <strong>Contact:</strong>{' '}
+            {`${family.contactFirst} ${family.contactLast}`.trim() || '—'} · {family.email || '—'} ·{' '}
+            {family.phone || '—'}
           </p>
           <p>
-            <strong>Week:</strong> {week}
+            <strong>Week:</strong> {week ? fmtWeek(week) : '—'}
           </p>
           <div>
-            <strong>Family members ({members.length}):</strong>
+            <strong>Family members ({namedCount}):</strong>
             <ul className="list-disc pl-6 mt-1">
-              {members.map((m, i) => (
-                <li key={i}>
-                  {m.name || 'Unnamed'} ({m.age || '?'}) — {m.role}
-                </li>
-              ))}
+              {members
+                .filter((m) => m.firstName.trim() && m.lastName.trim())
+                .map((m, i) => (
+                  <li key={i}>
+                    {m.firstName} {m.lastName}
+                    {m.dob ? ` (b. ${m.dob})` : ''} — {m.role}
+                  </li>
+                ))}
             </ul>
           </div>
           {notes && (
@@ -215,9 +277,19 @@ export default function FamilyWizard() {
             </p>
           )}
           <p className="rounded bg-brand-light p-4">
-            <strong>Total: $495</strong> — payment collected at the next step
-            in the live version.
+            <strong>
+              Total: {money(total)}
+            </strong>{' '}
+            — {namedCount} × {money(week?.feeCents)}. Payment is collected in a later step.
           </p>
+          {error && (
+            <p
+              role="alert"
+              className="rounded border border-red-300 bg-red-50 px-4 py-3 text-red-800"
+            >
+              {error}
+            </p>
+          )}
         </div>
       )}
 
@@ -225,7 +297,7 @@ export default function FamilyWizard() {
         <button
           type="button"
           className="btn-outline !py-2 disabled:opacity-40"
-          disabled={step === 0}
+          disabled={step === 0 || busy}
           onClick={() => setStep(step - 1)}
         >
           Back
@@ -241,10 +313,11 @@ export default function FamilyWizard() {
         ) : (
           <button
             type="button"
-            className="btn-gold !py-2"
-            onClick={() => setDone(true)}
+            className="btn-gold !py-2 disabled:opacity-50"
+            disabled={busy || namedCount === 0}
+            onClick={handleSubmit}
           >
-            Submit &amp; Continue to Payment
+            {busy ? 'Submitting…' : 'Submit Registration'}
           </button>
         )}
       </div>

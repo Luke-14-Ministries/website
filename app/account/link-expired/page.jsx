@@ -37,7 +37,7 @@ export default function LinkExpiredPage() {
             If it keeps happening, email{' '}
             <a
               href="mailto:info@luke14ministries.net"
-              className="text-brand underline break-all"
+              className="text-brand underline break-words"
             >
               info@luke14ministries.net
             </a>{' '}

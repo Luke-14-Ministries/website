@@ -30,7 +30,7 @@ export default function ForgotPasswordForm() {
       <div className="rounded-lg border border-neutral-200 shadow bg-white p-6 sm:p-8">
         <h2 className="text-2xl font-bold mb-3">Check your email</h2>
         <p className="text-neutral-700">
-          If there is an account for <strong className="break-all">{email}</strong>,
+          If there is an account for <strong className="break-words">{email}</strong>,
           a link to set a new password is on its way. It works once and expires
           after an hour.
         </p>

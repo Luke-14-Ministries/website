@@ -20,7 +20,7 @@ export default async function CheckEmailPage({ searchParams }) {
             {email ? (
               <>
                 {' '}
-                to <strong className="break-all">{email}</strong>
+                to <strong className="break-words">{email}</strong>
               </>
             ) : null}
             . Open it to finish setting up your account and continue to
@@ -38,7 +38,7 @@ export default async function CheckEmailPage({ searchParams }) {
             Still nothing? Email us at{' '}
             <a
               href="mailto:info@luke14ministries.net"
-              className="text-brand underline break-all"
+              className="text-brand underline break-words"
             >
               info@luke14ministries.net
             </a>{' '}

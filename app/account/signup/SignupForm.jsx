@@ -66,6 +66,23 @@ export default function SignupForm() {
       return;
     }
 
+    // Supabase does not error when the email is already registered -- that would
+    // let someone probe which addresses have accounts. Instead it returns a user
+    // whose identities array is empty. That is how we catch a duplicate sign-up
+    // and point the person to logging in, rather than silently showing a "check
+    // your email" screen for a confirmation link that will never arrive.
+    if (
+      data?.user &&
+      Array.isArray(data.user.identities) &&
+      data.user.identities.length === 0
+    ) {
+      setError(
+        'An account already exists for this email. Please log in instead, or use “Forgot password” if you need to reset it.'
+      );
+      setBusy(false);
+      return;
+    }
+
     // confirmation ON  -> no session yet; they must click the emailed link.
     // confirmation OFF -> signed in immediately. Confirmation stays ON here.
     if (data.session) {

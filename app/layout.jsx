@@ -2,6 +2,7 @@ import './globals.css';
 import PreviewBanner from '@/components/PreviewBanner';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import IdleTimeout from '@/components/IdleTimeout';
 
 export const metadata = {
   title: {
@@ -24,6 +25,9 @@ export default function RootLayout({ children }) {
         <Header />
         <main>{children}</main>
         <Footer />
+        {/* Idle auto-logout. Renders nothing unless someone is signed in and has
+            gone quiet long enough to warrant the warning. */}
+        <IdleTimeout />
       </body>
     </html>
   );

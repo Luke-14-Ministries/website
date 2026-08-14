@@ -23,6 +23,10 @@ export default function LoginForm() {
   // visitor away from a signed-in page, so login can send them back there.
   const next = searchParams.get('next') || '/account/dashboard/';
 
+  // Set by the idle auto-logout when it signs someone out, so the login page can
+  // explain why they landed back here.
+  const timedOut = searchParams.get('timeout');
+
   const supabase = createClient();
 
   async function handleSubmit(e) {
@@ -148,6 +152,12 @@ export default function LoginForm() {
         Use the email address and password you set when you created your
         account.
       </p>
+
+      {timedOut && !error && (
+        <p className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+          You were signed out after a period of inactivity. Please log in again.
+        </p>
+      )}
 
       {error && (
         <p

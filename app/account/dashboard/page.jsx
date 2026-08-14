@@ -39,6 +39,12 @@ const STATUS = {
   cancelled: ['Cancelled', 'bg-neutral-200 text-neutral-500'],
 };
 
+const STAFF_ROLE_LABEL = {
+  admin: 'Administrator',
+  registrar: 'Registrar',
+  coordinator: 'Coordinator',
+};
+
 // A disabled "coming soon" button, so the dashboard never shows a control that
 // silently does nothing.
 function SoonButton({ children }) {
@@ -125,11 +131,15 @@ export default async function DashboardPage() {
         {staff && (
           <div className="mb-8 rounded-lg border border-brand/30 bg-brand-light p-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-semibold text-brand-dark">You also have staff access</p>
+              <p className="font-semibold text-brand-dark">
+                You also have staff access{' '}
+                <span className="text-neutral-700">
+                  [{staff.title || STAFF_ROLE_LABEL[staff.role] || staff.role}
+                  {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
+                </span>
+              </p>
               <p className="text-sm text-neutral-600">
-                This page is your own family view. The staff area is where you see everyone —{' '}
-                {staff.title || staff.role}
-                {staff.can_view_sensitive ? ', with sensitive access' : ''}.
+                This page is your own family view; the staff area is where you see everyone.
               </p>
             </div>
             <Link href="/admin" className="btn-primary !py-2 shrink-0">

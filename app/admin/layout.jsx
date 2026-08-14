@@ -63,21 +63,16 @@ export default async function AdminLayout({ children }) {
       <div className="container-site py-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Staff Admin</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-brand text-white px-3 py-0.5 text-sm font-semibold">
-                {(ROLE_INFO[staff.role] ?? {}).label ?? staff.role}
+            <h1 className="text-2xl font-bold">
+              Staff Admin{' '}
+              <span className="text-brand">
+                [{(ROLE_INFO[staff.role] ?? {}).label ?? staff.role}
+                {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
               </span>
-              {staff.can_view_sensitive && (
-                <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-0.5 text-xs font-semibold">
-                  Sensitive access
-                </span>
-              )}
-              <span className="text-sm text-neutral-500">{staff.email}</span>
-            </div>
+            </h1>
             <p className="text-sm text-neutral-500 mt-1">
               {(ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
-              {staff.can_view_sensitive ? ' Plus medical & support details.' : ''}
+              {staff.can_view_sensitive ? ' Plus medical & support details.' : ''} · {staff.email}
             </p>
           </div>
           <Link href="/account/dashboard/" className="btn-outline !py-1.5 text-sm">

@@ -1,9 +1,32 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import LoginForm from './LoginForm';
 
 export const metadata = { title: 'My Account' };
 
-export default function AccountPage() {
+// This is the login page -- but "My Account" in the site nav points here, and a
+// signed-in person clicking it should land on their dashboard, not be shown a
+// login form they don't need. So if there's already a valid session, send them
+// on: to wherever they were headed (?next=, when middleware bounced them here)
+// or to the dashboard. Only a genuinely logged-out visitor sees the form.
+export default async function AccountPage({ searchParams }) {
+  const params = await searchParams;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const rawNext = typeof params?.next === 'string' ? params.next : '';
+    const dest =
+      rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+        ? rawNext
+        : '/account/dashboard/';
+    redirect(dest);
+  }
+
   return (
     <section className="bg-brand-light min-h-[60vh] py-14">
       <div className="container-site max-w-md mx-auto">

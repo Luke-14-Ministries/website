@@ -56,6 +56,17 @@ export default async function AdminLayout({ children }) {
     redirect('/account/security?required=1');
   }
 
+  // The person's own name, so the header shows clearly WHO is signed in --
+  // not just their role and email.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('first_name, last_name')
+    .eq('id', staff.userId)
+    .maybeSingle();
+  const fullName =
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
+    staff.email;
+
   const items = NAV.filter((n) => can(staff, n.need));
 
   return (
@@ -70,14 +81,20 @@ export default async function AdminLayout({ children }) {
                 {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
               </span>
             </h1>
-            <p className="text-sm text-neutral-500 mt-1">
+            <p className="text-sm text-neutral-700 mt-1">
+              Signed in as <span className="font-semibold">{fullName}</span> · {staff.email}
+            </p>
+            <p className="text-xs text-neutral-500 mt-0.5">
               {(ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
-              {staff.can_view_sensitive ? ' Plus medical & support details.' : ''} · {staff.email}
+              {staff.can_view_sensitive ? ' Plus medical & support details.' : ''}
             </p>
           </div>
-          <Link href="/account/dashboard/" className="btn-outline !py-1.5 text-sm">
-            My Account
-          </Link>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-neutral-700 hidden sm:inline">{fullName}</span>
+            <Link href="/account/dashboard/" className="btn-outline !py-1.5 text-sm">
+              My Account
+            </Link>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[220px_1fr]">

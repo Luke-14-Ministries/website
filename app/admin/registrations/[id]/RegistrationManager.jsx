@@ -14,7 +14,7 @@ import {
   updatePerson,
   updateHousehold,
   addParticipant,
-  removeParticipant,
+  deleteParticipantPermanently,
 } from './actions';
 
 const STATUS_OPTIONS = [
@@ -139,11 +139,11 @@ function PersonEditor({ registrationId, person, onDone }) {
     <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>First name</label>
+          <label className={labelCls}>First name <span className="text-red-600">*</span></label>
           <input className={inputCls} value={f.first_name} onChange={set('first_name')} />
         </div>
         <div>
-          <label className={labelCls}>Last name</label>
+          <label className={labelCls}>Last name <span className="text-red-600">*</span></label>
           <input className={inputCls} value={f.last_name} onChange={set('last_name')} />
         </div>
         <div>
@@ -195,17 +195,41 @@ function ParticipantRow({ registrationId, participant }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
   const p = participant.person ?? {};
+  const isCancelled = participant.status === 'cancelled';
 
-  function remove() {
-    if (!confirm(`Remove ${p.first_name} ${p.last_name} from this camp week? Their family record stays; they are just taken off this week.`)) {
-      return;
-    }
+  function run(fn) {
     setError('');
     start(async () => {
-      const res = await removeParticipant(registrationId, participant.id);
+      const res = await fn();
       if (!res.ok) setError(res.error);
       else router.refresh();
     });
+  }
+
+  // Everyday "remove" is reversible: it just sets the status to cancelled, which
+  // you can undo with Restore. Nothing leaves the database.
+  function cancel() {
+    if (
+      !confirm(
+        `Remove ${p.first_name} ${p.last_name} from this week?\n\nThis is reversible — they move to "cancelled" and you can Restore them at any time. Nothing is deleted.`
+      )
+    )
+      return;
+    run(() => setParticipantStatus(registrationId, participant.id, 'cancelled'));
+  }
+  function restore() {
+    run(() => setParticipantStatus(registrationId, participant.id, 'submitted'));
+  }
+  // Only offered on an already-cancelled row, and it says plainly that it cannot
+  // be undone.
+  function hardDelete() {
+    if (
+      !confirm(
+        `Permanently delete ${p.first_name} ${p.last_name} from this registration?\n\nThis CANNOT be undone. Their household record stays; only this week's entry is removed.`
+      )
+    )
+      return;
+    run(() => deleteParticipantPermanently(registrationId, participant.id));
   }
 
   return (
@@ -226,16 +250,24 @@ function ParticipantRow({ registrationId, participant }) {
         <StatusControl registrationId={registrationId} participant={participant} />
       </div>
 
-      <div className="mt-2 flex gap-3 text-sm">
-        <button
-          onClick={() => setEditing((v) => !v)}
-          className="text-brand underline"
-        >
+      <div className="mt-2 flex flex-wrap gap-3 text-sm">
+        <button onClick={() => setEditing((v) => !v)} className="text-brand underline">
           {editing ? 'Close' : 'Edit details'}
         </button>
-        <button onClick={remove} disabled={pending} className="text-red-700 underline">
-          {pending ? 'Removing…' : 'Remove from week'}
-        </button>
+        {isCancelled ? (
+          <>
+            <button onClick={restore} disabled={pending} className="text-brand underline">
+              {pending ? 'Working…' : 'Restore'}
+            </button>
+            <button onClick={hardDelete} disabled={pending} className="text-red-700 underline">
+              {pending ? 'Working…' : 'Permanently delete'}
+            </button>
+          </>
+        ) : (
+          <button onClick={cancel} disabled={pending} className="text-red-700 underline">
+            {pending ? 'Working…' : 'Cancel (remove from week)'}
+          </button>
+        )}
       </div>
       <ErrorNote>{error}</ErrorNote>
 
@@ -297,11 +329,11 @@ function AddPerson({ registrationId, options }) {
       <h4 className="font-semibold mb-3">Add a person</h4>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>First name</label>
+          <label className={labelCls}>First name <span className="text-red-600">*</span></label>
           <input className={inputCls} value={f.first_name} onChange={set('first_name')} />
         </div>
         <div>
-          <label className={labelCls}>Last name</label>
+          <label className={labelCls}>Last name <span className="text-red-600">*</span></label>
           <input className={inputCls} value={f.last_name} onChange={set('last_name')} />
         </div>
         <div>
@@ -319,7 +351,7 @@ function AddPerson({ registrationId, options }) {
           </select>
         </div>
         <div className="sm:col-span-2">
-          <label className={labelCls}>Camp option (sets the fee)</label>
+          <label className={labelCls}>Camp option (sets the fee) <span className="text-red-600">*</span></label>
           <select className={inputCls} value={f.event_option_id} onChange={set('event_option_id')}>
             {options.length === 0 && <option value="">No options published</option>}
             {options.map((o) => (
@@ -362,6 +394,18 @@ function HouseholdEditor({ registrationId, household }) {
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   function save() {
+    // A soft check, not a hard stop: staff sometimes genuinely don't have a
+    // phone or email yet, so we ask rather than block. (Hard-required fields
+    // like a person's name are enforced separately, on the server.)
+    const missing = [];
+    if (!f.phone.trim()) missing.push('phone number');
+    if (!f.email.trim()) missing.push('email');
+    if (
+      missing.length &&
+      !confirm(`This family has no ${missing.join(' and no ')} on file. Save anyway?`)
+    )
+      return;
+
     setError('');
     start(async () => {
       const res = await updateHousehold(registrationId, household.id, f);

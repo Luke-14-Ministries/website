@@ -208,13 +208,33 @@ export async function addParticipant(registrationId, input) {
   return { ok: true };
 }
 
-// #15 -- remove someone from this camp. Deletes the participant row, not the
-// person: the family record stays, they are simply no longer on this week.
-export async function removeParticipant(registrationId, participantId) {
+// #15 -- permanently delete a participant. Deliberately a two-step safety net:
+// the everyday "remove from week" is a reversible status change to 'cancelled'
+// (setParticipantStatus above), and ONLY a participant already cancelled can be
+// hard-deleted here. So a single misclick can never wipe a real registration --
+// you cancel first (undoable), and deleting is a separate, deliberate second
+// action. Even then it removes only this week's entry, never the person's
+// household record.
+export async function deleteParticipantPermanently(registrationId, participantId) {
   const { error: authError } = await requireRegistrar();
   if (authError) return { ok: false, error: authError };
 
   const supabase = await createClient();
+
+  const { data: row, error: readError } = await supabase
+    .from('registration_participants')
+    .select('status')
+    .eq('id', participantId)
+    .maybeSingle();
+  if (readError) return { ok: false, error: readError.message };
+  if (!row) return { ok: false, error: 'That entry no longer exists.' };
+  if (row.status !== 'cancelled') {
+    return {
+      ok: false,
+      error: 'Cancel this person first (which is reversible), then you can permanently delete them.',
+    };
+  }
+
   const { error } = await supabase
     .from('registration_participants')
     .delete()

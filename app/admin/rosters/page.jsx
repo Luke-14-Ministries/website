@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
@@ -55,8 +56,9 @@ export default async function RostersPage() {
     <div>
       <h2 className="text-xl font-bold mb-1">Rosters</h2>
       <p className="text-sm text-neutral-500 mb-6">
-        Everyone registered, by camp week. Medical and dietary detail lives on its
-        own permission and will have dedicated pages.
+        Everyone registered, by camp week. Select a household to review it, change a status, or
+        add and edit people. Medical and dietary detail lives on its own permission and will have
+        dedicated pages.
       </p>
 
       {eventsList.length === 0 && <p className="text-neutral-500">No camp weeks published yet.</p>}
@@ -95,7 +97,12 @@ export default async function RostersPage() {
                           <td className="px-4 py-2">
                             {i === 0 ? (
                               <div>
-                                <div className="font-medium">{r.households?.display_name}</div>
+                                <Link
+                                  href={`/admin/registrations/${r.id}`}
+                                  className="font-medium text-brand underline"
+                                >
+                                  {r.households?.display_name}
+                                </Link>
                                 <div className="text-neutral-500">
                                   {r.households?.email}
                                   {r.households?.phone ? ` · ${r.households.phone}` : ''}

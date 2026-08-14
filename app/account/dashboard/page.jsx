@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getStaff } from '@/lib/staff';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -64,6 +65,14 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/account/?next=/account/dashboard/');
 
+  // The same login may also be staff. This is the one-account design: staff are
+  // ordinary accounts flagged in public.staff, not a separate login. When that
+  // is true we surface a clear door into the staff area -- and the staff area
+  // links back here -- so a person who is both a parent and a volunteer (or
+  // registrar) always knows which "hat" they are wearing. Their family view
+  // (here) still shows only their own household; the staff view shows everyone.
+  const staff = await getStaff();
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('first_name, last_name')
@@ -111,6 +120,23 @@ export default async function DashboardPage() {
             </button>
           </form>
         </div>
+
+        {/* Staff door -- only when this login is also active staff. */}
+        {staff && (
+          <div className="mb-8 rounded-lg border border-brand/30 bg-brand-light p-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-brand-dark">You also have staff access</p>
+              <p className="text-sm text-neutral-600">
+                This page is your own family view. The staff area is where you see everyone —{' '}
+                {staff.title || staff.role}
+                {staff.can_view_sensitive ? ', with sensitive access' : ''}.
+              </p>
+            </div>
+            <Link href="/admin" className="btn-primary !py-2 shrink-0">
+              Go to Staff Area
+            </Link>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Registrations -- real */}
@@ -220,6 +246,11 @@ export default async function DashboardPage() {
               <li>
                 <Link href="/account/reset-password" className="text-brand underline">
                   Change password
+                </Link>
+              </li>
+              <li>
+                <Link href="/account/security" className="text-brand underline">
+                  Two-factor authentication
                 </Link>
               </li>
               <li className="text-neutral-400">Email preferences</li>

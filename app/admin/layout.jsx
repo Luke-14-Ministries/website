@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
+import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Staff Admin — Luke 14 Ministries' };
 
@@ -17,6 +18,7 @@ const NAV = [
   { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: false },
   { href: '/admin/payments', label: 'Payments', need: 'registrar', ready: false },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: false },
+  { href: '/admin/security', label: 'Two-Factor Resets', need: 'admin', ready: true },
   { href: '/admin/staff', label: 'Staff & Access', need: 'admin', ready: false },
 ];
 
@@ -24,6 +26,18 @@ export default async function AdminLayout({ children }) {
   const staff = await getStaff();
   // Not staff (or not signed in) -> bounce to login, then back here.
   if (!staff) redirect('/account/?next=/admin/');
+
+  // Staff must have two-factor turned on before they can open the staff area,
+  // because everything in here is other families' information. getAuthenticator-
+  // AssuranceLevel reports nextLevel === 'aal2' exactly when a verified factor
+  // exists; anything else means no factor, so send them to set one up. This is
+  // an enrolment gate, not a per-visit challenge -- the login form is what asks
+  // for the code each time a staffer with a factor signs in.
+  const supabase = await createClient();
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel !== 'aal2') {
+    redirect('/account/security?required=1');
+  }
 
   const items = NAV.filter((n) => can(staff, n.need));
 

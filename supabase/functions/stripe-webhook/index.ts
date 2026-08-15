@@ -5,7 +5,8 @@
 // writes the payment into public.payments using the Supabase service-role key
 // -- which is exactly why this is an Edge Function inside Supabase and not a
 // route in the website: that key must never live in the public app. The
-// payments RLS is written to expect this (card/bank rows come from here).
+// payments RLS is written to expect this (card/bank rows come from here), and
+// migration 0006 grants service_role the DML this write needs.
 //
 // Idempotent: rows are upserted on stripe_payment_intent_id (unique index in
 // migration 0005), so Stripe's retries can't record a payment twice.
@@ -14,30 +15,38 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import Stripe from 'npm:stripe';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '');
-const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
-const admin = createClient(
-  Deno.env.get('SUPABASE_URL') ?? '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-  { auth: { persistSession: false, autoRefreshToken: false } }
-);
-
-const HANDLED = new Set([
-  'checkout.session.completed',
-  'checkout.session.async_payment_succeeded',
-  'checkout.session.async_payment_failed',
-]);
+function fail(where: string, message: string, status: number) {
+  console.error(`[stripe-webhook] ${where}: ${message}`);
+  return new Response(`${where}: ${message}`, { status });
+}
 
 Deno.serve(async (req) => {
+  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+  const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
+  if (!stripeKey) return fail('config', 'STRIPE_SECRET_KEY is not set', 500);
+  if (!webhookSecret) return fail('config', 'STRIPE_WEBHOOK_SECRET is not set', 500);
+
+  const stripe = new Stripe(stripeKey);
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+
   const sig = req.headers.get('stripe-signature');
   const body = await req.text();
   let event: Stripe.Event;
   try {
     event = await stripe.webhooks.constructEventAsync(body, sig ?? '', webhookSecret);
   } catch (e) {
-    return new Response(`Signature verification failed: ${(e as Error).message}`, { status: 400 });
+    return fail('signature', (e as Error).message, 400);
   }
 
+  const HANDLED = new Set([
+    'checkout.session.completed',
+    'checkout.session.async_payment_succeeded',
+    'checkout.session.async_payment_failed',
+  ]);
   if (!HANDLED.has(event.type)) {
     return new Response('ignored', { status: 200 });
   }
@@ -52,6 +61,9 @@ Deno.serve(async (req) => {
       typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id;
 
     if (!registrationId || !paymentIntentId || !(base > 0)) {
+      console.log(
+        `[stripe-webhook] nothing to record (registration=${registrationId}, intent=${paymentIntentId}, base=${base})`
+      );
       return new Response('nothing to record', { status: 200 });
     }
 
@@ -82,10 +94,13 @@ Deno.serve(async (req) => {
       },
       { onConflict: 'stripe_payment_intent_id' }
     );
-    if (error) return new Response(error.message, { status: 500 });
+    if (error) return fail('db-upsert', error.message, 500);
 
+    console.log(
+      `[stripe-webhook] recorded ${status} ${method} payment of ${base}¢ for registration ${registrationId}`
+    );
     return new Response('ok', { status: 200 });
   } catch (e) {
-    return new Response(String((e as Error)?.message ?? e), { status: 500 });
+    return fail('handler', String((e as Error)?.message ?? e), 500);
   }
 });

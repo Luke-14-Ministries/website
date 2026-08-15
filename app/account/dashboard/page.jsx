@@ -333,6 +333,12 @@ export default async function DashboardPage() {
               Online giving isn&rsquo;t live yet. Once it is, your giving history and
               receipts will appear here.
             </p>
+            <p className="mt-3 text-sm text-neutral-600">
+              Luke 14 Ministries is a registered <strong>501(c)(3)</strong> nonprofit
+              organization, and <strong>donations are tax-deductible</strong> to the extent
+              allowed by law. (Camp registration payments are not — they cover the costs of
+              camp, such as food, lodging, and activities.)
+            </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <SoonButton>Manage Recurring Gift</SoonButton>
               <SoonButton>Download Giving Statement</SoonButton>

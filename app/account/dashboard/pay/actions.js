@@ -94,6 +94,9 @@ export async function createCheckout({ registrationId, kind, method, coverFee, c
     method,
     kind,
     cover_fee: coverFee ? '1' : '0',
+    // Travels to the webhook so the emailed receipt can say what was paid for
+    // without another database lookup.
+    event_name: ev?.name ?? 'Camp registration',
   };
 
   try {

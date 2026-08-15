@@ -101,6 +101,75 @@ Deno.serve(async (req) => {
     console.log(
       `[stripe-webhook] recorded ${status} ${method} payment of ${base}¢ for registration ${registrationId}`
     );
+
+    // Branded receipt, sent from the ministry's own address via Resend. A
+    // failure here must never fail the webhook -- the payment IS recorded --
+    // so this logs and moves on. No RESEND_API_KEY set = receipts quietly off.
+    if (status !== 'failed') {
+      try {
+        const resendKey = Deno.env.get('RESEND_API_KEY');
+        const to = s.customer_details?.email ?? s.customer_email;
+        if (resendKey && to) {
+          const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
+          const eventName = md.event_name ?? 'Camp registration';
+          const kindLabel =
+            md.kind === 'deposit' ? 'Deposit' : md.kind === 'custom' ? 'Payment' : 'Balance payment';
+          const received = status === 'succeeded';
+          const subject = received
+            ? `Receipt: ${dollars(base)} received — ${eventName}`
+            : `Payment started: ${dollars(base)} — ${eventName}`;
+          const feeLine =
+            feeCover > 0
+              ? `<tr><td style="padding:4px 12px 4px 0;color:#555">Added to cover processing fee</td><td style="padding:4px 0;text-align:right">${dollars(feeCover)}</td></tr>`
+              : '';
+          const bankNote = received
+            ? ''
+            : `<p style="color:#8a6d1a;background:#fdf6e3;border:1px solid #f0e0b0;border-radius:6px;padding:10px 14px">Your bank transfer is on its way. It takes a few days to clear, and will show as &ldquo;clearing the bank&rdquo; on your dashboard until it settles. Nothing more is needed from you.</p>`;
+          const html = `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#222">
+  <div style="background:#14606a;color:#fff;padding:18px 24px;border-radius:8px 8px 0 0">
+    <h1 style="margin:0;font-size:20px">Luke 14 Ministries</h1>
+    <p style="margin:4px 0 0;font-size:13px;opacity:.85">${received ? 'Payment received — thank you!' : 'Payment started'}</p>
+  </div>
+  <div style="border:1px solid #dde3e4;border-top:none;padding:20px 24px;border-radius:0 0 8px 8px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:4px 12px 4px 0;color:#555">For</td><td style="padding:4px 0;text-align:right">${eventName} — ${kindLabel}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Amount</td><td style="padding:4px 0;text-align:right;font-weight:bold">${dollars(base)}</td></tr>
+      ${feeLine}
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Method</td><td style="padding:4px 0;text-align:right">${method === 'bank_transfer' ? 'Bank transfer' : 'Card'}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Date</td><td style="padding:4px 0;text-align:right">${today}</td></tr>
+    </table>
+    ${bankNote}
+    <p style="font-size:13px;color:#555">Your payments and their status are always visible on your <a href="https://luke14-ministries.vercel.app/account/dashboard/" style="color:#14606a">family dashboard</a>.</p>
+    <p style="font-size:12px;color:#888">Camp registration payments cover the costs of camp (food, lodging, and activities) and are not tax-deductible. Questions? Email <a href="mailto:info@luke14ministries.net" style="color:#14606a">info@luke14ministries.net</a> or call (423) 748-4954.</p>
+  </div>
+</div>`;
+          const resp = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Luke 14 Ministries <registration@luke14ministries.net>',
+              to: [to],
+              subject,
+              html,
+            }),
+          });
+          if (!resp.ok) {
+            console.error(`[stripe-webhook] receipt email failed: ${await resp.text()}`);
+          } else {
+            console.log(`[stripe-webhook] receipt emailed to ${to}`);
+          }
+        } else if (!resendKey) {
+          console.log('[stripe-webhook] RESEND_API_KEY not set — skipping receipt email');
+        }
+      } catch (e) {
+        console.error(`[stripe-webhook] receipt email error: ${String((e as Error)?.message ?? e)}`);
+      }
+    }
+
     return new Response('ok', { status: 200 });
   } catch (e) {
     return fail('handler', String((e as Error)?.message ?? e), 500);

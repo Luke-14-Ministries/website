@@ -191,6 +191,10 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
       <p className="mt-3 text-xs text-neutral-400">
         Payments are handled securely by Stripe. Card details never touch this site.
       </p>
+      <p className="mt-1 text-xs text-neutral-400">
+        Camp registration payments cover the costs of camp (food, lodging, and activities) and
+        are <strong>not tax-deductible</strong>.
+      </p>
     </div>
   );
 }

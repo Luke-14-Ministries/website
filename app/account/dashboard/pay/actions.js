@@ -13,7 +13,7 @@ import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
 import { coverFeeCents } from '@/lib/payments';
 
-export async function createCheckout({ registrationId, kind, method, coverFee }) {
+export async function createCheckout({ registrationId, kind, method, coverFee, customCents }) {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Please log in and try again.' };
 
@@ -24,7 +24,7 @@ export async function createCheckout({ registrationId, kind, method, coverFee })
   if (method !== 'card' && method !== 'bank') {
     return { ok: false, error: 'Please choose a payment method.' };
   }
-  if (kind !== 'deposit' && kind !== 'balance') {
+  if (kind !== 'deposit' && kind !== 'balance' && kind !== 'custom') {
     return { ok: false, error: 'Please choose what to pay.' };
   }
 
@@ -52,13 +52,29 @@ export async function createCheckout({ registrationId, kind, method, coverFee })
     const deposit = ev?.deposit_cents ?? 0;
     if (deposit <= 0) return { ok: false, error: 'No deposit amount is set for this camp yet.' };
     base = Math.min(deposit, balance);
+  } else if (kind === 'custom') {
+    // A whole number of cents, validated HERE -- never trusted from the browser
+    // beyond being the family's chosen figure. At least $1, never more than the
+    // remaining balance.
+    const amt = Math.round(Number(customCents));
+    if (!Number.isFinite(amt) || amt < 100) {
+      return { ok: false, error: 'Please enter an amount of at least $1.00.' };
+    }
+    if (amt > balance) {
+      return {
+        ok: false,
+        error: `That is more than the remaining balance. The most you can pay is $${(balance / 100).toFixed(2)}.`,
+      };
+    }
+    base = amt;
   } else {
     base = balance;
   }
 
   const fee = coverFee ? coverFeeCents(base, method) : 0;
   const charge = base + fee;
-  const label = `${ev?.name ?? 'Camp registration'} — ${kind === 'deposit' ? 'Deposit' : 'Balance'}`;
+  const KIND_LABEL = { deposit: 'Deposit', balance: 'Balance', custom: 'Payment' };
+  const label = `${ev?.name ?? 'Camp registration'} — ${KIND_LABEL[kind]}`;
 
   // Build the return URLs from the request's own host, so this works the same
   // on the production domain and on any preview deployment.

@@ -119,6 +119,47 @@ export default async function DashboardPage() {
     .select('registration_id, balance_cents');
   const balanceByReg = new Map((balances ?? []).map((b) => [b.registration_id, b.balance_cents]));
 
+  // Every payment on this household's registrations, newest first. RLS scopes
+  // this to the family's own rows. Shown as a history under each registration,
+  // so "what have we paid and has it cleared?" never needs a phone call.
+  const { data: paymentRows } = await supabase
+    .from('payments')
+    .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at')
+    .order('created_at', { ascending: false });
+  const paymentsByReg = new Map();
+  for (const p of paymentRows ?? []) {
+    if (!paymentsByReg.has(p.registration_id)) paymentsByReg.set(p.registration_id, []);
+    paymentsByReg.get(p.registration_id).push(p);
+  }
+  // Money currently mid-flight (a bank transfer that hasn't settled). The
+  // balance view already counts it as paid; the UI says "clearing" instead of
+  // "paid" so the two states never get confused.
+  const pendingByReg = new Map();
+  for (const p of paymentRows ?? []) {
+    if (p.status === 'processing') {
+      pendingByReg.set(
+        p.registration_id,
+        (pendingByReg.get(p.registration_id) ?? 0) + (p.amount_cents ?? 0)
+      );
+    }
+  }
+
+  const PAY_METHOD_LABEL = {
+    card: 'Card',
+    bank_transfer: 'Bank transfer',
+    check: 'Check',
+    cash: 'Cash',
+    other: 'Other',
+  };
+  const PAY_STATUS = {
+    pending: ['Started', 'bg-neutral-100 text-neutral-600'],
+    processing: ['Clearing the bank', 'bg-amber-100 text-amber-800'],
+    succeeded: ['Received', 'bg-green-100 text-green-800'],
+    failed: ['Failed — not received', 'bg-red-100 text-red-800'],
+    refunded: ['Refunded', 'bg-neutral-200 text-neutral-600'],
+  };
+  const payDate = (p) => (p.received_on ?? (p.created_at || '').slice(0, 10)) || '';
+
   return (
     <section className="bg-neutral-50 min-h-[70vh] py-12">
       <div className="container-site">
@@ -202,11 +243,49 @@ export default async function DashboardPage() {
                           <span className="font-semibold">Notes to staff:</span> {r.family_notes}
                         </p>
                       )}
+
+                      {/* Payment history: every payment on this registration, with
+                          its status -- including any fee-cover amount, recorded
+                          separately because it never counts toward the balance. */}
+                      {(paymentsByReg.get(r.id) ?? []).length > 0 && (
+                        <div className="mt-4 rounded border border-neutral-100 bg-neutral-50 p-3">
+                          <p className="text-sm font-semibold mb-2">Payments</p>
+                          <ul className="divide-y divide-neutral-100 text-sm">
+                            {(paymentsByReg.get(r.id) ?? []).map((p, i) => {
+                              const [label, cls] = PAY_STATUS[p.status] ?? PAY_STATUS.pending;
+                              return (
+                                <li
+                                  key={i}
+                                  className="flex flex-wrap items-center justify-between gap-2 py-1.5"
+                                >
+                                  <span className="text-neutral-700">
+                                    {payDate(p)} · {PAY_METHOD_LABEL[p.method] ?? p.method} ·{' '}
+                                    <span className="font-semibold">{money(p.amount_cents)}</span>
+                                    {(p.fee_cover_cents ?? 0) > 0 && (
+                                      <span className="text-neutral-500">
+                                        {' '}
+                                        + {money(p.fee_cover_cents)} fee cover
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span
+                                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
+
                       <div className="mt-4 flex flex-wrap items-center gap-3">
                         <PayPanel
                           registrationId={r.id}
                           balanceCents={balanceByReg.get(r.id)}
                           depositCents={r.events?.deposit_cents}
+                          pendingCents={pendingByReg.get(r.id)}
                         />
                         <SoonButton>Edit Registration</SoonButton>
                       </div>

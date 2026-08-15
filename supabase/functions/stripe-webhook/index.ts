@@ -77,15 +77,17 @@ Deno.serve(async (req) => {
       received_on = today;
     }
 
+    const feeCover = parseInt(md.fee_cents ?? '0', 10) || 0;
     const note =
-      md.cover_fee === '1'
-        ? `Paid online (${md.kind}); family added ${md.fee_cents}¢ to cover the processing fee.`
+      feeCover > 0
+        ? `Paid online (${md.kind}); payer added ${(feeCover / 100).toFixed(2)} to cover the processing fee.`
         : `Paid online (${md.kind}).`;
 
     const { error } = await admin.from('payments').upsert(
       {
         registration_id: registrationId,
         amount_cents: base,
+        fee_cover_cents: feeCover,
         method,
         status,
         received_on,

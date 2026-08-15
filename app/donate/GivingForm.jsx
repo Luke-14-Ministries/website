@@ -1,6 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+// The live giving form. Hands off to Stripe's hosted checkout -- no card
+// details ever touch this site. One-time gifts are live; monthly recurring
+// giving is a planned addition and is shown honestly as coming soon.
+
+import { useState, useTransition } from 'react';
+import { createDonationCheckout } from './actions';
+import { coverFeeCents, dollars } from '@/lib/payments';
 
 const presets = [25, 50, 100, 250, 500];
 const funds = [
@@ -14,60 +20,54 @@ const funds = [
 export default function GivingForm() {
   const [amount, setAmount] = useState(50);
   const [custom, setCustom] = useState('');
-  const [frequency, setFrequency] = useState('one-time');
   const [fund, setFund] = useState(funds[0]);
-  const [submitted, setSubmitted] = useState(false);
+  const [method, setMethod] = useState('card');
+  const [coverFee, setCoverFee] = useState(false);
+  const [error, setError] = useState('');
+  const [pending, start] = useTransition();
 
-  const effective = custom ? Number(custom) : amount;
+  const effective = custom ? Number(custom) || 0 : amount;
+  const baseCents = Math.round(effective * 100);
+  const feeCents = coverFee && baseCents >= 100 ? coverFeeCents(baseCents, method) : 0;
+  const totalCents = baseCents + feeCents;
 
-  if (submitted) {
-    return (
-      <div className="rounded-lg border-2 border-brand bg-brand-light p-8 text-center">
-        <h3 className="text-2xl font-bold text-brand-dark">
-          Preview only — no charge was made
-        </h3>
-        <p className="mt-3 text-lg">
-          In the live version, this will open a secure Stripe checkout for a{' '}
-          <strong>
-            {frequency === 'monthly' ? 'monthly' : 'one-time'} gift of $
-            {effective}
-          </strong>{' '}
-          designated to <strong>{fund}</strong>, with a receipt emailed
-          automatically and donor login for managing recurring gifts.
-        </p>
-        <button
-          className="btn-outline mt-6"
-          onClick={() => setSubmitted(false)}
-        >
-          Back
-        </button>
-      </div>
-    );
+  function submit(e) {
+    e.preventDefault();
+    setError('');
+    start(async () => {
+      const res = await createDonationCheckout({
+        amountCents: baseCents,
+        fund,
+        method,
+        coverFee,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      window.location.href = res.url;
+    });
   }
 
   return (
     <form
       className="rounded-lg border border-neutral-200 shadow p-6 sm:p-8 bg-white"
-      onSubmit={(e) => {
-        e.preventDefault();
-        setSubmitted(true);
-      }}
+      onSubmit={submit}
     >
       <h3 className="text-2xl font-bold mb-5">Give Online</h3>
 
       <div className="flex rounded overflow-hidden border border-brand mb-5">
-        {['one-time', 'monthly'].map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFrequency(f)}
-            className={`flex-1 py-2.5 font-semibold ${
-              frequency === f ? 'bg-brand text-white' : 'bg-white text-brand'
-            }`}
-          >
-            {f === 'one-time' ? 'One-Time' : 'Monthly'}
-          </button>
-        ))}
+        <button type="button" className="flex-1 py-2.5 font-semibold bg-brand text-white">
+          One-Time
+        </button>
+        <button
+          type="button"
+          disabled
+          title="Monthly giving is coming soon"
+          className="flex-1 py-2.5 font-semibold bg-white text-neutral-400 cursor-not-allowed"
+        >
+          Monthly <span className="text-xs">· soon</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
@@ -92,6 +92,7 @@ export default function GivingForm() {
       <input
         type="number"
         min="1"
+        step="0.01"
         placeholder="Custom amount"
         value={custom}
         onChange={(e) => setCustom(e.target.value)}
@@ -102,19 +103,63 @@ export default function GivingForm() {
       <select
         value={fund}
         onChange={(e) => setFund(e.target.value)}
-        className="w-full rounded border border-neutral-300 px-4 py-2.5 mb-6"
+        className="w-full rounded border border-neutral-300 px-4 py-2.5 mb-5"
       >
         {funds.map((f) => (
           <option key={f}>{f}</option>
         ))}
       </select>
 
-      <button type="submit" className="btn-gold w-full text-lg">
-        Give ${effective || 0} {frequency === 'monthly' ? 'Monthly' : ''}
+      <label className="block font-semibold mb-1.5">Payment method</label>
+      <div className="flex gap-2 mb-4">
+        {[
+          ['card', 'Card'],
+          ['bank', 'Bank transfer (lower fee)'],
+        ].map(([v, label]) => (
+          <label
+            key={v}
+            className={`flex-1 cursor-pointer rounded border px-3 py-2 text-sm text-center ${
+              method === v ? 'border-brand bg-brand-light font-semibold' : 'border-neutral-300'
+            }`}
+          >
+            <input
+              type="radio"
+              name="gift-method"
+              className="sr-only"
+              checked={method === v}
+              onChange={() => setMethod(v)}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+
+      <label className="flex items-start gap-2 text-sm mb-5">
+        <input
+          type="checkbox"
+          checked={coverFee}
+          onChange={(e) => setCoverFee(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          Add {dollars(feeCents || (baseCents >= 100 ? 0 : 0))} to cover processing, so my whole
+          gift reaches the ministry. <span className="text-neutral-500">(optional — it all
+          counts as part of your donation)</span>
+        </span>
+      </label>
+
+      {error && (
+        <p className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {error}
+        </p>
+      )}
+
+      <button type="submit" disabled={pending || baseCents < 100} className="btn-gold w-full text-lg">
+        {pending ? 'Starting…' : `Give ${dollars(totalCents)}`}
       </button>
       <p className="mt-3 text-sm text-neutral-500 text-center">
-        Preview build — payments are not connected yet. The live site will use
-        Stripe secure checkout.
+        Secure checkout by Stripe. Luke 14 Ministries is a registered 501(c)(3);
+        donations are tax-deductible and a receipt is emailed automatically.
       </p>
     </form>
   );

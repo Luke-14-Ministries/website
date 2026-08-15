@@ -60,6 +60,87 @@ Deno.serve(async (req) => {
     const paymentIntentId =
       typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id;
 
+    // ---- Donations take their own path: the gifts table, and a deductible
+    // receipt with the 501(c)(3) acknowledgment language. ----
+    if (md.gift === '1') {
+      if (!paymentIntentId || !(base > 0)) {
+        return new Response('nothing to record', { status: 200 });
+      }
+      const gToday = new Date().toISOString().slice(0, 10);
+      let gStatus = 'processing';
+      let gReceived: string | null = null;
+      if (event.type === 'checkout.session.async_payment_failed') {
+        gStatus = 'failed';
+      } else if (s.payment_status === 'paid') {
+        gStatus = 'succeeded';
+        gReceived = gToday;
+      }
+      const donorEmail = s.customer_details?.email ?? s.customer_email ?? null;
+      const { error: gErr } = await admin.from('gifts').upsert(
+        {
+          profile_id: md.profile_id || null,
+          donor_name: s.customer_details?.name ?? null,
+          email: donorEmail,
+          amount_cents: base,
+          fund: md.fund || 'General Operating Fund',
+          method,
+          status: gStatus,
+          received_on: gReceived,
+          stripe_payment_intent_id: paymentIntentId,
+          note: 'Given online.',
+        },
+        { onConflict: 'stripe_payment_intent_id' }
+      );
+      if (gErr) return fail('gift-upsert', gErr.message, 500);
+      console.log(`[stripe-webhook] recorded ${gStatus} gift of ${base}¢ (${md.fund})`);
+
+      if (gStatus !== 'failed') {
+        try {
+          const resendKey = Deno.env.get('RESEND_API_KEY');
+          if (resendKey && donorEmail) {
+            const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
+            const received = gStatus === 'succeeded';
+            const html = `
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#222">
+  <div style="background:#14606a;color:#fff;padding:18px 24px;border-radius:8px 8px 0 0">
+    <h1 style="margin:0;font-size:20px">Luke 14 Ministries</h1>
+    <p style="margin:4px 0 0;font-size:13px;opacity:.85">${received ? 'Thank you for your gift!' : 'Your gift is on its way'}</p>
+  </div>
+  <div style="border:1px solid #dde3e4;border-top:none;padding:20px 24px;border-radius:0 0 8px 8px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Gift</td><td style="padding:4px 0;text-align:right;font-weight:bold">${dollars(base)}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Designated to</td><td style="padding:4px 0;text-align:right">${md.fund || 'General Operating Fund'}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Method</td><td style="padding:4px 0;text-align:right">${method === 'bank_transfer' ? 'Bank transfer' : 'Card'}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#555">Date</td><td style="padding:4px 0;text-align:right">${gToday}</td></tr>
+    </table>
+    ${received ? '' : `<p style="color:#8a6d1a;background:#fdf6e3;border:1px solid #f0e0b0;border-radius:6px;padding:10px 14px">Bank transfers take a few days to clear. A final receipt follows once it settles; nothing more is needed from you.</p>`}
+    <p style="font-size:13px;color:#555">Your generosity helps families affected by disability find community and connection. Thank you.</p>
+    <p style="font-size:12px;color:#888">Luke 14 Ministries is a registered 501(c)(3) tax-exempt organization (EIN 82-2389397). Your donation is tax-deductible to the extent allowed by law, and no goods or services were provided in exchange for this contribution. Please keep this receipt for your records. Questions? <a href="mailto:info@luke14ministries.net" style="color:#14606a">info@luke14ministries.net</a> · (423) 748-4954.</p>
+  </div>
+</div>`;
+            const resp = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                from: 'Luke 14 Ministries <registration@luke14ministries.net>',
+                to: [donorEmail],
+                subject: received
+                  ? `Donation receipt: ${dollars(base)} — thank you!`
+                  : `Your gift of ${dollars(base)} is on its way`,
+                html,
+              }),
+            });
+            if (!resp.ok) console.error(`[stripe-webhook] gift receipt failed: ${await resp.text()}`);
+            else console.log(`[stripe-webhook] gift receipt emailed to ${donorEmail}`);
+          }
+        } catch (e) {
+          console.error(`[stripe-webhook] gift receipt error: ${String((e as Error)?.message ?? e)}`);
+        }
+      }
+      return new Response('ok', { status: 200 });
+    }
+    // ---- End donations path. Camp payments continue below. ----
+
     if (!registrationId || !paymentIntentId || !(base > 0)) {
       console.log(
         `[stripe-webhook] nothing to record (registration=${registrationId}, intent=${paymentIntentId}, base=${base})`

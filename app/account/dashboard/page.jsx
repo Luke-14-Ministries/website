@@ -144,6 +144,25 @@ export default async function DashboardPage() {
     }
   }
 
+  // This person's own giving history. The explicit profile filter matters:
+  // staff can read ALL gifts under RLS, but "My Giving" must only ever show
+  // their own -- even for an administrator wearing their family hat.
+  const { data: giftRows } = await supabase
+    .from('gifts')
+    .select('amount_cents, fund, method, status, received_on, created_at')
+    .eq('profile_id', user.id)
+    .order('created_at', { ascending: false });
+  const myGifts = giftRows ?? [];
+  const givenTotal = myGifts
+    .filter((g) => g.status === 'succeeded' || g.status === 'processing')
+    .reduce((s, g) => s + (g.amount_cents ?? 0), 0);
+
+  // Adaptive layout: most of the ministry's supporters are donors, not camp
+  // families (contributions are ~84% of revenue on the 2024 Form 990). A
+  // donor with no registrations gets a giving-first dashboard; a camp family
+  // sees registrations first. One login, emphasis to match the person.
+  const donorFirst = regs.length === 0 && myGifts.length > 0;
+
   const PAY_METHOD_LABEL = {
     card: 'Card',
     bank_transfer: 'Bank transfer',
@@ -199,7 +218,7 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Registrations -- real */}
-          <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2">
+          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2 ${donorFirst ? 'order-3' : 'order-1'}`}>
             <h2 className="text-xl font-bold mb-4">My Camp Registrations</h2>
 
             {regs.length === 0 ? (
@@ -300,7 +319,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* Household -- real */}
-          <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-4' : 'order-2'}`}>
             <h2 className="text-xl font-bold mb-4">My Household</h2>
             {members.length === 0 ? (
               <p className="text-neutral-500">
@@ -326,13 +345,42 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Giving -- not built yet; show an honest empty state, not fake numbers */}
-          <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2">
-            <h2 className="text-xl font-bold mb-4">My Giving</h2>
-            <p className="text-neutral-500">
-              Online giving isn&rsquo;t live yet. Once it is, your giving history and
-              receipts will appear here.
-            </p>
+          {/* Giving -- real history, giving-first for donors */}
+          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2 ${donorFirst ? 'order-1' : 'order-3'}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-xl font-bold">My Giving</h2>
+              {givenTotal > 0 && (
+                <span className="text-sm text-neutral-600">
+                  Total given: <strong>{money(givenTotal)}</strong>
+                </span>
+              )}
+            </div>
+
+            {myGifts.length === 0 ? (
+              <p className="text-neutral-500">
+                No gifts on record for this account yet. When you give online while logged
+                in, your gifts and receipts appear here.
+              </p>
+            ) : (
+              <ul className="divide-y divide-neutral-100 text-sm mb-2">
+                {myGifts.map((g, i) => {
+                  const [label, cls] = PAY_STATUS[g.status] ?? PAY_STATUS.pending;
+                  return (
+                    <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <span className="text-neutral-700">
+                        {(g.received_on ?? (g.created_at || '').slice(0, 10)) || ''} ·{' '}
+                        <span className="font-semibold">{money(g.amount_cents)}</span>
+                        <span className="text-neutral-500"> — {g.fund}</span>
+                      </span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
+                        {label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
             <p className="mt-3 text-sm text-neutral-600">
               Luke 14 Ministries is a registered <strong>501(c)(3)</strong> nonprofit
               organization, and <strong>donations are tax-deductible</strong> to the extent
@@ -340,13 +388,16 @@ export default async function DashboardPage() {
               camp, such as food, lodging, and activities.)
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
+              <Link href="/donate" className="btn-gold !py-2">
+                {myGifts.length > 0 ? 'Give Again' : 'Give Online'}
+              </Link>
               <SoonButton>Manage Recurring Gift</SoonButton>
               <SoonButton>Download Giving Statement</SoonButton>
             </div>
           </div>
 
           {/* Account settings -- change password works today */}
-          <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-2' : 'order-4'}`}>
             <h2 className="text-xl font-bold mb-4">Account Settings</h2>
             <ul className="space-y-2 text-neutral-700">
               <li className="text-neutral-400">Update contact information</li>

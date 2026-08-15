@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import RecordPaymentForm from './RecordPaymentForm';
+import RecordGiftForm from './RecordGiftForm';
 
 export const metadata = { title: 'Payments — Staff Admin' };
 
@@ -33,7 +34,7 @@ export default async function AdminPaymentsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: balances }, { data: regs }, { data: pays }] = await Promise.all([
+  const [{ data: balances }, { data: regs }, { data: pays }, { data: gifts }] = await Promise.all([
     supabase
       .from('registration_balances')
       .select('registration_id, event_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
@@ -43,6 +44,10 @@ export default async function AdminPaymentsPage() {
     supabase
       .from('payments')
       .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('gifts')
+      .select('donor_name, email, amount_cents, fund, method, status, received_on, created_at')
       .order('created_at', { ascending: false }),
   ]);
 
@@ -138,6 +143,77 @@ export default async function AdminPaymentsPage() {
         </table>
       </div>
 
+      {/* ---- Giving ---- */}
+      <h2 className="text-xl font-bold mb-1 mt-2">Giving</h2>
+      <p className="text-sm text-neutral-500 mb-4">
+        Donations, kept separate from camp payments (gifts are tax-deductible; camp payments are
+        not). Online gifts record themselves; mailed checks are entered below.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-3 mb-6">
+        {(() => {
+          const good = (gifts ?? []).filter((g) => g.status === 'succeeded' || g.status === 'processing');
+          const total = good.reduce((s, g) => s + (g.amount_cents ?? 0), 0);
+          const byFund = new Map();
+          for (const g of good) byFund.set(g.fund, (byFund.get(g.fund) ?? 0) + (g.amount_cents ?? 0));
+          return (
+            <>
+              <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
+                <div className="text-2xl font-bold">{money(total)}</div>
+                <div className="text-sm text-neutral-500">Total gifts (incl. clearing)</div>
+              </div>
+              <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
+                <div className="text-2xl font-bold">{good.length}</div>
+                <div className="text-sm text-neutral-500">Gifts recorded</div>
+              </div>
+              <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
+                <div className="text-sm font-semibold mb-1">By fund</div>
+                {byFund.size === 0 ? (
+                  <p className="text-sm text-neutral-500">No gifts yet.</p>
+                ) : (
+                  <ul className="text-sm space-y-0.5">
+                    {[...byFund.entries()].map(([f, c]) => (
+                      <li key={f} className="flex justify-between">
+                        <span className="text-neutral-600">{f}</span>
+                        <span className="font-semibold">{money(c)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          );
+        })()}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2 mb-8">
+        <RecordGiftForm />
+        <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+          <h3 className="font-bold mb-3">Recent gifts</h3>
+          {(gifts ?? []).length === 0 ? (
+            <p className="text-neutral-500 text-sm">No gifts yet.</p>
+          ) : (
+            <ul className="divide-y divide-neutral-100 text-sm">
+              {(gifts ?? []).slice(0, 12).map((g, i) => (
+                <li key={i} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="font-medium">{g.donor_name || g.email || 'Anonymous'}</span>{' '}
+                    <span className="text-neutral-500">
+                      · {g.received_on ?? (g.created_at || '').slice(0, 10)} · {g.fund}
+                    </span>
+                    <br />
+                    <span className="font-semibold">{money(g.amount_cents)}</span>
+                    <span className="text-neutral-500"> · {METHOD_LABEL[g.method] ?? g.method}</span>
+                  </span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CLS[g.status] ?? ''}`}>
+                    {g.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <h2 className="text-xl font-bold mb-4">Camp payment entry & activity</h2>
       <div className="grid gap-6 lg:grid-cols-2">
         <RecordPaymentForm registrations={regOptions} />
 

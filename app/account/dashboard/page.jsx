@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getStaff } from '@/lib/staff';
+import PayPanel from './PayPanel';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -103,13 +104,20 @@ export default async function DashboardPage() {
     .from('registrations')
     .select(
       `id, family_notes, created_at,
-       events ( name, starts_on, ends_on ),
+       events ( id, name, starts_on, ends_on, deposit_cents ),
        registration_participants ( camp_role, status, fee_cents,
          people ( first_name, last_name ) )`
     )
     .order('created_at', { ascending: false });
 
   const regs = registrations ?? [];
+
+  // What each registration still owes, computed by the registration_balances
+  // view (fees minus discounts, scholarships, coupons and payments already in).
+  const { data: balances } = await supabase
+    .from('registration_balances')
+    .select('registration_id, balance_cents');
+  const balanceByReg = new Map((balances ?? []).map((b) => [b.registration_id, b.balance_cents]));
 
   return (
     <section className="bg-neutral-50 min-h-[70vh] py-12">
@@ -194,8 +202,12 @@ export default async function DashboardPage() {
                           <span className="font-semibold">Notes to staff:</span> {r.family_notes}
                         </p>
                       )}
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <SoonButton>Pay Balance</SoonButton>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <PayPanel
+                          registrationId={r.id}
+                          balanceCents={balanceByReg.get(r.id)}
+                          depositCents={r.events?.deposit_cents}
+                        />
                         <SoonButton>Edit Registration</SoonButton>
                       </div>
                     </div>

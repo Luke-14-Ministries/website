@@ -29,6 +29,7 @@ const NAV = [
   { href: '/admin', label: 'Overview', need: 'staff', ready: true },
   { href: '/admin/rosters', label: 'Rosters', need: 'registrar', ready: true },
   { href: '/admin/checkin', label: 'Check-In', need: 'door', ready: true },
+  { href: '/admin/changes', label: 'Recent Changes', need: 'registrar', ready: true },
   { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: true },
   { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: true },
   { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: false },

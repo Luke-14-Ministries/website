@@ -16,7 +16,10 @@ import { createClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
 import { coverFeeCents } from '@/lib/payments';
 
-export const FUNDS = [
+// NOT exported: a 'use server' file may only export async functions -- any
+// other export crashes the page at runtime. The form keeps its own copy of
+// this list; this one is the server-side validation whitelist.
+const FUNDS = [
   'General Operating Fund',
   'Camp Celebrate',
   'Luke 14 Party',

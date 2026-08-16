@@ -241,7 +241,10 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'Luke 14 Ministries <registration@luke14ministries.net>',
+              // Event receipts come from camp@ -- a real, monitored M365 mailbox,
+              // so a family hitting Reply reaches an actual person (registration@
+              // did not exist in M365 and replies bounced).
+              from: 'Luke 14 Ministries <camp@luke14ministries.net>',
               to: [to],
               subject,
               html,

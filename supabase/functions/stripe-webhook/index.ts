@@ -20,6 +20,13 @@ function fail(where: string, message: string, status: number) {
   return new Response(`${where}: ${message}`, { status });
 }
 
+// Today's date in the ministry's own timezone (Eastern -- Morristown, TN), not
+// UTC. A gift made at 9pm on December 31st must be receipted as December 31st,
+// or a donor's year-end statement is wrong. en-CA gives YYYY-MM-DD.
+function ministryToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
 Deno.serve(async (req) => {
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
   const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
@@ -66,7 +73,7 @@ Deno.serve(async (req) => {
       if (!paymentIntentId || !(base > 0)) {
         return new Response('nothing to record', { status: 200 });
       }
-      const gToday = new Date().toISOString().slice(0, 10);
+      const gToday = ministryToday();
       let gStatus = 'processing';
       let gReceived: string | null = null;
       if (event.type === 'checkout.session.async_payment_failed') {
@@ -122,7 +129,9 @@ Deno.serve(async (req) => {
               method: 'POST',
               headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                from: 'Luke 14 Ministries <registration@luke14ministries.net>',
+                // Gift receipts come from giving@ -- a password-less M365
+                // distribution group, so donor replies reach the giving team.
+                from: 'Luke 14 Ministries <giving@luke14ministries.net>',
                 to: [donorEmail],
                 subject: received
                   ? `Donation receipt: ${dollars(base)} — thank you!`
@@ -148,7 +157,7 @@ Deno.serve(async (req) => {
       return new Response('nothing to record', { status: 200 });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = ministryToday();
     let status = 'processing';
     let received_on: string | null = null;
     if (event.type === 'checkout.session.async_payment_failed') {

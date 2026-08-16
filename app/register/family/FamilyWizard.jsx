@@ -166,6 +166,12 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
 
       {step === 1 && (
         <div className="space-y-6">
+          <p className="text-sm text-neutral-600 rounded bg-neutral-50 border border-neutral-200 px-4 py-3">
+            List everyone who will attend — <span className="font-semibold">including yourself</span> if
+            you&rsquo;re coming. Support and dietary needs can be noted for any family member, adults
+            included. Each adult&rsquo;s own phone number is managed under{' '}
+            <span className="font-semibold">Manage Household</span> on your dashboard.
+          </p>
           {members.map((m, i) => (
             <div key={i} className="rounded border border-neutral-200 p-4">
               <div className="flex justify-between items-center">

@@ -164,8 +164,8 @@ export default function HouseholdManager({ household, members, caregiversByPerso
                 ))}
               </div>
               <p className="text-xs text-neutral-500 mt-2">
-                Who staff contact first about this person at camp. Add each caregiver&rsquo;s own
-                phone above so staff can reach the right adult directly.
+                Who staff contact first about this person at camp. Make sure each caregiver&rsquo;s
+                phone number is provided so staff have a way to reach them if needed during camp.
               </p>
             </div>
 

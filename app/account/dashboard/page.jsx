@@ -437,7 +437,11 @@ export default async function DashboardPage() {
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-2' : 'order-4'}`}>
             <h2 className="text-xl font-bold mb-4">My Account Settings</h2>
             <ul className="space-y-2 text-neutral-700">
-              <li className="text-neutral-400">Update contact information</li>
+              <li>
+                <Link href="/account/contact" className="text-brand underline">
+                  Update contact information
+                </Link>
+              </li>
               <li>
                 <Link href="/account/reset-password" className="text-brand underline">
                   Change password
@@ -448,8 +452,14 @@ export default async function DashboardPage() {
                   Two-factor authentication
                 </Link>
               </li>
-              <li className="text-neutral-400">Email preferences</li>
-              <li className="text-neutral-400">Payment methods</li>
+              <li>
+                <Link href="/account/contact#email-preferences" className="text-brand underline">
+                  Email preferences
+                </Link>
+              </li>
+              <li className="text-neutral-400" title="Coming with recurring giving">
+                Payment methods
+              </li>
             </ul>
           </div>
         </div>

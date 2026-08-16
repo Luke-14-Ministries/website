@@ -72,6 +72,18 @@ export default async function AdminLayout({ children }) {
 
   const items = NAV.filter((n) => can(staff, n.need));
 
+  // A small attention dot on "Recent Changes" when unreviewed family edits
+  // exist. Count only -- cheap head query; RLS scopes what this staffer may
+  // count (support-detail rows stay invisible without the sensitive grant).
+  let unreviewedChanges = 0;
+  if (can(staff, 'registrar')) {
+    const { count } = await supabase
+      .from('family_change_log')
+      .select('id', { count: 'exact', head: true })
+      .is('reviewed_at', null);
+    unreviewedChanges = count ?? 0;
+  }
+
   return (
     <section className="bg-neutral-50 min-h-[70vh]">
       <div className="container-site py-8">
@@ -110,6 +122,14 @@ export default async function AdminLayout({ children }) {
                   className="rounded px-3 py-2 font-medium hover:bg-neutral-200"
                 >
                   {n.label}
+                  {n.href === '/admin/changes' && unreviewedChanges > 0 && (
+                    <span
+                      title={`${unreviewedChanges} unreviewed`}
+                      className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold"
+                    >
+                      {unreviewedChanges}
+                    </span>
+                  )}
                 </Link>
               ) : (
                 <span

@@ -69,16 +69,17 @@ export default async function AdminOverview() {
         <Stat label="Registrations" value={registrations.length} />
         <Stat label="People registered" value={participants.length} />
         <Stat label="Confirmed" value={byStatus.confirmed} />
-        <Stat label="Awaiting review" value={byStatus.submitted + byStatus.waitlisted} />
+        <Stat label="New registrations awaiting review" value={byStatus.submitted + byStatus.waitlisted} />
       </div>
 
       {/* The work queue: families with someone still pending review. */}
       {can(staff, 'registrar') && reviewList.length > 0 && (
         <div className="rounded-lg bg-white border border-amber-200 shadow-sm p-6 mb-8">
-          <h3 className="font-bold mb-1">Needs review</h3>
+          <h3 className="font-bold mb-1">New registrations awaiting review</h3>
           <p className="text-sm text-neutral-500 mb-3">
-            Families with someone marked &ldquo;submitted — pending review.&rdquo; Open one to
-            confirm, waitlist, or edit.
+            Families with someone marked &ldquo;submitted — pending review&rdquo; — new sign-ups,
+            newly added people, or a changed role. Open one to confirm, waitlist, or edit.
+            (Edits to existing info live on the Recent Changes page instead.)
           </p>
           <ul className="divide-y divide-neutral-100">
             {reviewList.map(([id, r]) => (

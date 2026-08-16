@@ -90,42 +90,64 @@ export default async function DashboardPage() {
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
     user.email;
 
-  // The household this login belongs to, with its members. RLS returns only the
-  // caller's household, so we take the first (a login has one).
-  const { data: households } = await supabase
-    .from('households')
-    .select('id, display_name, people ( id, first_name, last_name, date_of_birth )');
+  // Which household(s) this login actually BELONGS to, by membership. This
+  // scoping is essential for the one-account design: staff RLS can read every
+  // family's rows, so a bare query here would show a staff member other
+  // families' data on their own personal dashboard. Membership keeps the
+  // family hat and the staff hat separate.
+  const { data: memberships } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('profile_id', user.id);
+  const householdIds = (memberships ?? []).map((m) => m.household_id);
+
+  const { data: households } = householdIds.length
+    ? await supabase
+        .from('households')
+        .select('id, display_name, people ( id, first_name, last_name, date_of_birth )')
+        .in('id', householdIds)
+    : { data: [] };
   const household = households?.[0] ?? null;
   const members = household?.people ?? [];
 
   // Registrations for this household, newest first, with the event and each
-  // participant. RLS scopes this to the caller automatically.
-  const { data: registrations } = await supabase
-    .from('registrations')
-    .select(
-      `id, family_notes, created_at,
-       events ( id, name, starts_on, ends_on, deposit_cents ),
-       registration_participants ( camp_role, status, fee_cents,
-         people ( first_name, last_name ) )`
-    )
-    .order('created_at', { ascending: false });
+  // participant.
+  const { data: registrations } = householdIds.length
+    ? await supabase
+        .from('registrations')
+        .select(
+          `id, family_notes, created_at,
+           events ( id, name, starts_on, ends_on, deposit_cents ),
+           registration_participants ( camp_role, status, fee_cents,
+             people ( first_name, last_name ) )`
+        )
+        .in('household_id', householdIds)
+        .order('created_at', { ascending: false })
+    : { data: [] };
 
   const regs = registrations ?? [];
+  const regIds = regs.map((r) => r.id);
 
   // What each registration still owes, computed by the registration_balances
   // view (fees minus discounts, scholarships, coupons and payments already in).
-  const { data: balances } = await supabase
-    .from('registration_balances')
-    .select('registration_id, balance_cents');
+  const { data: balances } = regIds.length
+    ? await supabase
+        .from('registration_balances')
+        .select('registration_id, balance_cents')
+        .in('registration_id', regIds)
+    : { data: [] };
   const balanceByReg = new Map((balances ?? []).map((b) => [b.registration_id, b.balance_cents]));
 
-  // Every payment on this household's registrations, newest first. RLS scopes
-  // this to the family's own rows. Shown as a history under each registration,
-  // so "what have we paid and has it cleared?" never needs a phone call.
-  const { data: paymentRows } = await supabase
-    .from('payments')
-    .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at')
-    .order('created_at', { ascending: false });
+  // Every payment on this household's registrations, newest first. Shown as a
+  // history under each registration, so "what have we paid and has it
+  // cleared?" never needs a phone call.
+  const { data: paymentRows } = regIds.length
+    ? await supabase
+        .from('payments')
+        .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at')
+        .in('registration_id', regIds)
+        .order('created_at', { ascending: false })
+    : { data: [] };
   const paymentsByReg = new Map();
   for (const p of paymentRows ?? []) {
     if (!paymentsByReg.has(p.registration_id)) paymentsByReg.set(p.registration_id, []);

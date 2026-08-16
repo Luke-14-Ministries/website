@@ -142,10 +142,14 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
       <p className="text-xs font-semibold text-neutral-500 mb-1">Method</p>
       <div className="flex gap-2 mb-3">
         <Radio name="method" value="card" cur={method} set={setMethod}>
-          Card
+          <span className="block">Card</span>
+          <span className="block text-xs text-neutral-500 mt-0.5">Instant confirmation</span>
         </Radio>
         <Radio name="method" value="bank" cur={method} set={setMethod}>
-          Bank transfer <span className="text-neutral-500">(lower fee)</span>
+          <span className="block">Bank transfer</span>
+          <span className="block text-xs text-neutral-500 mt-0.5">
+            Lower processing fee — more of your payment goes to camp
+          </span>
         </Radio>
       </div>
 

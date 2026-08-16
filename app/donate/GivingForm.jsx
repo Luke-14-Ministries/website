@@ -147,13 +147,13 @@ export default function GivingForm({ signedInEmail }) {
       <label className="block font-semibold mb-1.5">Payment method</label>
       <div className="flex gap-2 mb-4">
         {[
-          ['card', 'Card'],
-          ['bank', 'Bank transfer (lower fee)'],
-        ].map(([v, label]) => (
+          ['card', 'Card', 'Instant confirmation'],
+          ['bank', 'Bank transfer', 'Lower processing fee — more of your gift reaches the ministry'],
+        ].map(([v, label, sub]) => (
           <label
             key={v}
             className={`flex-1 cursor-pointer rounded border px-3 py-2 text-sm text-center ${
-              method === v ? 'border-brand bg-brand-light font-semibold' : 'border-neutral-300'
+              method === v ? 'border-brand bg-brand-light' : 'border-neutral-300'
             }`}
           >
             <input
@@ -163,7 +163,8 @@ export default function GivingForm({ signedInEmail }) {
               checked={method === v}
               onChange={() => setMethod(v)}
             />
-            {label}
+            <span className={`block ${method === v ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+            <span className="block text-xs text-neutral-500 mt-0.5">{sub}</span>
           </label>
         ))}
       </div>

@@ -43,12 +43,23 @@ export async function GET() {
         p.status ?? '',
         ((p.fee_cents ?? 0) / 100).toFixed(2),
         (p.submitted_at ?? p.created_at ?? '').slice(0, 10),
-        p.checked_in_at ? p.checked_in_at.slice(0, 16).replace('T', ' ') : '',
+        p.checked_in_at
+          ? new Date(p.checked_in_at).toLocaleString('en-US', {
+              timeZone: 'America/New_York',
+              month: 'numeric',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })
+          : '',
       ]);
     }
   }
 
-  const csv = rows.map((r) => r.map(esc).join(',')).join('\r\n');
+  // \ufeff is the UTF-8 byte-order mark. Without it Excel guesses the wrong
+  // encoding and renders em-dashes as "â€"" gibberish.
+  const csv = '\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\r\n');
   return new Response(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',

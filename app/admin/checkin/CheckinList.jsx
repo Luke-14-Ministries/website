@@ -106,7 +106,10 @@ export default function CheckinList({ rows }) {
               {pendingId === r.id
                 ? '…'
                 : r.checkedInAt
-                  ? `Arrived ✓ ${r.checkedInAt.slice(11, 16)}`
+                  ? `Arrived ✓ ${new Date(r.checkedInAt).toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}`
                   : 'Check in'}
             </button>
           </li>

@@ -64,7 +64,8 @@ export default function StaffManager({ members, selfId }) {
           {isSelf && <span className="ml-2 text-xs text-neutral-500">(you)</span>}
           <input
             defaultValue={m.title}
-            placeholder="Title (optional)"
+            placeholder="Job title, e.g. Camp Director (optional)"
+            title="A display-only job title shown alongside their name. Does not affect access."
             disabled={busy}
             onBlur={(e) => {
               if (e.target.value.trim() !== m.title) patch(m.profileId, { title: e.target.value });
@@ -97,14 +98,24 @@ export default function StaffManager({ members, selfId }) {
           />
         </td>
         <td className="px-4 py-3 text-center">
-          <input
-            type="checkbox"
-            checked={m.giving}
-            disabled={busy || m.role === 'admin'}
-            title={m.role === 'admin' ? 'Administrators always have giving access.' : undefined}
-            onChange={(e) => patch(m.profileId, { can_view_giving: e.target.checked })}
-            className="h-4 w-4"
-          />
+          {m.role === 'admin' ? (
+            // Administrators always have giving access -- show it as granted
+            // rather than an unchecked-but-locked box, which reads as broken.
+            <span
+              className="text-xs font-semibold text-neutral-500"
+              title="Administrators always have giving access; no separate grant needed."
+            >
+              always ✓
+            </span>
+          ) : (
+            <input
+              type="checkbox"
+              checked={m.giving}
+              disabled={busy}
+              onChange={(e) => patch(m.profileId, { can_view_giving: e.target.checked })}
+              className="h-4 w-4"
+            />
+          )}
         </td>
         <td className="px-4 py-3 text-right">
           {m.active ? (

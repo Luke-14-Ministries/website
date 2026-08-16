@@ -35,7 +35,8 @@ export async function GET() {
     ]);
   }
 
-  const csv = rows.map((r) => r.map(esc).join(',')).join('\r\n');
+  // UTF-8 byte-order mark so Excel reads accents and dashes correctly.
+  const csv = '\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\r\n');
   return new Response(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',

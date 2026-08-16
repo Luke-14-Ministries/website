@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import AdminNav from './AdminNav';
 
 export const metadata = { title: 'Staff Admin — Luke 14 Ministries' };
 
@@ -25,17 +26,19 @@ const ROLE_INFO = {
   },
 };
 
+// group: 'events' items live inside the collapsible "Events" section of the
+// sidebar; ungrouped items render at the top (before) or bottom (after) level.
 const NAV = [
   { href: '/admin', label: 'Overview', need: 'staff', ready: true },
-  { href: '/admin/rosters', label: 'Rosters', need: 'registrar', ready: true },
-  { href: '/admin/checkin', label: 'Check-In', need: 'door', ready: true },
-  { href: '/admin/changes', label: 'Recent Changes', need: 'registrar', ready: true },
-  { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: true },
-  { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: true },
-  { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: false },
-  { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: false },
-  { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: false },
-  { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true },
+  { href: '/admin/rosters', label: 'Rosters', need: 'registrar', ready: true, group: 'events' },
+  { href: '/admin/checkin', label: 'Check-In', need: 'door', ready: true, group: 'events' },
+  { href: '/admin/changes', label: 'Recent Changes', need: 'registrar', ready: true, group: 'events' },
+  { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: true, group: 'events' },
+  { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: true, group: 'events' },
+  { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: false, group: 'events' },
+  { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: false, group: 'events' },
+  { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: false, group: 'events' },
+  { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/giving', label: 'Giving', need: 'giving', ready: true },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: false },
   { href: '/admin/security', label: 'Two-Factor Resets', need: 'admin', ready: true },
@@ -113,35 +116,12 @@ export default async function AdminLayout({ children }) {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-          <nav className="flex flex-col gap-1">
-            {items.map((n) =>
-              n.ready ? (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className="rounded px-3 py-2 font-medium hover:bg-neutral-200"
-                >
-                  {n.label}
-                  {n.href === '/admin/changes' && unreviewedChanges > 0 && (
-                    <span
-                      title={`${unreviewedChanges} unreviewed`}
-                      className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold"
-                    >
-                      {unreviewedChanges}
-                    </span>
-                  )}
-                </Link>
-              ) : (
-                <span
-                  key={n.href}
-                  title="Coming soon"
-                  className="rounded px-3 py-2 text-neutral-400 cursor-default"
-                >
-                  {n.label} <span className="text-xs">· soon</span>
-                </span>
-              )
-            )}
-          </nav>
+          <AdminNav
+            top={items.filter((n) => !n.group && n.href === '/admin')}
+            events={items.filter((n) => n.group === 'events')}
+            rest={items.filter((n) => !n.group && n.href !== '/admin')}
+            unreviewedChanges={unreviewedChanges}
+          />
 
           <div className="min-w-0">{children}</div>
         </div>

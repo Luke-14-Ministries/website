@@ -25,6 +25,13 @@ export default function RecordPaymentForm({ registrations }) {
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
+  // Type-to-filter for the registration picker: with a season's worth of
+  // families this list gets long, so a search box narrows it as you type.
+  const [q, setQ] = useState('');
+  const filtered = q.trim()
+    ? registrations.filter((r) => r.label.toLowerCase().includes(q.trim().toLowerCase()))
+    : registrations;
+
   function submit(e) {
     e.preventDefault();
     setError('');
@@ -59,8 +66,26 @@ export default function RecordPaymentForm({ registrations }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className={labelCls}>Family / registration</label>
+          <input
+            value={q}
+            onChange={(e) => {
+              const next = e.target.value;
+              setQ(next);
+              // If the current pick falls out of the filtered list, snap to the
+              // first match so the select never shows something un-chosen.
+              const list = next.trim()
+                ? registrations.filter((r) => r.label.toLowerCase().includes(next.trim().toLowerCase()))
+                : registrations;
+              if (!list.some((r) => r.id === f.registrationId)) {
+                setF((prev) => ({ ...prev, registrationId: list[0]?.id ?? '' }));
+              }
+            }}
+            placeholder="Type to filter by family or week…"
+            className={`${inputCls} mb-1.5`}
+          />
           <select className={inputCls} value={f.registrationId} onChange={set('registrationId')}>
-            {registrations.map((r) => (
+            {filtered.length === 0 && <option value="">No matches — clear the filter above</option>}
+            {filtered.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.label}
               </option>

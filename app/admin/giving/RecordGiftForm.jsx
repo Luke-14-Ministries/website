@@ -1,7 +1,8 @@
 'use client';
 
-// Staff form for a mailed check or cash DONATION (not a camp payment). Online
-// gifts record themselves via the Stripe webhook.
+// Staff form for a mailed check or cash DONATION. Online gifts record
+// themselves via the Stripe webhook. Labels are kept to one line so the field
+// grid stays aligned; the longer explanations live in the intro text.
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,7 +17,7 @@ const FUNDS = [
 ];
 
 const inputCls = 'w-full rounded border border-neutral-300 px-3 py-1.5 text-sm';
-const labelCls = 'block text-xs font-semibold text-neutral-500 mb-1';
+const labelCls = 'block text-xs font-semibold text-neutral-500 mb-1 whitespace-nowrap';
 
 export default function RecordGiftForm() {
   const router = useRouter();
@@ -63,8 +64,8 @@ export default function RecordGiftForm() {
     <form onSubmit={submit} className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
       <h3 className="font-bold mb-1">Record a mailed or cash gift</h3>
       <p className="text-sm text-neutral-500 mb-4">
-        Donations only — camp payments go in the form to the left. Online gifts record
-        themselves.
+        The donor&rsquo;s email links the gift to their giving history if they have (or later
+        create) an account. Online gifts record themselves.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -73,7 +74,7 @@ export default function RecordGiftForm() {
           <input className={inputCls} value={f.donorName} onChange={set('donorName')} />
         </div>
         <div>
-          <label className={labelCls}>Donor email (for their giving history)</label>
+          <label className={labelCls}>Donor email</label>
           <input className={inputCls} value={f.email} onChange={set('email')} />
         </div>
         <div>

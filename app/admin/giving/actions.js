@@ -1,10 +1,10 @@
 'use server';
 
-// Recording a check or cash CAMP payment that arrived by hand. Runs as the
-// signed-in registrar; the payments_manual_insert RLS policy is the real gate
-// (registrars only, and only the check/cash/other methods -- card and bank rows
-// come exclusively from the Stripe webhook). Donations are recorded on the
-// separate Giving page, behind the giving permission.
+// Recording a mailed check or cash DONATION. Runs as the signed-in staff
+// member; the gifts_manual_insert policy (migration 0010) is the real gate --
+// it requires the giving grant (admin, or can_view_giving) and allows only the
+// check/cash/other methods. Online gifts come exclusively from the Stripe
+// webhook.
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
@@ -12,12 +12,11 @@ import { getStaff, can } from '@/lib/staff';
 
 const MANUAL_METHODS = ['check', 'cash', 'other'];
 
-export async function recordManualPayment({ registrationId, amountCents, method, receivedOn, note }) {
+export async function recordManualGift({ donorName, email, amountCents, fund, method, receivedOn, note }) {
   const staff = await getStaff();
-  if (!can(staff, 'registrar')) {
-    return { ok: false, error: 'You do not have permission to record payments.' };
+  if (!can(staff, 'giving')) {
+    return { ok: false, error: 'You do not have permission to record gifts.' };
   }
-  if (!registrationId) return { ok: false, error: 'Please choose a registration.' };
   if (!MANUAL_METHODS.includes(method)) {
     return { ok: false, error: 'Method must be check, cash, or other.' };
   }
@@ -27,9 +26,11 @@ export async function recordManualPayment({ registrationId, amountCents, method,
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from('payments').insert({
-    registration_id: registrationId,
+  const { error } = await supabase.from('gifts').insert({
+    donor_name: donorName?.trim() || null,
+    email: email?.trim() || null,
     amount_cents: amt,
+    fund: fund || 'General Operating Fund',
     method,
     status: 'succeeded',
     received_on: receivedOn || new Date().toISOString().slice(0, 10),
@@ -38,7 +39,6 @@ export async function recordManualPayment({ registrationId, amountCents, method,
   });
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath('/admin/payments');
-  revalidatePath('/admin');
+  revalidatePath('/admin/giving');
   return { ok: true };
 }

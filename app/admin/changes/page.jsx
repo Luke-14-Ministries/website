@@ -91,12 +91,24 @@ export default async function RecentChangesPage() {
   return (
     <div>
       <h2 className="text-xl font-bold mb-1">Recent Changes</h2>
-      <p className="text-sm text-neutral-500 mb-6">
-        Every edit a family makes to their own information, shown old → new. Reviewing here
-        doesn&rsquo;t change anyone&rsquo;s status — it just confirms staff have seen it. New
-        people added to a registration appear in the &ldquo;Needs review&rdquo; queue on the
-        Overview instead.
+      <p className="text-sm text-neutral-500 mb-1">
+        Every edit a family makes to their own information, shown old → new.
       </p>
+      {/* The nuance lives behind a labeled disclosure: visible enough for the
+          volunteer who's here twice a season, collapsed to one line for the
+          registrar who's here daily. (A hover tooltip would fail on the
+          phones/tablets staff actually use.) */}
+      <details className="mb-6 text-sm text-neutral-500">
+        <summary className="cursor-pointer text-brand font-semibold select-none">
+          How reviewing works
+        </summary>
+        <p className="mt-1 pl-4 border-l-2 border-neutral-200">
+          Marking a change &ldquo;reviewed&rdquo; doesn&rsquo;t alter anyone&rsquo;s status — it
+          just confirms staff have seen it. New people added to a registration don&rsquo;t appear
+          here; they land in the &ldquo;Awaiting review&rdquo; queue on the Overview, where they
+          can be confirmed or waitlisted.
+        </p>
+      </details>
 
       {error && (
         <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">

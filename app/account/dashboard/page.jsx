@@ -307,8 +307,8 @@ export default async function DashboardPage() {
                           pendingCents={pendingByReg.get(r.id)}
                         />
                         <Link
-                          href="/register/family/"
-                          title="Re-opens the registration form. People you already registered are recognized, not duplicated."
+                          href={`/register/family/?event=${r.events?.id ?? ''}`}
+                          title="Opens your saved registration so you can make changes."
                           className="btn-outline !py-2"
                         >
                           Edit Registration

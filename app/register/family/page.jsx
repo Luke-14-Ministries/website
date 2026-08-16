@@ -4,9 +4,18 @@ import FamilyWizard from './FamilyWizard';
 
 export const metadata = { title: 'Family Registration — Camp Celebrate' };
 
+// The database's camp_role values -> the wizard's human-readable labels.
+const ROLE_LABEL = {
+  camper: 'Camper with disability',
+  parent_guardian: 'Parent/Guardian',
+  sibling: 'Sibling',
+  caregiver: 'Caregiver',
+};
+
 // A server component: it runs on the server, so it can check who is logged in and
 // read the published camp weeks straight from the database before rendering.
-export default async function FamilyRegisterPage() {
+export default async function FamilyRegisterPage({ searchParams }) {
+  const params = await searchParams;
   const user = await getCurrentUser();
 
   // Registration saves to the family's own account, and row-level security ties
@@ -63,6 +72,67 @@ export default async function FamilyRegisterPage() {
     })
     .filter(Boolean);
 
+  // ---- Prefill: if this account already has a household, load what we know so
+  // the wizard opens filled in (an "update", not a blank slate). ?event=<id>
+  // picks which registration to prefill; otherwise the most recent. ----
+  let existing = null;
+  const { data: memberRows } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('profile_id', user.id)
+    .limit(1);
+  const householdId = memberRows?.[0]?.household_id;
+
+  if (householdId) {
+    const [{ data: household }, { data: profile }, { data: regs }] = await Promise.all([
+      supabase
+        .from('households')
+        .select('email, phone, address_line1, home_church')
+        .eq('id', householdId)
+        .maybeSingle(),
+      supabase.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle(),
+      supabase
+        .from('registrations')
+        .select(
+          `id, event_id, family_notes, created_at,
+           registration_participants ( camp_role, status,
+             people ( first_name, last_name, date_of_birth,
+               person_support ( disabilities, dietary_needs ) ) )`
+        )
+        .eq('household_id', householdId)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    const wanted = typeof params?.event === 'string' ? params.event : null;
+    const reg = (regs ?? []).find((r) => r.event_id === wanted) ?? (regs ?? [])[0] ?? null;
+
+    const members = (reg?.registration_participants ?? [])
+      .filter((p) => p.status !== 'cancelled')
+      .map((p) => ({
+        firstName: p.people?.first_name ?? '',
+        lastName: p.people?.last_name ?? '',
+        dob: p.people?.date_of_birth ?? '',
+        role: ROLE_LABEL[p.camp_role] ?? 'Camper with disability',
+        needs: p.people?.person_support?.disabilities ?? '',
+        diet: p.people?.person_support?.dietary_needs ?? '',
+      }));
+
+    existing = {
+      isUpdate: !!reg,
+      eventId: reg?.event_id ?? wanted ?? null,
+      notes: reg?.family_notes ?? '',
+      family: {
+        contactFirst: profile?.first_name ?? '',
+        contactLast: profile?.last_name ?? '',
+        email: household?.email ?? user.email ?? '',
+        phone: household?.phone ?? '',
+        address: household?.address_line1 ?? '',
+        church: household?.home_church ?? '',
+      },
+      members,
+    };
+  }
+
   return (
     <section className="bg-neutral-50 py-12">
       <div className="container-site max-w-3xl mx-auto">
@@ -70,14 +140,17 @@ export default async function FamilyRegisterPage() {
           Camp Celebrate 2026 — Family Registration
         </h1>
         <p className="text-center text-neutral-600 mt-3 mb-8">
-          Signed in as {user.email}. Your answers save to your account.
+          Signed in as {user.email}.{' '}
+          {existing?.isUpdate
+            ? 'Your saved registration is loaded below — make changes and update.'
+            : 'Your answers save to your account.'}
         </p>
         {weeks.length === 0 ? (
           <p className="text-center text-neutral-600">
             Registration isn&rsquo;t open just yet. Please check back soon.
           </p>
         ) : (
-          <FamilyWizard weeks={weeks} defaultEmail={user.email} />
+          <FamilyWizard weeks={weeks} defaultEmail={user.email} existing={existing} />
         )}
       </div>
     </section>

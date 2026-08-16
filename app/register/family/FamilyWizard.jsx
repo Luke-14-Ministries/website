@@ -54,19 +54,31 @@ function Steps({ step }) {
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
 const label = 'block font-semibold mb-1.5 mt-4 first:mt-0';
 
-export default function FamilyWizard({ weeks, defaultEmail = '' }) {
+// `existing` (from the server page) prefills the whole wizard when this account
+// already has a registration -- so "Edit Registration" opens the saved answers,
+// not a blank form. isUpdate flips the wording from Submit to Update.
+export default function FamilyWizard({ weeks, defaultEmail = '', existing = null }) {
+  const isUpdate = existing?.isUpdate === true;
+
   const [step, setStep] = useState(0);
-  const [family, setFamily] = useState({
-    contactFirst: '',
-    contactLast: '',
-    email: defaultEmail,
-    phone: '',
-    address: '',
-    church: '',
+  const [family, setFamily] = useState(
+    existing?.family ?? {
+      contactFirst: '',
+      contactLast: '',
+      email: defaultEmail,
+      phone: '',
+      address: '',
+      church: '',
+    }
+  );
+  const [members, setMembers] = useState(
+    existing?.members?.length ? existing.members : [{ ...emptyMember }]
+  );
+  const [weekIdx, setWeekIdx] = useState(() => {
+    const i = weeks.findIndex((w) => w.eventId === existing?.eventId);
+    return i >= 0 ? i : 0;
   });
-  const [members, setMembers] = useState([{ ...emptyMember }]);
-  const [weekIdx, setWeekIdx] = useState(0);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(existing?.notes ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -107,14 +119,16 @@ export default function FamilyWizard({ weeks, defaultEmail = '' }) {
   if (result) {
     return (
       <div className="rounded-lg border-2 border-brand bg-brand-light p-8 text-center">
-        <h2 className="text-2xl font-bold text-brand-dark">Registration submitted</h2>
+        <h2 className="text-2xl font-bold text-brand-dark">
+          {isUpdate ? 'Registration updated' : 'Registration submitted'}
+        </h2>
         <p className="mt-3 text-lg">
           Thank you! We saved {result.saved} {result.saved === 1 ? 'person' : 'people'} for{' '}
-          <strong>{week?.name}</strong>. Camp staff will review your registration and follow
-          up. You can see it any time on your dashboard.
-        </p>
-        <p className="mt-2 text-sm text-neutral-600">
-          Payment isn&rsquo;t collected yet in this build &mdash; that step is coming.
+          <strong>{week?.name}</strong>.{' '}
+          {isUpdate
+            ? 'Camp staff can see what changed and will follow up if anything needs attention.'
+            : 'Camp staff will review your registration and follow up.'}{' '}
+          You can see it any time on your dashboard.
         </p>
         <Link href="/account/dashboard/" className="btn-primary mt-6">
           Go to My Dashboard
@@ -240,8 +254,8 @@ export default function FamilyWizard({ weeks, defaultEmail = '' }) {
               Camp fee: {money(week?.feeCents)} per person
             </p>
             <p className="text-sm text-neutral-600">
-              Scholarships available &mdash; contact camp@luke14ministries.net. Payment is
-              collected in a later step (not in this build).
+              Scholarships available &mdash; contact camp@luke14ministries.net. Payment happens
+              from your dashboard after you {isUpdate ? 'update' : 'submit'}.
             </p>
           </div>
         </div>
@@ -280,8 +294,20 @@ export default function FamilyWizard({ weeks, defaultEmail = '' }) {
             <strong>
               Total: {money(total)}
             </strong>{' '}
-            — {namedCount} × {money(week?.feeCents)}. Payment is collected in a later step.
+            — {namedCount} × {money(week?.feeCents)}. Payment is collected from your dashboard.
           </p>
+          {namedCount === 0 && (
+            <p className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
+              Add at least one family member (step 2 — first and last name) before{' '}
+              {isUpdate ? 'updating' : 'submitting'}.
+            </p>
+          )}
+          {isUpdate && namedCount > 0 && (
+            <p className="text-sm text-neutral-500">
+              Updating replaces your saved answers for this week. People are matched by name and
+              date of birth, so nobody is duplicated.
+            </p>
+          )}
           {error && (
             <p
               role="alert"
@@ -293,15 +319,24 @@ export default function FamilyWizard({ weeks, defaultEmail = '' }) {
         </div>
       )}
 
-      <div className="mt-8 flex justify-between">
-        <button
-          type="button"
-          className="btn-outline !py-2 disabled:opacity-40"
-          disabled={step === 0 || busy}
-          onClick={() => setStep(step - 1)}
-        >
-          Back
-        </button>
+      <div className="mt-8 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            className="btn-outline !py-2 disabled:opacity-40"
+            disabled={step === 0 || busy}
+            onClick={() => setStep(step - 1)}
+          >
+            Back
+          </button>
+          <Link
+            href="/account/dashboard/"
+            title="Leave without saving changes"
+            className="text-neutral-500 font-semibold hover:text-neutral-700 hover:underline"
+          >
+            Cancel
+          </Link>
+        </div>
         {step < 3 ? (
           <button
             type="button"
@@ -315,9 +350,14 @@ export default function FamilyWizard({ weeks, defaultEmail = '' }) {
             type="button"
             className="btn-gold !py-2 disabled:opacity-50"
             disabled={busy || namedCount === 0}
+            title={namedCount === 0 ? 'Add at least one family member first' : undefined}
             onClick={handleSubmit}
           >
-            {busy ? 'Submitting…' : 'Submit Registration'}
+            {busy
+              ? 'Saving…'
+              : isUpdate
+              ? 'Update Registration'
+              : 'Submit Registration'}
           </button>
         )}
       </div>

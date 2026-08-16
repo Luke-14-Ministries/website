@@ -29,7 +29,10 @@ export default function GivingForm({ signedInEmail }) {
 
   const effective = custom ? Number(custom) || 0 : amount;
   const baseCents = Math.round(effective * 100);
-  const feeCents = coverFee && baseCents >= 100 ? coverFeeCents(baseCents, method) : 0;
+  // What covering the fee WOULD add -- always computed, so the checkbox label
+  // shows the real number before the person decides, not $0.00.
+  const prospectiveFee = baseCents >= 100 ? coverFeeCents(baseCents, method) : 0;
+  const feeCents = coverFee ? prospectiveFee : 0;
   const totalCents = baseCents + feeCents;
 
   function submit(e) {
@@ -173,9 +176,9 @@ export default function GivingForm({ signedInEmail }) {
           className="mt-0.5"
         />
         <span>
-          Add {dollars(feeCents || (baseCents >= 100 ? 0 : 0))} to cover processing, so my whole
-          gift reaches the ministry. <span className="text-neutral-500">(optional — it all
-          counts as part of your donation)</span>
+          Add {dollars(prospectiveFee)} to cover processing, so my whole gift reaches the
+          ministry. <span className="text-neutral-500">(optional — it all counts as part of
+          your donation)</span>
         </span>
       </label>
 

@@ -4,6 +4,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import IdleTimeout from '@/components/IdleTimeout';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata = {
   title: {
@@ -32,6 +33,8 @@ export default function RootLayout({ children }) {
         {/* Vercel Web Analytics: anonymous, cookie-free pageview counting.
             No consent banner needed -- it stores nothing on visitors' devices. */}
         <Analytics />
+        {/* Vercel Speed Insights: real-visitor page-speed measurements. */}
+        <SpeedInsights />
       </body>
     </html>
   );

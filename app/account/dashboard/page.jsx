@@ -418,8 +418,13 @@ export default async function DashboardPage() {
               event costs such as food, lodging, and activities.)
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
+              {/* Same destination as the header's Donate button, and that is
+                  deliberate: this one completes the giving card's story ("your
+                  history, and here is where a new gift goes"), while the header
+                  button serves people anywhere on the site. One consistent
+                  label, logged in or not, donor or not. */}
               <Link href="/donate" className="btn-gold !py-2">
-                {myGifts.length > 0 ? 'Give Again' : 'Give Online'}
+                Make a New Gift
               </Link>
               <SoonButton>Manage Recurring Gift</SoonButton>
               <SoonButton>Download Giving Statement</SoonButton>

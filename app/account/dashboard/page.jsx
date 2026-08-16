@@ -238,7 +238,9 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        {/* items-start keeps each card hugging its own content instead of
+            stretching to its row's tallest neighbor (no empty white space). */}
+        <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
           {/* Registrations -- real */}
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2 ${donorFirst ? 'order-3' : 'order-1'}`}>
             <h2 className="text-xl font-bold mb-4">My Camp Registrations</h2>

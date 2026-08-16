@@ -5,8 +5,11 @@ import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Overview — Staff Admin' };
 
-const STATUSES = ['submitted', 'waitlisted', 'confirmed', 'draft', 'cancelled'];
-
+// The Overview reads in plain language: how many FAMILIES have signed up, how
+// many PEOPLE are coming, and what needs staff attention. One per-event table
+// carries the detail; nothing is shown twice. (A "registration" is one
+// family's sign-up for one event — the labels here avoid assuming staff know
+// that vocabulary.)
 export default async function AdminOverview() {
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/');
@@ -32,15 +35,37 @@ export default async function AdminOverview() {
     });
   }
 
-  const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+  // Per-event rollup: families, people coming (not cancelled/draft),
+  // confirmed, pending review. Cancelled/draft are counted once for the
+  // footnote, not mixed into the headline numbers.
   const byEvent = new Map();
-  // Registrations that have at least one participant awaiting review.
+  const eventRow = (ev) => {
+    if (!byEvent.has(ev)) {
+      byEvent.set(ev, { families: new Set(), people: 0, confirmed: 0, pending: 0 });
+    }
+    return byEvent.get(ev);
+  };
+  let cancelled = 0;
+  let draft = 0;
   const needsReview = new Map();
+
   for (const p of participants) {
-    byStatus[p.status] = (byStatus[p.status] ?? 0) + 1;
     const meta = regById.get(p.registration_id);
     const ev = meta?.event ?? 'Unassigned';
-    byEvent.set(ev, (byEvent.get(ev) ?? 0) + 1);
+    if (p.status === 'cancelled') {
+      cancelled += 1;
+      continue;
+    }
+    if (p.status === 'draft') {
+      draft += 1;
+      continue;
+    }
+    const row = eventRow(ev);
+    row.families.add(p.registration_id);
+    row.people += 1;
+    if (p.status === 'confirmed') row.confirmed += 1;
+    if (p.status === 'submitted' || p.status === 'waitlisted') row.pending += 1;
+
     if (p.status === 'submitted') {
       const cur = needsReview.get(p.registration_id) ?? {
         household: meta?.household ?? 'Household',
@@ -52,12 +77,28 @@ export default async function AdminOverview() {
     }
   }
 
+  const totalFamilies = new Set(
+    participants
+      .filter((p) => p.status !== 'cancelled' && p.status !== 'draft')
+      .map((p) => p.registration_id)
+  ).size;
+  const totalPeople = [...byEvent.values()].reduce((s, r) => s + r.people, 0);
+  const totalConfirmed = [...byEvent.values()].reduce((s, r) => s + r.confirmed, 0);
+  const totalPending = [...byEvent.values()].reduce((s, r) => s + r.pending, 0);
+
   const reviewList = [...needsReview.entries()];
 
-  const Stat = ({ label, value }) => (
-    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
-      <div className="text-3xl font-bold">{value}</div>
-      <div className="text-sm text-neutral-500">{label}</div>
+  const Stat = ({ label, sub, value, tone }) => (
+    <div
+      className={`rounded-lg bg-white border shadow-sm p-5 ${
+        tone === 'amber' ? 'border-amber-300' : 'border-neutral-200'
+      }`}
+    >
+      <div className={`text-3xl font-bold ${tone === 'amber' ? 'text-amber-700' : ''}`}>
+        {value}
+      </div>
+      <div className="text-sm font-semibold text-neutral-700">{label}</div>
+      <div className="text-xs text-neutral-500">{sub}</div>
     </div>
   );
 
@@ -65,11 +106,23 @@ export default async function AdminOverview() {
     <div>
       <h2 className="text-xl font-bold mb-4">Overview</h2>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <Stat label="Registrations" value={registrations.length} />
-        <Stat label="People registered" value={participants.length} />
-        <Stat label="Confirmed" value={byStatus.confirmed} />
-        <Stat label="New registrations awaiting review" value={byStatus.submitted + byStatus.waitlisted} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <Stat
+          label="Families signed up"
+          sub="each family registers once per event"
+          value={totalFamilies}
+        />
+        <Stat
+          label="People coming"
+          sub={`across those families · ${totalConfirmed} confirmed`}
+          value={totalPeople}
+        />
+        <Stat
+          label="Awaiting review"
+          sub={totalPending > 0 ? 'needs staff action below' : 'nothing waiting on staff'}
+          value={totalPending}
+          tone={totalPending > 0 ? 'amber' : undefined}
+        />
       </div>
 
       {/* The work queue: families with someone still pending review. */}
@@ -99,37 +152,52 @@ export default async function AdminOverview() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-          <h3 className="font-bold mb-3">By status</h3>
-          <ul className="space-y-1 text-neutral-700">
-            {STATUSES.map((s) => (
-              <li key={s} className="flex justify-between">
-                <span className="capitalize">{s}</span>
-                <span className="font-semibold">{byStatus[s]}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-          <h3 className="font-bold mb-3">By camp week</h3>
-          {byEvent.size === 0 ? (
-            <p className="text-neutral-500">No registrations yet.</p>
-          ) : (
-            <ul className="space-y-1 text-neutral-700">
-              {[...byEvent.entries()].map(([ev, n]) => (
-                <li key={ev} className="flex justify-between">
-                  <span>{ev}</span>
-                  <span className="font-semibold">{n}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Link href="/admin/rosters" className="btn-outline !py-2 mt-4 inline-block">
+      <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h3 className="font-bold">By event</h3>
+          <Link href="/admin/rosters" className="btn-outline !py-1.5 text-sm">
             View full rosters
           </Link>
         </div>
+        {byEvent.size === 0 ? (
+          <p className="text-neutral-500">No sign-ups yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-neutral-500">
+                <tr>
+                  <th className="py-2 pr-4 font-semibold">Event</th>
+                  <th className="py-2 pr-4 font-semibold text-right">Families</th>
+                  <th className="py-2 pr-4 font-semibold text-right">People</th>
+                  <th className="py-2 pr-4 font-semibold text-right">Confirmed</th>
+                  <th className="py-2 font-semibold text-right">Awaiting review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...byEvent.entries()].map(([ev, r]) => (
+                  <tr key={ev} className="border-t border-neutral-100">
+                    <td className="py-2 pr-4 font-medium">{ev}</td>
+                    <td className="py-2 pr-4 text-right">{r.families.size}</td>
+                    <td className="py-2 pr-4 text-right">{r.people}</td>
+                    <td className="py-2 pr-4 text-right text-green-700 font-semibold">{r.confirmed}</td>
+                    <td className={`py-2 text-right font-semibold ${r.pending > 0 ? 'text-amber-700' : 'text-neutral-400'}`}>
+                      {r.pending}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {(cancelled > 0 || draft > 0) && (
+          <p className="mt-3 text-xs text-neutral-400">
+            Not counted above:
+            {cancelled > 0 ? ` ${cancelled} cancelled` : ''}
+            {cancelled > 0 && draft > 0 ? ' ·' : ''}
+            {draft > 0 ? ` ${draft} unfinished (draft)` : ''}
+            .
+          </p>
+        )}
       </div>
     </div>
   );

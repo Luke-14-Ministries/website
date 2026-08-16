@@ -306,7 +306,13 @@ export default async function DashboardPage() {
                           depositCents={r.events?.deposit_cents}
                           pendingCents={pendingByReg.get(r.id)}
                         />
-                        <SoonButton>Edit Registration</SoonButton>
+                        <Link
+                          href="/register/family/"
+                          title="Re-opens the registration form. People you already registered are recognized, not duplicated."
+                          className="btn-outline !py-2"
+                        >
+                          Edit Registration
+                        </Link>
                       </div>
                     </div>
                   );
@@ -341,7 +347,9 @@ export default async function DashboardPage() {
               </ul>
             )}
             <div className="mt-4">
-              <SoonButton>Manage Household</SoonButton>
+              <Link href="/account/household/" className="btn-outline !py-2 inline-block">
+                Manage Household
+              </Link>
             </div>
           </div>
 

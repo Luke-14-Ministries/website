@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import CheckinList from './CheckinList';
+import MedicalContact from './MedicalContact';
 
 export const metadata = { title: 'Check-In — Staff Admin' };
 
@@ -20,7 +21,7 @@ export default async function CheckinPage({ searchParams }) {
   const supabase = await createClient();
   const { data: events } = await supabase
     .from('events')
-    .select('id, name, starts_on, ends_on')
+    .select('id, name, starts_on, ends_on, medical_contact_name, medical_contact_phone')
     .order('starts_on');
   const eventsList = events ?? [];
   const eventId =
@@ -87,6 +88,15 @@ export default async function CheckinPage({ searchParams }) {
             </Link>
           ))}
         </div>
+      )}
+
+      {eventId && (
+        <MedicalContact
+          eventId={eventId}
+          name={eventsList.find((e) => e.id === eventId)?.medical_contact_name}
+          phone={eventsList.find((e) => e.id === eventId)?.medical_contact_phone}
+          canEdit={can(staff, 'admin')}
+        />
       )}
 
       {rows.length === 0 ? (

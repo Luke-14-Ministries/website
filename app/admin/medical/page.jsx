@@ -15,7 +15,10 @@ export default async function MedicalPage() {
 
   const supabase = await createClient();
   const [{ data: events }, { data: regs }] = await Promise.all([
-    supabase.from('events').select('id, name, starts_on').order('starts_on'),
+    supabase
+      .from('events')
+      .select('id, name, starts_on, medical_contact_name, medical_contact_phone')
+      .order('starts_on'),
     supabase
       .from('registrations')
       .select(
@@ -79,9 +82,25 @@ export default async function MedicalPage() {
         const rows = (byEvent.get(ev.id) ?? []).sort((a, b) => a.sortName.localeCompare(b.sortName));
         return (
           <div key={ev.id} className="mb-10">
-            <h3 className="text-lg font-bold mb-3">
+            <h3 className="text-lg font-bold mb-1">
               {ev.name} <span className="text-sm font-normal text-neutral-500">· {rows.length} people</span>
             </h3>
+            <p className="text-sm mb-3">
+              <span aria-hidden>⚕️ </span>
+              {ev.medical_contact_name ? (
+                <>
+                  <span className="font-semibold">Medical contact:</span> {ev.medical_contact_name}
+                  {ev.medical_contact_phone ? (
+                    <span className="font-semibold"> · {ev.medical_contact_phone}</span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-neutral-500">
+                  No medical contact set for this event — an administrator can add one on the
+                  Check-In page.
+                </span>
+              )}
+            </p>
             {rows.length === 0 ? (
               <p className="text-neutral-500 text-sm">No medical or support details recorded.</p>
             ) : (

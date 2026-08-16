@@ -5,6 +5,36 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+// --- Trusted browser ("remember this browser for 30 days") -----------------
+// The password is still required at every login; only the 6-digit code is
+// skipped, and only on a browser that has already passed two-factor once.
+// A random token stays in this browser; its SHA-256 hash sits in
+// mfa_trusted_devices, whose insert policy requires an aal2 session -- so the
+// skip cannot be faked by someone who only knows the password.
+const TRUST_KEY = 'l14_mfa_trust';
+const TRUST_DAYS = 30;
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function readTrustStore() {
+  try {
+    return JSON.parse(localStorage.getItem(TRUST_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function writeTrustStore(store) {
+  try {
+    localStorage.setItem(TRUST_KEY, JSON.stringify(store));
+  } catch {
+    /* private-browsing modes can refuse; the code step still works */
+  }
+}
+
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,6 +45,7 @@ export default function LoginForm() {
   // password login lands on an account that has two-factor turned on.
   const [mfa, setMfa] = useState(null); // { factorId, challengeId }
   const [code, setCode] = useState('');
+  const [remember, setRemember] = useState(true);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -56,6 +87,37 @@ export default function LoginForm() {
     // changes nothing for them.
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aal?.nextLevel === 'aal2' && aal?.currentLevel !== 'aal2') {
+      // Is this browser already trusted for this account? Look the local token
+      // up server-side (RLS scopes the query to this user's own rows). Any
+      // failure here just falls through to asking for the code -- never the
+      // other way round.
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const trust = user ? readTrustStore()[user.id] : null;
+        if (trust?.token && trust.exp > Date.now()) {
+          const hash = await sha256Hex(trust.token);
+          const { data: device } = await supabase
+            .from('mfa_trusted_devices')
+            .select('id, expires_at')
+            .eq('token_hash', hash)
+            .maybeSingle();
+          if (device && new Date(device.expires_at).getTime() > Date.now()) {
+            // Trusted: skip the code. Touch last_used_at, don't wait for it.
+            supabase
+              .from('mfa_trusted_devices')
+              .update({ last_used_at: new Date().toISOString() })
+              .eq('id', device.id)
+              .then(() => {});
+            finish();
+            return;
+          }
+        }
+      } catch {
+        /* fall through to the code step */
+      }
+
       const { data: list } = await supabase.auth.mfa.listFactors();
       const factor = (list?.totp ?? []).find((f) => f.status === 'verified');
       if (factor) {
@@ -92,6 +154,37 @@ export default function LoginForm() {
       setBusy(false);
       return;
     }
+
+    // Passed two-factor. If asked, remember this browser: random token here,
+    // its hash server-side (insert allowed only now, at aal2).
+    if (remember) {
+      try {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        const token = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+        const hash = await sha256Hex(token);
+        const expires = new Date(Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { error: insError } = await supabase.from('mfa_trusted_devices').insert({
+            profile_id: user.id,
+            token_hash: hash,
+            user_agent: navigator.userAgent.slice(0, 250),
+            expires_at: expires.toISOString(),
+          });
+          if (!insError) {
+            const store = readTrustStore();
+            store[user.id] = { token, exp: expires.getTime() };
+            writeTrustStore(store);
+          }
+        }
+      } catch {
+        /* trust is a convenience; the login itself has already succeeded */
+      }
+    }
+
     finish();
   }
 
@@ -131,9 +224,24 @@ export default function LoginForm() {
           autoFocus
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          className="w-full rounded border border-neutral-300 px-4 py-2.5 mb-6 tracking-widest"
+          className="w-full rounded border border-neutral-300 px-4 py-2.5 mb-4 tracking-widest"
           placeholder="123456"
         />
+        <label className="flex items-start gap-2 text-sm mb-6">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Remember this browser for {TRUST_DAYS} days — your password is still
+            required, but not the code.{' '}
+            <span className="text-neutral-500">
+              (Leave unchecked on a shared or public computer.)
+            </span>
+          </span>
+        </label>
         <button type="submit" className="btn-primary w-full" disabled={busy}>
           {busy ? 'Verifying…' : 'Verify & Continue'}
         </button>

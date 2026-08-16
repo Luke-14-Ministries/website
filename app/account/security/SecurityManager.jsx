@@ -21,6 +21,7 @@ export default function SecurityManager({ required }) {
   const supabase = createClient();
 
   const [factors, setFactors] = useState([]);
+  const [trustedCount, setTrustedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -55,8 +56,39 @@ export default function SecurityManager({ required }) {
         label: byId.get(f.id) || f.friendly_name || 'Authenticator app',
       }))
     );
+    // Browsers remembered via "skip the code for 30 days" (RLS: own rows only).
+    const { count } = await supabase
+      .from('mfa_trusted_devices')
+      .select('id', { count: 'exact', head: true })
+      .gt('expires_at', new Date().toISOString());
+    setTrustedCount(count ?? 0);
     setLoading(false);
   }, [supabase]);
+
+  async function forgetTrustedBrowsers() {
+    if (
+      !confirm(
+        'Forget all trusted browsers? Your 6-digit code will be required again at the next login on every device. (Your password and authenticator app are unaffected.)'
+      )
+    )
+      return;
+    setBusy(true);
+    const { error: delError } = await supabase
+      .from('mfa_trusted_devices')
+      .delete()
+      .neq('token_hash', '');
+    setBusy(false);
+    if (delError) {
+      setError(delError.message);
+      return;
+    }
+    try {
+      localStorage.removeItem('l14_mfa_trust');
+    } catch {
+      /* fine */
+    }
+    setTrustedCount(0);
+  }
 
   useEffect(() => {
     loadFactors();
@@ -349,6 +381,24 @@ export default function SecurityManager({ required }) {
           <button onClick={startAdd} disabled={busy} className="btn-outline">
             Add another device
           </button>
+
+          <div className="mt-6 border-t border-neutral-100 pt-4">
+            <p className="text-sm font-semibold mb-1">Trusted browsers</p>
+            <p className="text-sm text-neutral-500 mb-2">
+              {trustedCount > 0
+                ? `${trustedCount} ${trustedCount === 1 ? 'browser is' : 'browsers are'} remembered — the code is skipped there for 30 days (password still required).`
+                : 'None right now. Ticking “Remember this browser” at login skips the code there for 30 days.'}
+            </p>
+            {trustedCount > 0 && (
+              <button
+                onClick={forgetTrustedBrowsers}
+                disabled={busy}
+                className="text-red-700 underline text-sm"
+              >
+                Forget all trusted browsers
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div>

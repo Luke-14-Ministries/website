@@ -4,7 +4,7 @@ import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import RecordPaymentForm from './RecordPaymentForm';
 
-export const metadata = { title: 'Camp Payments — Staff Admin' };
+export const metadata = { title: 'Event Payments — Staff Admin' };
 
 const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
@@ -23,7 +23,7 @@ const STATUS_CLS = {
   refunded: 'bg-neutral-200 text-neutral-600',
 };
 
-// Camp money only. Donations live on the separate Giving page, behind their
+// Event money only (Camp Celebrate, retreats, dinners...). Donations live on the separate Giving page, behind their
 // own permission -- reconciling camp fees does not require seeing who gave
 // what. Registrar-gated; RLS is the backstop.
 export default async function AdminPaymentsPage() {
@@ -72,13 +72,18 @@ export default async function AdminPaymentsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Camp Payments</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <h2 className="text-xl font-bold">Event Payments</h2>
+        <a href="/admin/exports/payments" className="btn-outline !py-2 text-sm">
+          Download CSV
+        </a>
+      </div>
       <p className="text-sm text-neutral-500 mb-6">
-        What each family owes and has paid for camp. Online payments record themselves; checks
+        What each family owes and has paid for an event (Camp Celebrate, retreats, and the rest). Online payments record themselves; checks
         and cash are entered below. Donations live on the separate Giving page.
       </p>
 
-      <h3 className="font-semibold text-neutral-700 mb-2">By camp week</h3>
+      <h3 className="font-semibold text-neutral-700 mb-2">By event</h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
         {[...events.entries()].map(([name, e]) => (
           <div key={name} className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">

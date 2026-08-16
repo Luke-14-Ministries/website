@@ -28,16 +28,17 @@ const ROLE_INFO = {
 const NAV = [
   { href: '/admin', label: 'Overview', need: 'staff', ready: true },
   { href: '/admin/rosters', label: 'Rosters', need: 'registrar', ready: true },
-  { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: false },
-  { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: false },
+  { href: '/admin/checkin', label: 'Check-In', need: 'door', ready: true },
+  { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: true },
+  { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: true },
   { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: false },
   { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: false },
   { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: false },
-  { href: '/admin/payments', label: 'Camp Payments', need: 'registrar', ready: true },
+  { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true },
   { href: '/admin/giving', label: 'Giving', need: 'giving', ready: true },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: false },
   { href: '/admin/security', label: 'Two-Factor Resets', need: 'admin', ready: true },
-  { href: '/admin/staff', label: 'Staff & Access', need: 'admin', ready: false },
+  { href: '/admin/staff', label: 'Staff & Access', need: 'admin', ready: true },
 ];
 
 export default async function AdminLayout({ children }) {

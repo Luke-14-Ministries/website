@@ -45,7 +45,12 @@ export default async function AdminGivingPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Giving</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <h2 className="text-xl font-bold">Giving</h2>
+        <a href="/admin/exports/giving" className="btn-outline !py-2 text-sm">
+          Download CSV
+        </a>
+      </div>
       <p className="text-sm text-neutral-500 mb-6">
         Donations — tax-deductible, and kept fully separate from camp payments (which are not).
         Access to this page is its own permission. Online gifts record themselves; mailed checks

@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
       }
       return new Response('ok', { status: 200 });
     }
-    // ---- End donations path. Camp payments continue below. ----
+    // ---- End donations path. Event payments continue below. ----
 
     if (!registrationId || !paymentIntentId || !(base > 0)) {
       console.log(
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
         const to = s.customer_details?.email ?? s.customer_email;
         if (resendKey && to) {
           const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
-          const eventName = md.event_name ?? 'Camp registration';
+          const eventName = md.event_name ?? 'Event registration';
           const kindLabel =
             md.kind === 'deposit' ? 'Deposit' : md.kind === 'custom' ? 'Payment' : 'Balance payment';
           const received = status === 'succeeded';
@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
     </table>
     ${bankNote}
     <p style="font-size:13px;color:#555">Your payments and their status are always visible on your <a href="https://luke14-ministries.vercel.app/account/dashboard/" style="color:#14606a">family dashboard</a>.</p>
-    <p style="font-size:12px;color:#888">Camp registration payments cover the costs of camp (food, lodging, and activities) and are not tax-deductible. Questions? Email <a href="mailto:info@luke14ministries.net" style="color:#14606a">info@luke14ministries.net</a> or call (423) 748-4954.</p>
+    <p style="font-size:12px;color:#888">Registration payments for camp and other ministry events cover event costs (food, lodging, and activities) and are not tax-deductible. Questions? Email <a href="mailto:info@luke14ministries.net" style="color:#14606a">info@luke14ministries.net</a> or call (423) 748-4954.</p>
   </div>
 </div>`;
           const resp = await fetch('https://api.resend.com/emails', {

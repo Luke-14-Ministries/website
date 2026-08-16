@@ -148,7 +148,7 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
         <Radio name="method" value="bank" cur={method} set={setMethod}>
           <span className="block">Bank transfer</span>
           <span className="block text-xs text-neutral-500 mt-0.5">
-            Lower processing fee — more of your payment goes to camp
+            Lower processing fee — more of your payment reaches the ministry
           </span>
         </Radio>
       </div>
@@ -196,8 +196,8 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
         Payments are handled securely by Stripe. Card details never touch this site.
       </p>
       <p className="mt-1 text-xs text-neutral-400">
-        Camp registration payments cover the costs of camp (food, lodging, and activities) and
-        are <strong>not tax-deductible</strong>.
+        Registration payments for camp and other ministry events cover event costs (food,
+        lodging, and activities) and are <strong>not tax-deductible</strong>.
       </p>
     </div>
   );

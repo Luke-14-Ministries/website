@@ -1,0 +1,99 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getStaff, can } from '@/lib/staff';
+import { createClient } from '@/lib/supabase/server';
+import CheckinList from './CheckinList';
+
+export const metadata = { title: 'Check-In — Staff Admin' };
+
+// Day-of arrivals, built for a phone at the door. Registrars, coordinators and
+// admins can mark people in (the set_check_in RPC is the real gate). Medical
+// quick-flags appear only for staff holding the sensitive permission -- RLS
+// simply returns nothing for anyone else.
+export default async function CheckinPage({ searchParams }) {
+  const params = await searchParams;
+
+  const staff = await getStaff();
+  if (!staff) redirect('/account/?next=/admin/checkin/');
+  if (!can(staff, 'door')) redirect('/admin');
+
+  const supabase = await createClient();
+  const { data: events } = await supabase
+    .from('events')
+    .select('id, name, starts_on, ends_on')
+    .order('starts_on');
+  const eventsList = events ?? [];
+  const eventId =
+    typeof params?.event === 'string' && eventsList.some((e) => e.id === params.event)
+      ? params.event
+      : eventsList[0]?.id;
+
+  let rows = [];
+  if (eventId) {
+    const { data: regs } = await supabase
+      .from('registrations')
+      .select(
+        `id, event_id,
+         households ( display_name ),
+         registration_participants ( id, camp_role, status, checked_in_at,
+           people ( first_name, last_name,
+             person_support ( buddy_required, has_allergies, has_seizures, has_rescue_medication ) ) )`
+      )
+      .eq('event_id', eventId);
+
+    for (const r of regs ?? []) {
+      for (const p of r.registration_participants ?? []) {
+        if (p.status === 'cancelled' || p.status === 'draft') continue;
+        const s = p.people?.person_support ?? null;
+        const flags = [];
+        if (s?.has_allergies) flags.push('allergies');
+        if (s?.has_seizures) flags.push('seizures');
+        if (s?.has_rescue_medication) flags.push('rescue med');
+        if (s?.buddy_required) flags.push('buddy');
+        rows.push({
+          id: p.id,
+          name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
+          sortName: `${p.people?.last_name ?? ''} ${p.people?.first_name ?? ''}`,
+          role: p.camp_role,
+          household: r.households?.display_name ?? '',
+          checkedInAt: p.checked_in_at,
+          flags,
+        });
+      }
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-1">Check-In</h2>
+      <p className="text-sm text-neutral-500 mb-4">
+        Mark arrivals as people come through the door. Works on a phone. Red flags are the
+        at-a-glance alerts; full detail lives on the Medical &amp; Support page.
+      </p>
+
+      {eventsList.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {eventsList.map((ev) => (
+            <Link
+              key={ev.id}
+              href={`/admin/checkin?event=${ev.id}`}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold border ${
+                ev.id === eventId
+                  ? 'bg-brand text-white border-brand'
+                  : 'border-neutral-300 text-neutral-700 hover:border-brand'
+              }`}
+            >
+              {ev.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <p className="text-neutral-500">Nobody to check in for this event yet.</p>
+      ) : (
+        <CheckinList rows={rows} />
+      )}
+    </div>
+  );
+}

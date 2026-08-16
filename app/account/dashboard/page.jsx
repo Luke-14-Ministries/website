@@ -384,8 +384,8 @@ export default async function DashboardPage() {
             <p className="mt-3 text-sm text-neutral-600">
               Luke 14 Ministries is a registered <strong>501(c)(3)</strong> nonprofit
               organization, and <strong>donations are tax-deductible</strong> to the extent
-              allowed by law. (Camp registration payments are not — they cover the costs of
-              camp, such as food, lodging, and activities.)
+              allowed by law. (Event registration payments — camp, retreats, and the like — are not; they cover
+              event costs such as food, lodging, and activities.)
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href="/donate" className="btn-gold !py-2">
@@ -398,7 +398,7 @@ export default async function DashboardPage() {
 
           {/* Account settings -- change password works today */}
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-2' : 'order-4'}`}>
-            <h2 className="text-xl font-bold mb-4">Account Settings</h2>
+            <h2 className="text-xl font-bold mb-4">My Account Settings</h2>
             <ul className="space-y-2 text-neutral-700">
               <li className="text-neutral-400">Update contact information</li>
               <li>

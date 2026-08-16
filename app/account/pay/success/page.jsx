@@ -46,8 +46,8 @@ export default async function PaySuccessPage({ searchParams }) {
               : 'It will appear on your dashboard, and a receipt is on its way.'}
           </p>
           <p className="mt-4 text-xs text-neutral-400">
-            Camp registration payments cover the costs of camp (food, lodging, and activities)
-            and are not tax-deductible.
+            Registration payments for camp and other ministry events cover event costs (food,
+            lodging, and activities) and are not tax-deductible.
           </p>
           <Link href="/account/dashboard/" className="btn-primary !py-2 mt-6 inline-block">
             Back to my dashboard

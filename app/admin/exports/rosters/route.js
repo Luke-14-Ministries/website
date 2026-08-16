@@ -1,0 +1,58 @@
+// GET /admin/exports/rosters — the full roster as a CSV download.
+// Registrar-gated; RLS is the backstop. Data is never trapped in the app.
+
+import { getStaff, can } from '@/lib/staff';
+import { createClient } from '@/lib/supabase/server';
+
+const esc = (v) => {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+export async function GET() {
+  const staff = await getStaff();
+  if (!can(staff, 'registrar')) {
+    return new Response('Not permitted', { status: 403 });
+  }
+
+  const supabase = await createClient();
+  const { data: regs } = await supabase
+    .from('registrations')
+    .select(
+      `id, events ( name ),
+       households ( display_name, email, phone ),
+       registration_participants ( camp_role, status, fee_cents, submitted_at, created_at, checked_in_at,
+         people ( first_name, last_name, date_of_birth ) )`
+    );
+
+  const rows = [
+    ['Event', 'Household', 'Email', 'Phone', 'First name', 'Last name', 'Date of birth',
+     'Role', 'Status', 'Fee', 'Submitted', 'Checked in'],
+  ];
+  for (const r of regs ?? []) {
+    for (const p of r.registration_participants ?? []) {
+      rows.push([
+        r.events?.name ?? '',
+        r.households?.display_name ?? '',
+        r.households?.email ?? '',
+        r.households?.phone ?? '',
+        p.people?.first_name ?? '',
+        p.people?.last_name ?? '',
+        p.people?.date_of_birth ?? '',
+        p.camp_role ?? '',
+        p.status ?? '',
+        ((p.fee_cents ?? 0) / 100).toFixed(2),
+        (p.submitted_at ?? p.created_at ?? '').slice(0, 10),
+        p.checked_in_at ? p.checked_in_at.slice(0, 16).replace('T', ' ') : '',
+      ]);
+    }
+  }
+
+  const csv = rows.map((r) => r.map(esc).join(',')).join('\r\n');
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="luke14-rosters-${new Date().toISOString().slice(0, 10)}.csv"`,
+    },
+  });
+}

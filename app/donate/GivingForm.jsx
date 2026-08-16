@@ -5,6 +5,7 @@
 // giving is a planned addition and is shown honestly as coming soon.
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { createDonationCheckout } from './actions';
 import { coverFeeCents, dollars } from '@/lib/payments';
 
@@ -17,7 +18,7 @@ const funds = [
   'Wheels for Kenya',
 ];
 
-export default function GivingForm() {
+export default function GivingForm({ signedInEmail }) {
   const [amount, setAmount] = useState(50);
   const [custom, setCustom] = useState('');
   const [fund, setFund] = useState(funds[0]);
@@ -54,7 +55,37 @@ export default function GivingForm() {
       className="rounded-lg border border-neutral-200 shadow p-6 sm:p-8 bg-white"
       onSubmit={submit}
     >
-      <h3 className="text-2xl font-bold mb-5">Give Online</h3>
+      <h3 className="text-2xl font-bold mb-4">Give Online</h3>
+
+      {/* The guest-or-account choice, made BEFORE the gift rather than
+          discovered after. Guest giving stays one click away -- no pressure --
+          but anyone who might want their giving history in one place gets the
+          chance to log in first and come straight back here. */}
+      {signedInEmail ? (
+        <p className="mb-5 rounded border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800">
+          Signed in as <strong>{signedInEmail}</strong> — this gift will be saved
+          to your giving history and receipts.
+        </p>
+      ) : (
+        <div className="mb-5 rounded border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+          <p>
+            <strong>Giving as a guest</strong> — quick and easy, with a receipt
+            emailed to you.
+          </p>
+          <p className="mt-1.5 text-neutral-600">
+            Think you might want to look back at your giving later — for
+            receipts, history, or a year-end record?{' '}
+            <Link href="/account/?next=/donate/" className="text-brand underline font-medium">
+              Log in
+            </Link>{' '}
+            or{' '}
+            <Link href="/account/signup/?next=/donate/" className="text-brand underline font-medium">
+              create a free account
+            </Link>{' '}
+            first — you&rsquo;ll come right back to this page.
+          </p>
+        </div>
+      )}
 
       <div className="flex rounded overflow-hidden border border-brand mb-5">
         <button type="button" className="flex-1 py-2.5 font-semibold bg-brand text-white">

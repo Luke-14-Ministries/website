@@ -1,6 +1,7 @@
 import PageHero from '@/components/PageHero';
 import GivingForm from './GivingForm';
 import { asset } from '@/lib/site';
+import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Donate' };
 
@@ -14,7 +15,14 @@ const impacts = [
   'Equipping volunteers to serve individuals and families affected by disability—both locally and around the world',
 ];
 
-export default function DonatePage() {
+export default async function DonatePage() {
+  // Who is giving? Signed-in donors get their gift saved to their account;
+  // guests get a gentle heads-up BEFORE they give, so the choice is theirs.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <>
       <PageHero
@@ -86,7 +94,7 @@ export default function DonatePage() {
               </p>
             </div>
           </div>
-          <GivingForm />
+          <GivingForm signedInEmail={user?.email ?? null} />
         </div>
       </section>
     </>

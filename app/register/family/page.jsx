@@ -96,7 +96,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
         .select(
           `id, event_id, family_notes, created_at,
            registration_participants ( camp_role, status,
-             people ( first_name, last_name, date_of_birth,
+             people ( id, first_name, last_name, date_of_birth,
                person_support ( disabilities, dietary_needs ) ) )`
         )
         .eq('household_id', householdId)
@@ -109,6 +109,9 @@ export default async function FamilyRegisterPage({ searchParams }) {
     const members = (reg?.registration_participants ?? [])
       .filter((p) => p.status !== 'cancelled')
       .map((p) => ({
+        // The person's ID rides along invisibly so an edit (a rename included)
+        // updates the SAME person instead of creating a look-alike.
+        personId: p.people?.id ?? null,
         firstName: p.people?.first_name ?? '',
         lastName: p.people?.last_name ?? '',
         dob: p.people?.date_of_birth ?? '',

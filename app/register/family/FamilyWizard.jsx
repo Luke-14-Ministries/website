@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { submitFamilyRegistration } from './actions';
 
 const emptyMember = {
+  personId: null,
   firstName: '',
   lastName: '',
   dob: '',
@@ -94,6 +95,18 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
   };
 
   async function handleSubmit() {
+    // Soft requirement: date of birth. It is one of the ways family members
+    // are told apart, so warn (but do not block) when it is missing.
+    const missingDob = members.filter(
+      (m) => m.firstName.trim() && m.lastName.trim() && !m.dob
+    );
+    if (missingDob.length > 0) {
+      const names = missingDob.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
+      const ok = window.confirm(
+        `No date of birth entered for: ${names}.\n\nBirth dates help us tell family members apart (and plan ages at camp). Save anyway?`
+      );
+      if (!ok) return;
+    }
     setError('');
     setBusy(true);
     try {
@@ -169,7 +182,9 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
           <p className="text-sm text-neutral-600 rounded bg-neutral-50 border border-neutral-200 px-4 py-3">
             List everyone who will attend — <span className="font-semibold">including yourself</span> if
             you&rsquo;re coming. Support and dietary needs can be noted for any family member, adults
-            included. Each adult&rsquo;s own phone number is managed under{' '}
+            included. Please include each person&rsquo;s{' '}
+            <span className="font-semibold">date of birth</span> — it helps us tell family members
+            apart. Each adult&rsquo;s own phone number is managed under{' '}
             <span className="font-semibold">Manage Household</span> on your dashboard.
           </p>
           {members.map((m, i) => (

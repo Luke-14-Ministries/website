@@ -36,6 +36,7 @@ export async function submitFamilyRegistration(payload) {
   const mapped = (members || [])
     .filter((m) => (m.firstName || '').trim() && (m.lastName || '').trim())
     .map((m) => ({
+      personId: m.personId || null,
       firstName: m.firstName.trim(),
       lastName: m.lastName.trim(),
       dob: m.dob || null,

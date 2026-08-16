@@ -103,7 +103,7 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
     if (missingDob.length > 0) {
       const names = missingDob.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
       const ok = window.confirm(
-        `No date of birth entered for: ${names}.\n\nBirth dates help us tell family members apart (and plan ages at camp). Save anyway?`
+        `No date of birth entered for: ${names}.\n\nBirth dates help us tell family members apart, and help program leaders at camp plan resources and accommodations appropriately. Save anyway?`
       );
       if (!ok) return;
     }

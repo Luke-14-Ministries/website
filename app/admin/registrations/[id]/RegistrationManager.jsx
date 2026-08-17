@@ -569,7 +569,7 @@ function HouseholdEditor({ registrationId, household }) {
   );
 }
 
-export default function RegistrationManager({ registration, options }) {
+export default function RegistrationManager({ registration, options, adjustmentRecords = [] }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
   const adjustments = parts.reduce(
@@ -622,6 +622,35 @@ export default function RegistrationManager({ registration, options }) {
             </div>
           )}
           <AddPerson registrationId={registration.id} options={options} />
+
+          {/* The scholarship/discount record: who granted what, and when.
+              Comes from the scholarships audit table (one row per person,
+              kept current by the adjustments editor). */}
+          {adjustmentRecords.length > 0 && (
+            <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-sm font-semibold text-neutral-700 mb-1">
+                Scholarship &amp; discount record
+              </p>
+              <ul className="text-xs text-neutral-600 space-y-1">
+                {adjustmentRecords.map((r, i) => {
+                  const person = parts.find((p) => p.id === r.participantId)?.person;
+                  const who = person ? `${person.first_name} ${person.last_name}` : 'Removed person';
+                  return (
+                    <li key={i}>
+                      <span className="font-medium text-neutral-800">{who}</span>
+                      {' — '}
+                      {r.status === 'withdrawn'
+                        ? 'assistance withdrawn'
+                        : `${money(r.grantedCents)} ${r.status}`}
+                      {r.grantedBy && <> · by {r.grantedBy}</>}
+                      {r.at && <> · {String(r.at).slice(0, 10)}</>}
+                      {r.note && <> · &ldquo;{r.note}&rdquo;</>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
 
         {registration.family_notes && (

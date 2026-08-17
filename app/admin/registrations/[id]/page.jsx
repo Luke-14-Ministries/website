@@ -44,6 +44,36 @@ export default async function RegistrationDetailPage({ params }) {
     .eq('event_id', reg.events?.id)
     .order('sort_order');
 
+  // The scholarship/discount record: who granted what, and when. One row per
+  // participant (upserted by setAdjustments), with the granting staff member's
+  // name looked up separately — nested joins with two FKs to profiles are
+  // fragile, so keep the lookups simple.
+  const partIds = (reg.registration_participants ?? []).map((p) => p.id);
+  let adjustmentRecords = [];
+  if (partIds.length) {
+    const { data: schols } = await supabase
+      .from('scholarships')
+      .select('registration_participant_id, granted_cents, status, family_statement, reviewed_by, reviewed_at, updated_at')
+      .in('registration_participant_id', partIds);
+    const reviewerIds = [...new Set((schols ?? []).map((s) => s.reviewed_by).filter(Boolean))];
+    let names = new Map();
+    if (reviewerIds.length) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', reviewerIds);
+      names = new Map((profs ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`.trim()]));
+    }
+    adjustmentRecords = (schols ?? []).map((s) => ({
+      participantId: s.registration_participant_id,
+      grantedCents: s.granted_cents,
+      status: s.status,
+      note: s.family_statement,
+      grantedBy: names.get(s.reviewed_by) ?? null,
+      at: s.reviewed_at ?? s.updated_at,
+    }));
+  }
+
   // Reshape the PostgREST nesting into the names the client component expects.
   const registration = {
     id: reg.id,
@@ -67,5 +97,5 @@ export default async function RegistrationDetailPage({ params }) {
       ),
   };
 
-  return <RegistrationManager registration={registration} options={options ?? []} />;
+  return <RegistrationManager registration={registration} options={options ?? []} adjustmentRecords={adjustmentRecords} />;
 }

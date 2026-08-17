@@ -37,13 +37,45 @@ export default async function StaffAccessPage() {
   return (
     <div>
       <h2 className="text-xl font-bold mb-1">Staff &amp; Access</h2>
-      <p className="text-sm text-neutral-500 mb-6">
-        Who can do what. A <span className="font-semibold">role</span> says what someone does
-        (Registrar — registrations &amp; payments; Coordinator — activities, buddies, and door
-        duty; Administrator — everything). <span className="font-semibold">Sensitive</span> and{' '}
-        <span className="font-semibold">Giving</span> are separate need-to-know grants — they are
-        not implied by role, so give them only to people whose duties require them.
+      <p className="text-sm text-neutral-500 mb-4">
+        Who can do what. Each person holds <span className="font-semibold">one role</span> (what
+        they do) plus optional <span className="font-semibold">need-to-know grants</span> — so one
+        person can wear several hats without extra logins. Finer-grained roles are a board
+        conversation if real duties call for them.
       </p>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-3 text-sm">
+        <div className="rounded-lg bg-white border border-neutral-200 p-4">
+          <p className="font-bold mb-1">Registrar</p>
+          <p className="text-neutral-600">
+            Registrations &amp; money for events: review and confirm sign-ups, edit families,
+            record payments, rosters, check-in, tracked changes, exports.
+          </p>
+        </div>
+        <div className="rounded-lg bg-white border border-neutral-200 p-4">
+          <p className="font-bold mb-1">Coordinator</p>
+          <p className="text-neutral-600">
+            Day-of and program duties: check-in at the door, activities and buddy assignments
+            (as those pages arrive). No access to family edits or money.
+          </p>
+        </div>
+        <div className="rounded-lg bg-white border border-neutral-200 p-4">
+          <p className="font-bold mb-1">Administrator</p>
+          <p className="text-neutral-600">
+            Everything — including staff &amp; access, event setup, two-factor resets, and giving
+            records. Keep this list short.
+          </p>
+        </div>
+      </div>
+      <div className="mb-6 rounded-lg bg-white border border-neutral-200 p-4 text-sm">
+        <p className="font-bold mb-1">Separate grants (any role can hold them)</p>
+        <p className="text-neutral-600">
+          <span className="font-semibold">Sensitive</span> — medical, dietary, and support
+          details (Dietary, Medical &amp; Support pages, red flags at check-in).{' '}
+          <span className="font-semibold">Giving</span> — donor gift records (administrators have
+          this automatically). Grants are need-to-know: give them only where duties require.
+        </p>
+      </div>
 
       <StaffManager members={members} selfId={staff.userId} />
     </div>

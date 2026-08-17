@@ -74,19 +74,24 @@ export default function StaffManager({ members, selfId }) {
           />
         </td>
         <td className="px-4 py-3">
-          <select
-            value={m.role}
-            disabled={busy || (isSelf && m.role === 'admin')}
-            onChange={(e) => patch(m.profileId, { role: e.target.value })}
-            className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
+          <div
+            className="flex flex-col gap-1"
             title={isSelf && m.role === 'admin' ? 'You cannot remove your own admin role.' : undefined}
           >
             {Object.entries(ROLE_LABEL).map(([v, l]) => (
-              <option key={v} value={v}>
+              <label key={v} className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={`role-${m.profileId}`}
+                  checked={m.role === v}
+                  disabled={busy || (isSelf && m.role === 'admin')}
+                  onChange={() => patch(m.profileId, { role: v })}
+                  className="h-4 w-4"
+                />
                 {l}
-              </option>
+              </label>
             ))}
-          </select>
+          </div>
         </td>
         <td className="px-4 py-3 text-center">
           <input

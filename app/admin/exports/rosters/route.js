@@ -9,17 +9,24 @@ const esc = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export async function GET() {
+export async function GET(request) {
   const staff = await getStaff();
   if (!can(staff, 'registrar')) {
     return new Response('Not permitted', { status: 403 });
   }
 
+  // Filters mirror the on-screen roster browser, so the download always
+  // matches what the person was looking at.
+  const url = new URL(request.url);
+  const fEvent = url.searchParams.get('event') || '';
+  const fRole = url.searchParams.get('role') || '';
+  const fStatus = url.searchParams.get('status') || '';
+
   const supabase = await createClient();
   const { data: regs } = await supabase
     .from('registrations')
     .select(
-      `id, events ( name ),
+      `id, event_id, events ( name ),
        households ( display_name, email, phone ),
        registration_participants ( camp_role, status, fee_cents, submitted_at, created_at, checked_in_at,
          people ( first_name, last_name, date_of_birth ) )`
@@ -30,7 +37,10 @@ export async function GET() {
      'Role', 'Status', 'Fee', 'Submitted', 'Checked in'],
   ];
   for (const r of regs ?? []) {
+    if (fEvent && r.event_id !== fEvent) continue;
     for (const p of r.registration_participants ?? []) {
+      if (fRole && p.camp_role !== fRole) continue;
+      if (fStatus && p.status !== fStatus) continue;
       rows.push([
         r.events?.name ?? '',
         r.households?.display_name ?? '',

@@ -26,7 +26,7 @@ export default async function RegistrationDetailPage({ params }) {
                     address_line1, address_line2, city, state, postal_code ),
        events ( id, name, starts_on, ends_on ),
        registration_participants (
-         id, camp_role, status, fee_cents,
+         id, camp_role, status, fee_cents, scholarship_cents, discount_cents,
          people ( id, first_name, last_name, preferred_name, date_of_birth,
                   gender, pronouns, email, phone )
        )`
@@ -56,6 +56,8 @@ export default async function RegistrationDetailPage({ params }) {
         camp_role: p.camp_role,
         status: p.status,
         fee_cents: p.fee_cents,
+        scholarship_cents: p.scholarship_cents,
+        discount_cents: p.discount_cents,
         person: p.people,
       }))
       .sort((a, b) =>

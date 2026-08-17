@@ -243,3 +243,71 @@ export async function deleteParticipantPermanently(registrationId, participantId
   revalidateAll(registrationId);
   return { ok: true };
 }
+
+// Scholarships & fee adjustments. The amounts live on the participant row
+// (registration_participants.scholarship_cents / discount_cents) -- that is
+// what the registration_balances view subtracts, so granting here flows into
+// every balance, statement, and the family's dashboard automatically. A
+// scholarships row is kept alongside as the audit trail (who granted what,
+// when, and the note).
+export async function setAdjustments(registrationId, participantId, input) {
+  const { staff, error: authError } = await requireRegistrar();
+  if (authError) return { ok: false, error: authError };
+
+  const toCents = (v) => {
+    const n = Number.parseFloat(String(v ?? '').replace(/[$,\s]/g, ''));
+    if (Number.isNaN(n)) return 0;
+    return Math.round(n * 100);
+  };
+  const scholarship = toCents(input?.scholarship);
+  const discount = toCents(input?.discount);
+  const note = String(input?.note ?? '').trim();
+  if (scholarship < 0 || discount < 0) {
+    return { ok: false, error: 'Amounts cannot be negative.' };
+  }
+
+  const supabase = await createClient();
+
+  const { data: part, error: readError } = await supabase
+    .from('registration_participants')
+    .select('id, fee_cents')
+    .eq('id', participantId)
+    .maybeSingle();
+  if (readError) return { ok: false, error: readError.message };
+  if (!part) return { ok: false, error: 'That participant no longer exists.' };
+  if (scholarship + discount > (part.fee_cents ?? 0)) {
+    return {
+      ok: false,
+      error: 'Scholarship plus discount cannot exceed the fee for this person.',
+    };
+  }
+
+  const { error } = await supabase
+    .from('registration_participants')
+    .update({ scholarship_cents: scholarship, discount_cents: discount })
+    .eq('id', participantId);
+  if (error) return { ok: false, error: error.message };
+
+  // Audit trail in the scholarships table (one row per participant).
+  const { data: existing } = await supabase
+    .from('scholarships')
+    .select('id')
+    .eq('registration_participant_id', participantId)
+    .maybeSingle();
+  const auditRow = {
+    registration_participant_id: participantId,
+    granted_cents: scholarship,
+    status: scholarship > 0 ? 'granted' : 'withdrawn',
+    family_statement: note || null,
+    reviewed_by: staff.userId,
+    reviewed_at: new Date().toISOString(),
+  };
+  if (existing) {
+    await supabase.from('scholarships').update(auditRow).eq('id', existing.id);
+  } else if (scholarship > 0) {
+    await supabase.from('scholarships').insert(auditRow);
+  }
+
+  revalidateAll(registrationId);
+  return { ok: true };
+}

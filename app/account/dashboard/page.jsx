@@ -133,9 +133,10 @@ export default async function DashboardPage() {
   const { data: balances } = regIds.length
     ? await supabase
         .from('registration_balances')
-        .select('registration_id, balance_cents')
+        .select('registration_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents')
         .in('registration_id', regIds)
     : { data: [] };
+  const balByReg = new Map((balances ?? []).map((b) => [b.registration_id, b]));
   const balanceByReg = new Map((balances ?? []).map((b) => [b.registration_id, b.balance_cents]));
 
   // Every payment on this household's registrations, newest first. Shown as a
@@ -322,6 +323,28 @@ export default async function DashboardPage() {
                           </ul>
                         </div>
                       )}
+
+                      {(() => {
+                        const b = balByReg.get(r.id);
+                        const reductions =
+                          (b?.scholarship_cents ?? 0) + (b?.discount_cents ?? 0) + (b?.coupon_cents ?? 0);
+                        if (!b || reductions === 0) return null;
+                        return (
+                          <p className="mt-3 text-sm text-neutral-600">
+                            Fees {money(b.fee_cents)}
+                            {(b.scholarship_cents ?? 0) > 0 && (
+                              <span className="text-green-700"> − {money(b.scholarship_cents)} scholarship</span>
+                            )}
+                            {(b.discount_cents ?? 0) > 0 && (
+                              <span className="text-green-700"> − {money(b.discount_cents)} discount</span>
+                            )}
+                            {(b.coupon_cents ?? 0) > 0 && (
+                              <span className="text-green-700"> − {money(b.coupon_cents)} coupon</span>
+                            )}
+                            {' '}· paid {money(b.paid_cents)}
+                          </p>
+                        );
+                      })()}
 
                       <div className="mt-4 flex flex-wrap items-center gap-3">
                         <PayPanel

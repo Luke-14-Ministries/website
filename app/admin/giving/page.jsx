@@ -26,7 +26,13 @@ const STATUS_CLS = {
 // behind its own permission (can_view_giving; admins implicitly). A registrar
 // reconciling camp fees has no need to see who gave what. RLS (migration 0010)
 // is the real gate; this check just gives a friendly redirect.
-export default async function AdminGivingPage() {
+export default async function AdminGivingPage({ searchParams }) {
+  const params = await searchParams;
+  const fFrom = typeof params?.from === 'string' ? params.from : '';
+  const fTo = typeof params?.to === 'string' ? params.to : '';
+  const fFund = typeof params?.fund === 'string' ? params.fund : '';
+  const fMethod = typeof params?.method === 'string' ? params.method : '';
+
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/giving/');
   if (!can(staff, 'giving')) redirect('/admin');
@@ -37,7 +43,25 @@ export default async function AdminGivingPage() {
     .select('donor_name, email, amount_cents, fund, method, status, received_on, created_at, note')
     .order('created_at', { ascending: false });
 
-  const all = gifts ?? [];
+  // Filter by date (received_on, falling back to created date), fund, method.
+  // Totals below reflect the filtered set, and the CSV carries the same filters.
+  const giftDate = (g) => g.received_on ?? (g.created_at || '').slice(0, 10);
+  const allGifts = gifts ?? [];
+  const fundOptions = [...new Set(allGifts.map((g) => g.fund).filter(Boolean))].sort();
+  const all = allGifts.filter(
+    (g) =>
+      (!fFrom || giftDate(g) >= fFrom) &&
+      (!fTo || giftDate(g) <= fTo) &&
+      (!fFund || g.fund === fFund) &&
+      (!fMethod || g.method === fMethod)
+  );
+  const csvParams = new URLSearchParams();
+  if (fFrom) csvParams.set('from', fFrom);
+  if (fTo) csvParams.set('to', fTo);
+  if (fFund) csvParams.set('fund', fFund);
+  if (fMethod) csvParams.set('method', fMethod);
+  const csvQs = csvParams.toString();
+  const csvHref = `/admin/exports/giving${csvQs ? `?${csvQs}` : ''}`;
   const good = all.filter((g) => g.status === 'succeeded' || g.status === 'processing');
   const total = good.reduce((s, g) => s + (g.amount_cents ?? 0), 0);
   const byFund = new Map();
@@ -47,7 +71,7 @@ export default async function AdminGivingPage() {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
         <h2 className="text-xl font-bold">Giving</h2>
-        <a href="/admin/exports/giving" className="btn-outline !py-2 text-sm">
+        <a href={csvHref} className="btn-outline !py-2 text-sm">
           Download CSV
         </a>
       </div>
@@ -56,6 +80,47 @@ export default async function AdminGivingPage() {
         Access to this page is its own permission. Online gifts record themselves; mailed checks
         and cash are entered below.
       </p>
+
+      {/* Plain GET form: works with no JavaScript, and the URL becomes a
+          shareable/bookmarkable report ("gifts to the camp fund this quarter"). */}
+      <form method="get" className="mb-6 flex flex-wrap items-end gap-3 rounded-lg bg-white border border-neutral-200 p-4">
+        <label className="block text-sm">
+          <span className="block font-semibold mb-1">From</span>
+          <input type="date" name="from" defaultValue={fFrom} className="rounded border border-neutral-300 px-2 py-1.5" />
+        </label>
+        <label className="block text-sm">
+          <span className="block font-semibold mb-1">To</span>
+          <input type="date" name="to" defaultValue={fTo} className="rounded border border-neutral-300 px-2 py-1.5" />
+        </label>
+        <label className="block text-sm">
+          <span className="block font-semibold mb-1">Fund</span>
+          <select name="fund" defaultValue={fFund} className="rounded border border-neutral-300 px-2 py-1.5 bg-white">
+            <option value="">All funds</option>
+            {fundOptions.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className="block font-semibold mb-1">Method</span>
+          <select name="method" defaultValue={fMethod} className="rounded border border-neutral-300 px-2 py-1.5 bg-white">
+            <option value="">All methods</option>
+            {Object.entries(METHOD_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className="btn-primary !py-1.5 text-sm">Apply</button>
+        {(fFrom || fTo || fFund || fMethod) && (
+          <a href="/admin/giving" className="text-sm text-neutral-500 underline">Clear</a>
+        )}
+        <a
+          href={`/admin/giving/statements${csvQs ? `?${csvQs}` : ''}`}
+          className="btn-outline !py-1.5 text-sm ml-auto"
+        >
+          Year-end statements
+        </a>
+      </form>
 
       <div className="grid gap-4 sm:grid-cols-3 mb-8">
         <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
@@ -92,7 +157,7 @@ export default async function AdminGivingPage() {
             <p className="text-neutral-500 text-sm">No gifts yet.</p>
           ) : (
             <ul className="divide-y divide-neutral-100 text-sm">
-              {all.slice(0, 15).map((g, i) => (
+              {all.slice(0, 50).map((g, i) => (
                 <li key={i} className="py-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="min-w-0">
                     <span className="font-medium">{g.donor_name || g.email || 'Anonymous'}</span>{' '}

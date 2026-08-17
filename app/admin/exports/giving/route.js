@@ -9,11 +9,18 @@ const esc = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export async function GET() {
+export async function GET(request) {
   const staff = await getStaff();
   if (!can(staff, 'giving')) {
     return new Response('Not permitted', { status: 403 });
   }
+
+  // Same filters as the Giving page: the CSV matches the filtered screen.
+  const url = new URL(request.url);
+  const fFrom = url.searchParams.get('from') || '';
+  const fTo = url.searchParams.get('to') || '';
+  const fFund = url.searchParams.get('fund') || '';
+  const fMethod = url.searchParams.get('method') || '';
 
   const supabase = await createClient();
   const { data: gifts } = await supabase
@@ -21,8 +28,17 @@ export async function GET() {
     .select('donor_name, email, amount_cents, fund, method, status, received_on, created_at, note')
     .order('created_at');
 
+  const giftDate = (g) => g.received_on ?? (g.created_at ?? '').slice(0, 10);
+  const filtered = (gifts ?? []).filter(
+    (g) =>
+      (!fFrom || giftDate(g) >= fFrom) &&
+      (!fTo || giftDate(g) <= fTo) &&
+      (!fFund || g.fund === fFund) &&
+      (!fMethod || g.method === fMethod)
+  );
+
   const rows = [['Date', 'Donor', 'Email', 'Amount', 'Fund', 'Method', 'Status', 'Note']];
-  for (const g of gifts ?? []) {
+  for (const g of filtered) {
     rows.push([
       g.received_on ?? (g.created_at ?? '').slice(0, 10),
       g.donor_name ?? '',

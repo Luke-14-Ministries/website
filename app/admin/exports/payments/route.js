@@ -9,26 +9,53 @@ const esc = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export async function GET() {
+export async function GET(request) {
   const staff = await getStaff();
   if (!can(staff, 'registrar')) {
     return new Response('Not permitted', { status: 403 });
   }
 
+  const url = new URL(request.url);
+  const paystate = url.searchParams.get('paystate') || '';
+
   const supabase = await createClient();
-  const [{ data: pays }, { data: regs }] = await Promise.all([
+  const [{ data: pays }, { data: regs }, { data: balances }] = await Promise.all([
     supabase
       .from('payments')
       .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note')
       .order('created_at'),
     supabase.from('registrations').select('id, events ( name ), households ( display_name )'),
+    supabase
+      .from('registration_balances')
+      .select('registration_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
   ]);
   const regById = new Map((regs ?? []).map((r) => [r.id, r]));
+
+  // Same payment-state filter as the Event Payments page: the CSV matches
+  // whatever pill was active when Download was clicked.
+  let allowed = null;
+  if (paystate) {
+    allowed = new Set(
+      (balances ?? [])
+        .filter((b) => {
+          const net = (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
+          const paid = b.paid_cents ?? 0;
+          const bal = b.balance_cents ?? 0;
+          if (paystate === 'unpaid') return paid === 0 && bal > 0;
+          if (paystate === 'partial') return paid > 0 && bal > 0;
+          if (paystate === 'paid') return net > 0 && bal <= 0;
+          if (paystate === 'scholarship') return (b.scholarship_cents ?? 0) > 0 || (b.discount_cents ?? 0) > 0;
+          return true;
+        })
+        .map((b) => b.registration_id)
+    );
+  }
 
   const rows = [
     ['Date', 'Household', 'Event', 'Amount', 'Fee cover', 'Method', 'Status', 'Note'],
   ];
   for (const p of pays ?? []) {
+    if (allowed && !allowed.has(p.registration_id)) continue;
     const r = regById.get(p.registration_id);
     rows.push([
       p.received_on ?? (p.created_at ?? '').slice(0, 10),

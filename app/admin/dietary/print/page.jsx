@@ -1,0 +1,128 @@
+import { redirect } from 'next/navigation';
+import { getStaff, can } from '@/lib/staff';
+import { createClient } from '@/lib/supabase/server';
+import PrintButton from './PrintButton';
+
+export const metadata = { title: 'Kitchen List — Staff Admin' };
+
+// The KITCHEN copy: dietary needs and allergies tallied per event, with NO
+// names. Safe to pin up in the kitchen — it says "gluten-free × 3", never who.
+// The named version stays on the Dietary & Allergies screen for staff with the
+// sensitive permission.
+export default async function KitchenListPage() {
+  const staff = await getStaff();
+  if (!staff) redirect('/account/?next=/admin/dietary/print/');
+  if (!can(staff, 'sensitive')) redirect('/admin');
+
+  const supabase = await createClient();
+  const [{ data: events }, { data: regs }] = await Promise.all([
+    supabase.from('events').select('id, name, starts_on, ends_on').order('starts_on'),
+    supabase
+      .from('registrations')
+      .select(
+        `id, event_id,
+         registration_participants ( status,
+           people ( person_support ( dietary_needs, allergy_detail, has_allergies ) ) )`
+      ),
+  ]);
+
+  // Tally identical needs so the kitchen sees quantities. Free-text entries
+  // are split on commas so "Red 40, gluten, dairy" counts as three items.
+  const byEvent = new Map();
+  const addItem = (eventId, kind, text) => {
+    const items = String(text)
+      .split(/[,;\n]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    for (const item of items) {
+      const key = item.toLowerCase();
+      if (!byEvent.has(eventId)) byEvent.set(eventId, new Map());
+      const bucket = byEvent.get(eventId);
+      const cur = bucket.get(key) ?? { label: item, kind, count: 0 };
+      cur.count += 1;
+      if (kind === 'allergy') cur.kind = 'allergy'; // allergy flag wins
+      bucket.set(key, cur);
+    }
+  };
+
+  let people = 0;
+  for (const r of regs ?? []) {
+    for (const p of r.registration_participants ?? []) {
+      if (p.status === 'cancelled' || p.status === 'draft') continue;
+      const s = p.people?.person_support;
+      if (!s) continue;
+      let counted = false;
+      if (s.allergy_detail) {
+        addItem(r.event_id, 'allergy', s.allergy_detail);
+        counted = true;
+      }
+      if (s.dietary_needs) {
+        addItem(r.event_id, 'diet', s.dietary_needs);
+        counted = true;
+      }
+      if (counted) people += 1;
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl p-8 print:p-0 bg-white">
+      <div className="flex items-center justify-between mb-2 print:hidden">
+        <h1 className="text-xl font-bold">Kitchen list — no names</h1>
+        <PrintButton />
+      </div>
+      <p className="text-sm text-neutral-500 mb-6 print:hidden">
+        Dietary needs and allergies tallied per event, with no names attached — safe to post in
+        the kitchen. The named list stays on the Dietary &amp; Allergies page.
+      </p>
+
+      {(events ?? []).map((ev) => {
+        const bucket = byEvent.get(ev.id);
+        if (!bucket || bucket.size === 0) return null;
+        const items = [...bucket.values()].sort(
+          (a, b) => (a.kind === b.kind ? b.count - a.count : a.kind === 'allergy' ? -1 : 1)
+        );
+        return (
+          <div key={ev.id} className="mb-8 break-inside-avoid">
+            <h2 className="text-lg font-bold border-b-2 border-neutral-800 pb-1 mb-2">
+              {ev.name}{' '}
+              <span className="font-normal text-sm">
+                ({ev.starts_on} – {ev.ends_on})
+              </span>
+            </h2>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-left border-b border-neutral-400">
+                  <th className="py-1 pr-3">Need</th>
+                  <th className="py-1 pr-3">Type</th>
+                  <th className="py-1 text-right">How many people</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={i} className="border-b border-neutral-200">
+                    <td className="py-1 pr-3 font-medium">{it.label}</td>
+                    <td className="py-1 pr-3">
+                      {it.kind === 'allergy' ? (
+                        <span className="font-bold">ALLERGY</span>
+                      ) : (
+                        'dietary'
+                      )}
+                    </td>
+                    <td className="py-1 text-right font-semibold">{it.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+
+      {people === 0 && <p className="text-neutral-500">No dietary needs or allergies recorded.</p>}
+
+      <p className="text-xs text-neutral-400 mt-8">
+        Names withheld on purpose — ask the camp office for person-level detail. Printed{' '}
+        {new Date().toLocaleDateString('en-US')} · Luke 14 Ministries.
+      </p>
+    </div>
+  );
+}

@@ -48,7 +48,12 @@ export default async function DietaryPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Dietary &amp; Allergies</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <h2 className="text-xl font-bold">Dietary &amp; Allergies</h2>
+        <a href="/admin/dietary/print" className="btn-outline !py-2 text-sm">
+          Kitchen list (no names)
+        </a>
+      </div>
       <p className="text-sm text-neutral-500 mb-6">
         Everyone with dietary needs or allergies, per event — the kitchen list. This page is a
         separate permission; treat printouts with the same care as the screen.

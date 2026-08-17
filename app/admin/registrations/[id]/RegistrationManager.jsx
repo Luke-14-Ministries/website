@@ -15,6 +15,7 @@ import {
   updateHousehold,
   addParticipant,
   deleteParticipantPermanently,
+  setAdjustments,
 } from './actions';
 
 const STATUS_OPTIONS = [
@@ -188,10 +189,69 @@ function PersonEditor({ registrationId, person, onDone }) {
   );
 }
 
+// --- scholarship / discount editor -------------------------------------------
+function AdjustmentsEditor({ registrationId, participant, onDone }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState('');
+  const [f, setF] = useState({
+    scholarship: ((participant.scholarship_cents ?? 0) / 100).toFixed(2),
+    discount: ((participant.discount_cents ?? 0) / 100).toFixed(2),
+    note: '',
+  });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  function save() {
+    setError('');
+    start(async () => {
+      const res = await setAdjustments(registrationId, participant.id, f);
+      if (!res.ok) setError(res.error);
+      else {
+        router.refresh();
+        onDone();
+      }
+    });
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+      <h4 className="font-semibold mb-1 text-sm">Scholarship &amp; discount</h4>
+      <p className="text-xs text-neutral-500 mb-3">
+        Reduces what this person owes. Flows into the family&rsquo;s balance, their dashboard,
+        and the printable statement automatically. Fee: {money(participant.fee_cents)}.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label className={labelCls}>Scholarship ($)</label>
+          <input className={inputCls} inputMode="decimal" value={f.scholarship} onChange={set('scholarship')} />
+        </div>
+        <div>
+          <label className={labelCls}>Discount ($)</label>
+          <input className={inputCls} inputMode="decimal" value={f.discount} onChange={set('discount')} />
+        </div>
+        <div className="sm:col-span-3">
+          <label className={labelCls}>Note (kept with the scholarship record)</label>
+          <input className={inputCls} value={f.note} onChange={set('note')} placeholder="e.g. Board-approved hardship scholarship" />
+        </div>
+      </div>
+      <ErrorNote>{error}</ErrorNote>
+      <div className="mt-3 flex gap-2">
+        <button onClick={save} disabled={pending} className="btn-primary !py-1.5 text-sm">
+          {pending ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={onDone} disabled={pending} className="btn-outline !py-1.5 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // --- one participant row ------------------------------------------------------
 function ParticipantRow({ registrationId, participant }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
   const p = participant.person ?? {};
@@ -244,6 +304,12 @@ function ParticipantRow({ registrationId, participant }) {
           </p>
           <p className="text-sm text-neutral-500">
             {ROLE_LABEL[participant.camp_role] ?? participant.camp_role} · {money(participant.fee_cents)}
+            {(participant.scholarship_cents ?? 0) > 0 && (
+              <span className="text-green-700"> − {money(participant.scholarship_cents)} scholarship</span>
+            )}
+            {(participant.discount_cents ?? 0) > 0 && (
+              <span className="text-green-700"> − {money(participant.discount_cents)} discount</span>
+            )}
             {p.date_of_birth ? ` · b. ${p.date_of_birth}` : ' · no DOB on file'}
           </p>
         </div>
@@ -253,6 +319,9 @@ function ParticipantRow({ registrationId, participant }) {
       <div className="mt-2 flex flex-wrap gap-3 text-sm">
         <button onClick={() => setEditing((v) => !v)} className="text-brand underline">
           {editing ? 'Close' : 'Edit details'}
+        </button>
+        <button onClick={() => setAdjusting((v) => !v)} className="text-brand underline">
+          {adjusting ? 'Close adjustments' : 'Scholarship / discount'}
         </button>
         {isCancelled ? (
           <>
@@ -276,6 +345,13 @@ function ParticipantRow({ registrationId, participant }) {
           registrationId={registrationId}
           person={{ id: participant.person?.id, ...p }}
           onDone={() => setEditing(false)}
+        />
+      )}
+      {adjusting && (
+        <AdjustmentsEditor
+          registrationId={registrationId}
+          participant={participant}
+          onDone={() => setAdjusting(false)}
         />
       )}
     </div>
@@ -496,6 +572,10 @@ function HouseholdEditor({ registrationId, household }) {
 export default function RegistrationManager({ registration, options }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
+  const adjustments = parts.reduce(
+    (s, p) => s + (p.scholarship_cents ?? 0) + (p.discount_cents ?? 0),
+    0
+  );
 
   return (
     <div>
@@ -508,7 +588,17 @@ export default function RegistrationManager({ registration, options }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
         <h1 className="text-2xl font-bold">{registration.event?.name ?? 'Registration'}</h1>
         <span className="text-sm text-neutral-500">
-          {parts.length} {parts.length === 1 ? 'person' : 'people'} · Total {money(total)}
+          {parts.length} {parts.length === 1 ? 'person' : 'people'} · Fees {money(total)}
+          {adjustments > 0 && (
+            <span className="text-green-700"> − {money(adjustments)} scholarships/discounts</span>
+          )}{' '}
+          ·{' '}
+          <a
+            href={`/admin/registrations/${registration.id}/statement`}
+            className="text-brand underline"
+          >
+            Printable statement
+          </a>
         </span>
       </div>
       <p className="text-sm text-neutral-500 mb-6">

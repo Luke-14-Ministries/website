@@ -26,7 +26,10 @@ const STATUS_CLS = {
 // Event money only (Camp Celebrate, retreats, dinners...). Donations live on the separate Giving page, behind their
 // own permission -- reconciling camp fees does not require seeing who gave
 // what. Registrar-gated; RLS is the backstop.
-export default async function AdminPaymentsPage() {
+export default async function AdminPaymentsPage({ searchParams }) {
+  const params = await searchParams;
+  const paystate = typeof params?.paystate === 'string' ? params.paystate : '';
+
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/payments/');
   if (!can(staff, 'registrar')) redirect('/admin');
@@ -70,11 +73,43 @@ export default async function AdminPaymentsPage() {
     };
   });
 
+  // Payment-state filter for the balances table + CSV. Definitions:
+  //   unpaid  = owes something, nothing received
+  //   partial = something received, balance remains
+  //   paid    = balance settled (payments incl. clearing bank transfers)
+  //   scholarship = any scholarship or discount applied
+  const matchesPaystate = (b) => {
+    const net = (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
+    const paid = b.paid_cents ?? 0;
+    const bal = b.balance_cents ?? 0;
+    switch (paystate) {
+      case 'unpaid':
+        return paid === 0 && bal > 0;
+      case 'partial':
+        return paid > 0 && bal > 0;
+      case 'paid':
+        return net > 0 && bal <= 0;
+      case 'scholarship':
+        return (b.scholarship_cents ?? 0) > 0 || (b.discount_cents ?? 0) > 0;
+      default:
+        return true;
+    }
+  };
+  const filteredBalances = (balances ?? []).filter(matchesPaystate);
+  const PAYSTATES = [
+    ['', 'All'],
+    ['unpaid', 'Nothing paid'],
+    ['partial', 'Partially paid'],
+    ['paid', 'Fully paid'],
+    ['scholarship', 'Scholarship/discount'],
+  ];
+  const csvHref = `/admin/exports/payments${paystate ? `?paystate=${paystate}` : ''}`;
+
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
         <h2 className="text-xl font-bold">Event Payments</h2>
-        <a href="/admin/exports/payments" className="btn-outline !py-2 text-sm">
+        <a href={csvHref} className="btn-outline !py-2 text-sm">
           Download CSV
         </a>
       </div>
@@ -106,6 +141,24 @@ export default async function AdminPaymentsPage() {
       </div>
 
       <h3 className="font-semibold text-neutral-700 mb-2">Balances by family</h3>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {PAYSTATES.map(([v, label]) => (
+          <Link
+            key={v}
+            href={v ? `/admin/payments?paystate=${v}` : '/admin/payments'}
+            className={`rounded-full px-3 py-1 text-sm font-semibold border ${
+              paystate === v
+                ? 'bg-brand text-white border-brand'
+                : 'border-neutral-300 text-neutral-700 hover:border-brand'
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+        <span className="text-sm text-neutral-500 self-center">
+          {filteredBalances.length} {filteredBalances.length === 1 ? 'family' : 'families'}
+        </span>
+      </div>
       <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white mb-8">
         <table className="w-full text-left text-sm">
           <thead className="bg-neutral-50 text-neutral-500">
@@ -118,7 +171,7 @@ export default async function AdminPaymentsPage() {
             </tr>
           </thead>
           <tbody>
-            {(balances ?? []).map((b) => {
+            {filteredBalances.map((b) => {
               const r = regById.get(b.registration_id);
               const net = (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
               return (

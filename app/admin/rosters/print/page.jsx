@@ -17,7 +17,12 @@ const ROLE_LABEL = {
 
 // A compact, ink-friendly roster for printing. Uses the browser's own print
 // dialog; the admin chrome is left out on purpose.
-export default async function PrintRostersPage() {
+export default async function PrintRostersPage({ searchParams }) {
+  const params = await searchParams;
+  const fEvent = typeof params?.event === 'string' ? params.event : '';
+  const fRole = typeof params?.role === 'string' ? params.role : '';
+  const fStatus = typeof params?.status === 'string' ? params.status : '';
+
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/rosters/print/');
   if (!can(staff, 'registrar')) redirect('/admin');
@@ -37,8 +42,11 @@ export default async function PrintRostersPage() {
 
   const byEvent = new Map();
   for (const r of regs ?? []) {
+    if (fEvent && r.event_id !== fEvent) continue;
     for (const p of r.registration_participants ?? []) {
       if (p.status === 'cancelled') continue;
+      if (fRole && p.camp_role !== fRole) continue;
+      if (fStatus && p.status !== fStatus) continue;
       if (!byEvent.has(r.event_id)) byEvent.set(r.event_id, []);
       byEvent.get(r.event_id).push({
         person: `${p.people?.last_name ?? ''}, ${p.people?.first_name ?? ''}`,

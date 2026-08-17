@@ -1,9 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import PrintButton from './PrintButton';
 
-export const metadata = { title: 'Family Statement — Staff Admin' };
+export const metadata = { title: 'My Statement — Luke 14 Ministries' };
 
 const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
@@ -25,17 +24,33 @@ const METHOD_LABEL = {
   other: 'Other',
 };
 
-// A printable, family-friendly statement for one registration: fees itemized
-// per person, scholarships and discounts shown plainly, every payment listed,
-// and the balance. What staff print and hand (or mail) to a family.
-export default async function FamilyStatementPage({ params }) {
+// The FAMILY's own printable statement -- same document staff can print, but
+// reachable from their dashboard. Scoped hard to the household the login
+// belongs to: the registration is looked up WITHIN their membership, so a
+// staff member on their family hat (or anyone else) can never open another
+// family's statement by changing the address.
+export default async function MyStatementPage({ params }) {
   const { id } = await params;
 
-  const staff = await getStaff();
-  if (!staff) redirect(`/account/?next=/admin/registrations/${id}/statement/`);
-  if (!can(staff, 'registrar')) redirect('/admin');
+  const user = await getCurrentUser();
+  if (!user) redirect(`/account/?next=/account/statement/${id}/`);
 
   const supabase = await createClient();
+
+  const { data: memberships } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('profile_id', user.id);
+  const householdIds = (memberships ?? []).map((m) => m.household_id);
+  if (householdIds.length === 0) notFound();
+
+  const { data: own } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('id', id)
+    .in('household_id', householdIds)
+    .maybeSingle();
+  if (!own) notFound();
 
   const [{ data: reg }, { data: pays }, { data: bal }] = await Promise.all([
     supabase
@@ -75,7 +90,7 @@ export default async function FamilyStatementPage({ params }) {
   return (
     <div className="mx-auto max-w-2xl p-8 print:p-0 bg-white print:text-[12px] text-neutral-900">
       <div className="flex items-center justify-between mb-6 print:hidden">
-        <h1 className="text-xl font-bold">Family statement — print view</h1>
+        <h1 className="text-xl font-bold">My statement</h1>
         <PrintButton />
       </div>
 

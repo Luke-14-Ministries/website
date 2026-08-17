@@ -64,16 +64,30 @@ export default async function GivingStatementsPage({ searchParams }) {
   const donorList = [...donors.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="mx-auto max-w-2xl p-8 print:p-0 bg-white text-neutral-900">
+    <div className="mx-auto max-w-2xl p-8 print:p-0 bg-white text-neutral-900 print:text-[12px]">
       <div className="mb-6 print:hidden">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-bold">Giving statements — print view</h1>
           <PrintButton />
         </div>
+        <form method="get" className="mb-2 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
+          <label className="block">
+            <span className="block font-semibold mb-1">From</span>
+            <input type="date" name="from" defaultValue={from} className="rounded border border-neutral-300 px-2 py-1.5" />
+          </label>
+          <label className="block">
+            <span className="block font-semibold mb-1">To</span>
+            <input type="date" name="to" defaultValue={to} className="rounded border border-neutral-300 px-2 py-1.5" />
+          </label>
+          <label className="block flex-1 min-w-[12rem]">
+            <span className="block font-semibold mb-1">One donor (name or email, optional)</span>
+            <input name="donor" defaultValue={donorFilter} placeholder="leave blank for all donors" className="w-full rounded border border-neutral-300 px-2 py-1.5" />
+          </label>
+          <button type="submit" className="btn-primary !py-1.5">Apply</button>
+        </form>
         <p className="text-sm text-neutral-500">
-          {donorList.length} {donorList.length === 1 ? 'donor' : 'donors'} · {from} to {to} ·
-          each statement prints on its own page. Narrow to one donor by adding{' '}
-          <code>?donor=name-or-email</code> to the address. Only settled gifts are included.
+          {donorList.length} {donorList.length === 1 ? 'donor' : 'donors'} · {from} to {to} · each
+          statement prints on its own page · settled gifts only.
         </p>
         <p className="text-sm">
           <a href="/admin/giving" className="text-brand underline">

@@ -88,9 +88,9 @@ export default async function AdminLayout({ children }) {
   }
 
   return (
-    <section className="bg-neutral-50 min-h-[70vh]">
-      <div className="container-site py-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6">
+    <section className="bg-neutral-50 min-h-[70vh] print:bg-white">
+      <div className="container-site py-8 print:p-0 print:max-w-none">
+        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6 print:hidden">
           <div>
             <h1 className="text-2xl font-bold">
               Staff Admin{' '}
@@ -115,13 +115,15 @@ export default async function AdminLayout({ children }) {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-          <AdminNav
+        <div className="grid gap-6 lg:grid-cols-[220px_1fr] print:block">
+          <div className="print:hidden">
+            <AdminNav
             top={items.filter((n) => !n.group && n.href === '/admin')}
             events={items.filter((n) => n.group === 'events')}
             rest={items.filter((n) => !n.group && n.href !== '/admin')}
             unreviewedChanges={unreviewedChanges}
-          />
+            />
+          </div>
 
           <div className="min-w-0">{children}</div>
         </div>

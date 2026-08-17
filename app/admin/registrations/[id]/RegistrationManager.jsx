@@ -592,14 +592,13 @@ export default function RegistrationManager({ registration, options }) {
           {adjustments > 0 && (
             <span className="text-green-700"> − {money(adjustments)} scholarships/discounts</span>
           )}{' '}
-          ·{' '}
-          <a
-            href={`/admin/registrations/${registration.id}/statement`}
-            className="text-brand underline"
-          >
-            Printable statement
-          </a>
         </span>
+        <a
+          href={`/admin/registrations/${registration.id}/statement`}
+          className="btn-outline !py-1.5 text-sm"
+        >
+          Family statement (print)
+        </a>
       </div>
       <p className="text-sm text-neutral-500 mb-6">
         Review and update this family. Status changes and edits save immediately.

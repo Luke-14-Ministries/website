@@ -54,8 +54,9 @@ export default async function AdminPaymentsPage({ searchParams }) {
   const events = new Map();
   for (const b of balances ?? []) {
     const evName = regById.get(b.registration_id)?.events?.name ?? 'Unassigned';
-    const cur = events.get(evName) ?? { fees: 0, paid: 0, outstanding: 0 };
+    const cur = events.get(evName) ?? { fees: 0, assist: 0, paid: 0, outstanding: 0 };
     cur.fees += (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
+    cur.assist += (b.scholarship_cents ?? 0) + (b.discount_cents ?? 0) + (b.coupon_cents ?? 0);
     cur.paid += b.paid_cents ?? 0;
     cur.outstanding += Math.max(0, b.balance_cents ?? 0);
     events.set(evName, cur);
@@ -109,9 +110,18 @@ export default async function AdminPaymentsPage({ searchParams }) {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
         <h2 className="text-xl font-bold">Event Payments</h2>
-        <a href={csvHref} className="btn-outline !py-2 text-sm">
-          Download CSV
-        </a>
+        <span className="flex gap-2">
+          <a
+            href={`/admin/exports/balances${paystate ? `?paystate=${paystate}` : ''}`}
+            className="btn-outline !py-2 text-sm"
+            title="One row per family: fees, scholarships, paid, balance"
+          >
+            Balances CSV
+          </a>
+          <a href={csvHref} className="btn-outline !py-2 text-sm" title="One row per payment received">
+            Payments CSV
+          </a>
+        </span>
       </div>
       <p className="text-sm text-neutral-500 mb-6">
         What each family owes and has paid for an event (Camp Celebrate, retreats, and the rest). Online payments record themselves; checks
@@ -124,7 +134,10 @@ export default async function AdminPaymentsPage({ searchParams }) {
           <div key={name} className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
             <h4 className="font-bold mb-2">{name}</h4>
             <dl className="text-sm space-y-1">
-              <div className="flex justify-between"><dt className="text-neutral-500">Fees (net)</dt><dd className="font-semibold">{money(e.fees)}</dd></div>
+              <div className="flex justify-between"><dt className="text-neutral-500">Fees (net of assistance)</dt><dd className="font-semibold">{money(e.fees)}</dd></div>
+              {e.assist > 0 && (
+                <div className="flex justify-between"><dt className="text-neutral-500">Scholarships &amp; discounts</dt><dd className="font-semibold text-green-700">−{money(e.assist)}</dd></div>
+              )}
               <div className="flex justify-between"><dt className="text-neutral-500">Paid / clearing</dt><dd className="font-semibold text-green-700">{money(e.paid)}</dd></div>
               <div className="flex justify-between"><dt className="text-neutral-500">Outstanding</dt><dd className="font-semibold text-amber-700">{money(e.outstanding)}</dd></div>
             </dl>
@@ -164,16 +177,19 @@ export default async function AdminPaymentsPage({ searchParams }) {
           <thead className="bg-neutral-50 text-neutral-500">
             <tr>
               <th className="px-4 py-2 font-semibold">Household</th>
-              <th className="px-4 py-2 font-semibold">Week</th>
-              <th className="px-4 py-2 font-semibold text-right">Fees (net)</th>
+              <th className="px-4 py-2 font-semibold">Event</th>
+              <th className="px-4 py-2 font-semibold text-right">Fees</th>
+              <th className="px-4 py-2 font-semibold text-right">Scholarship / discount</th>
               <th className="px-4 py-2 font-semibold text-right">Paid</th>
               <th className="px-4 py-2 font-semibold text-right">Balance</th>
+              <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody>
             {filteredBalances.map((b) => {
               const r = regById.get(b.registration_id);
-              const net = (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
+              const assist = (b.discount_cents ?? 0) + (b.scholarship_cents ?? 0) + (b.coupon_cents ?? 0);
+              const bal = b.balance_cents ?? 0;
               return (
                 <tr key={b.registration_id} className="border-t border-neutral-100">
                   <td className="px-4 py-2">
@@ -182,10 +198,21 @@ export default async function AdminPaymentsPage({ searchParams }) {
                     </Link>
                   </td>
                   <td className="px-4 py-2">{r?.events?.name ?? ''}</td>
-                  <td className="px-4 py-2 text-right">{money(net)}</td>
+                  <td className="px-4 py-2 text-right">{money(b.fee_cents)}</td>
+                  <td className="px-4 py-2 text-right text-green-700">
+                    {assist > 0 ? `−${money(assist)}` : '—'}
+                  </td>
                   <td className="px-4 py-2 text-right">{money(b.paid_cents)}</td>
-                  <td className={`px-4 py-2 text-right font-semibold ${(b.balance_cents ?? 0) > 0 ? 'text-amber-700' : 'text-green-700'}`}>
-                    {money(b.balance_cents)}
+                  <td className={`px-4 py-2 text-right font-semibold ${bal > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                    {bal < 0 ? `Credit ${money(-bal)}` : money(bal)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <a
+                      href={`/admin/registrations/${b.registration_id}/statement`}
+                      className="text-brand underline text-xs"
+                    >
+                      Statement
+                    </a>
                   </td>
                 </tr>
               );
@@ -194,12 +221,12 @@ export default async function AdminPaymentsPage({ searchParams }) {
         </table>
       </div>
 
-      <h3 className="font-semibold text-neutral-700 mb-2">Record &amp; recent activity</h3>
+      <h3 className="font-semibold text-neutral-700 mb-2">Record a payment &amp; recent activity</h3>
       <div className="grid gap-6 lg:grid-cols-2">
         <RecordPaymentForm registrations={regOptions} />
 
         <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-          <h4 className="font-bold mb-3">Recent payments</h4>
+          <h4 className="font-bold mb-3">Recent activity</h4>
           {(pays ?? []).length === 0 ? (
             <p className="text-neutral-500 text-sm">No payments yet.</p>
           ) : (

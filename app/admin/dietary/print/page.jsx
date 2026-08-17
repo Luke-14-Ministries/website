@@ -65,7 +65,7 @@ export default async function KitchenListPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-8 print:p-0 bg-white">
+    <div className="mx-auto max-w-2xl p-8 print:p-0 bg-white print:text-[12px]">
       <div className="flex items-center justify-between mb-2 print:hidden">
         <h1 className="text-xl font-bold">Kitchen list — no names</h1>
         <PrintButton />

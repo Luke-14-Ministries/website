@@ -59,7 +59,7 @@ export default async function PrintRostersPage({ searchParams }) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-8 print:p-0 bg-white">
+    <div className="mx-auto max-w-3xl p-8 print:p-0 bg-white print:text-[12px]">
       <div className="flex items-center justify-between mb-6 print:hidden">
         <h1 className="text-xl font-bold">Rosters — print view</h1>
         <PrintButton />

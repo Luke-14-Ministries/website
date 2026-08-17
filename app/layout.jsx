@@ -23,10 +23,16 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <PreviewBanner />
-        <Header />
+        {/* print:hidden — when any page is printed (rosters, kitchen list,
+            statements), the site chrome stays off the paper. */}
+        <div className="print:hidden">
+          <PreviewBanner />
+          <Header />
+        </div>
         <main>{children}</main>
-        <Footer />
+        <div className="print:hidden">
+          <Footer />
+        </div>
         {/* Idle auto-logout. Renders nothing unless someone is signed in and has
             gone quiet long enough to warrant the warning. */}
         <IdleTimeout />

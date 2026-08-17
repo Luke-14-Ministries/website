@@ -326,23 +326,46 @@ export default async function DashboardPage() {
 
                       {(() => {
                         const b = balByReg.get(r.id);
+                        if (!b) return null;
                         const reductions =
-                          (b?.scholarship_cents ?? 0) + (b?.discount_cents ?? 0) + (b?.coupon_cents ?? 0);
-                        if (!b || reductions === 0) return null;
+                          (b.scholarship_cents ?? 0) + (b.discount_cents ?? 0) + (b.coupon_cents ?? 0);
+                        if (reductions === 0) return null;
+                        const bal = b.balance_cents ?? 0;
                         return (
-                          <p className="mt-3 text-sm text-neutral-600">
-                            Fees {money(b.fee_cents)}
+                          <div className="mt-3 rounded border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm max-w-xs">
+                            <div className="flex justify-between py-0.5">
+                              <span className="text-neutral-500">Fees</span>
+                              <span>{money(b.fee_cents)}</span>
+                            </div>
                             {(b.scholarship_cents ?? 0) > 0 && (
-                              <span className="text-green-700"> − {money(b.scholarship_cents)} scholarship</span>
+                              <div className="flex justify-between py-0.5 text-green-700">
+                                <span>Scholarship</span>
+                                <span>−{money(b.scholarship_cents)}</span>
+                              </div>
                             )}
                             {(b.discount_cents ?? 0) > 0 && (
-                              <span className="text-green-700"> − {money(b.discount_cents)} discount</span>
+                              <div className="flex justify-between py-0.5 text-green-700">
+                                <span>Discount</span>
+                                <span>−{money(b.discount_cents)}</span>
+                              </div>
                             )}
                             {(b.coupon_cents ?? 0) > 0 && (
-                              <span className="text-green-700"> − {money(b.coupon_cents)} coupon</span>
+                              <div className="flex justify-between py-0.5 text-green-700">
+                                <span>Coupon</span>
+                                <span>−{money(b.coupon_cents)}</span>
+                              </div>
                             )}
-                            {' '}· paid {money(b.paid_cents)}
-                          </p>
+                            <div className="flex justify-between py-0.5">
+                              <span className="text-neutral-500">Paid</span>
+                              <span>−{money(b.paid_cents)}</span>
+                            </div>
+                            <div className="flex justify-between py-0.5 border-t border-neutral-200 font-semibold">
+                              <span>{bal < 0 ? 'Credit' : 'Balance'}</span>
+                              <span className={bal < 0 ? 'text-green-700' : bal > 0 ? 'text-amber-700' : ''}>
+                                {money(Math.abs(bal))}
+                              </span>
+                            </div>
+                          </div>
                         );
                       })()}
 
@@ -359,6 +382,13 @@ export default async function DashboardPage() {
                           className="btn-outline !py-2"
                         >
                           Edit Registration
+                        </Link>
+                        <Link
+                          href={`/account/statement/${r.id}`}
+                          title="A printable statement: fees, scholarships, payments, and balance."
+                          className="btn-outline !py-2"
+                        >
+                          Statement
                         </Link>
                       </div>
                     </div>

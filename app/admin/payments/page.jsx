@@ -43,7 +43,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
       .select('registration_id, event_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
     supabase
       .from('registrations')
-      .select('id, events ( id, name ), households ( display_name )'),
+      .select('id, events ( id, name, starts_on, ends_on ), households ( display_name )'),
     supabase
       .from('payments')
       .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note')
@@ -52,16 +52,48 @@ export default async function AdminPaymentsPage({ searchParams }) {
 
   const regById = new Map((regs ?? []).map((r) => [r.id, r]));
 
-  // Every event that has at least one registration, for the filter dropdown.
-  const eventOptions = [...new Map(
-    (regs ?? [])
-      .filter((r) => r.events?.id)
-      .map((r) => [r.events.id, r.events.name])
-  ).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  // Every event that has at least one registration, newest first, for the
+  // "Specific event" section of the scope dropdown.
+  const evById = new Map();
+  for (const r of regs ?? []) if (r.events?.id) evById.set(r.events.id, r.events);
+  const eventOptions = [...evById.values()].sort((a, b) =>
+    (b.starts_on ?? '').localeCompare(a.starts_on ?? '')
+  );
+
+  // Event scope. The dashboard is a quick view of what is coming up (and
+  // just wrapped), not a wall of history — old years stay one dropdown
+  // selection away under "All events". Scope values:
+  //   ''         default: upcoming (next 90 days) + recent (last 90 days)
+  //   'upcoming' starts within 90 days or currently running
+  //   'recent'   ended within the last 90 days
+  //   'all'      full history
+  //   <uuid>     one specific event
+  const today = new Date().toISOString().slice(0, 10);
+  const plus90 = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  const minus90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const inScope = (ev) => {
+    if (eventFilter === 'all') return true;
+    if (!ev) return !eventFilter; // registrations with no event: default + all only
+    const start = ev.starts_on ?? '';
+    const end = ev.ends_on ?? ev.starts_on ?? '';
+    if (eventFilter === 'upcoming') return end >= today && start <= plus90;
+    if (eventFilter === 'recent') return end < today && end >= minus90;
+    if (eventFilter) return ev.id === eventFilter;
+    return end >= minus90 && start <= plus90;
+  };
+  const SCOPE_LABEL = {
+    '': 'Upcoming & recent events (90 days each way)',
+    upcoming: 'Upcoming events (next 90 days)',
+    recent: 'Recent events (last 90 days)',
+    all: 'All events — full history',
+  };
+  const scopeLabel = SCOPE_LABEL[eventFilter] ?? evById.get(eventFilter)?.name ?? 'Selected event';
 
   const events = new Map();
   for (const b of balances ?? []) {
-    const evName = regById.get(b.registration_id)?.events?.name ?? 'Unassigned';
+    const ev = regById.get(b.registration_id)?.events;
+    if (!inScope(ev)) continue;
+    const evName = ev?.name ?? 'Unassigned';
     const cur = events.get(evName) ?? { fees: 0, assist: 0, paid: 0, outstanding: 0 };
     cur.fees += (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
     cur.assist += (b.scholarship_cents ?? 0) + (b.discount_cents ?? 0) + (b.coupon_cents ?? 0);
@@ -70,7 +102,12 @@ export default async function AdminPaymentsPage({ searchParams }) {
     events.set(evName, cur);
   }
   const feeCoverTotal = (pays ?? []).reduce(
-    (s, p) => s + (p.status === 'succeeded' || p.status === 'processing' ? p.fee_cover_cents ?? 0 : 0),
+    (s, p) =>
+      s +
+      (inScope(regById.get(p.registration_id)?.events) &&
+      (p.status === 'succeeded' || p.status === 'processing')
+        ? p.fee_cover_cents ?? 0
+        : 0),
     0
   );
 
@@ -105,7 +142,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
     }
   };
   const filteredBalances = (balances ?? []).filter(
-    (b) => matchesPaystate(b) && (!eventFilter || b.event_id === eventFilter)
+    (b) => matchesPaystate(b) && inScope(regById.get(b.registration_id)?.events)
   );
   const PAYSTATES = [
     ['', 'All'],
@@ -144,12 +181,47 @@ export default async function AdminPaymentsPage({ searchParams }) {
           </a>
         </span>
       </div>
-      <p className="text-sm text-neutral-500 mb-6">
+      <p className="text-sm text-neutral-500 mb-4">
         What each family owes and has paid for an event (Camp Celebrate, retreats, and the rest). Online payments record themselves; checks
         and cash are entered below. Donations live on the separate Giving page.
       </p>
 
-      <h3 className="font-semibold text-neutral-700 mb-2">By event</h3>
+      {/* Event scope: governs the cards, fee covers, the balances table,
+          and both CSV downloads. Default keeps this a quick view of what's
+          coming up; full history is one selection away. */}
+      <form method="get" action="/admin/payments" className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+        <label className="font-semibold text-neutral-700" htmlFor="event-scope">Showing</label>
+        <select
+          id="event-scope"
+          name="event"
+          defaultValue={eventFilter}
+          className="rounded border border-neutral-300 px-2 py-1"
+        >
+          <option value="">Upcoming &amp; recent events (90 days each way)</option>
+          <option value="upcoming">Upcoming events (next 90 days)</option>
+          <option value="recent">Recent events (last 90 days)</option>
+          <option value="all">All events — full history</option>
+          <optgroup label="Specific event">
+            {eventOptions.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+        {paystate && <input type="hidden" name="paystate" value={paystate} />}
+        <button type="submit" className="btn-outline !py-1 !px-3">Apply</button>
+      </form>
+
+      <h3 className="font-semibold text-neutral-700 mb-2">
+        By event <span className="font-normal text-sm text-neutral-500">· {scopeLabel}</span>
+      </h3>
+      {events.size === 0 && (
+        <p className="text-sm text-neutral-500 mb-8">
+          No events in this window. Choose another option above — &ldquo;All events&rdquo; shows the
+          full history.
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
         {[...events.entries()].map(([name, e]) => (
           <div key={name} className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
@@ -168,30 +240,15 @@ export default async function AdminPaymentsPage({ searchParams }) {
           <h4 className="font-bold mb-2">Fee covers</h4>
           <div className="text-2xl font-bold">{money(feeCoverTotal)}</div>
           <p className="text-xs text-neutral-500 mt-1">
-            Voluntarily added by payers to cover processing fees. Never counts toward a family&rsquo;s
-            balance; how it is classified is a treasurer decision.
+            Voluntarily added by payers to cover processing fees, totaled for the events shown
+            above. Never counts toward a family&rsquo;s balance; how it is classified is a
+            treasurer decision.
           </p>
         </div>
       </div>
 
       <h3 className="font-semibold text-neutral-700 mb-2">Balances by family</h3>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {/* Event filter: narrows the table AND both CSV downloads, so a
-            simplified report never requires filtering in Excel. */}
-        <form method="get" action="/admin/payments" className="flex items-center gap-2">
-          {paystate && <input type="hidden" name="paystate" value={paystate} />}
-          <select
-            name="event"
-            defaultValue={eventFilter}
-            className="rounded border border-neutral-300 px-2 py-1 text-sm"
-          >
-            <option value="">All events</option>
-            {eventOptions.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
-          <button type="submit" className="btn-outline !py-1 !px-3 text-sm">Apply</button>
-        </form>
         {PAYSTATES.map(([v, label]) => (
           <Link
             key={v}
@@ -209,13 +266,12 @@ export default async function AdminPaymentsPage({ searchParams }) {
           {filteredBalances.length} {filteredBalances.length === 1 ? 'family' : 'families'}
         </span>
       </div>
-      {/* Planned actions — visible placeholders so staff can see what is
-          coming. Wire these up before enabling: email reminders (Resend),
-          in-app refund recording (Stripe refunds already work from the
-          Stripe dashboard today; this will record them here too). */}
+      {/* Planned global actions — visible placeholders so staff can see
+          what is coming (Resend-powered reminders). Per-family actions
+          (statement, email, refund) live in each row's ⋯ menu. */}
       <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
         <span className="text-neutral-500 font-semibold">Actions:</span>
-        {['Email balance reminders (all shown)', 'Email selected families', 'Record a refund'].map((label) => (
+        {['Email balance reminders (all shown)', 'Email selected families'].map((label) => (
           <button
             key={label}
             type="button"
@@ -226,7 +282,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
             {label}
           </button>
         ))}
-        <span className="text-xs text-neutral-400">coming soon — refunds work in the Stripe dashboard today</span>
+        <span className="text-xs text-neutral-400">coming soon</span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white mb-8">
         <table className="w-full text-left text-sm">
@@ -263,12 +319,41 @@ export default async function AdminPaymentsPage({ searchParams }) {
                     {bal < 0 ? `Credit −${money(-bal)}` : money(bal)}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <a
-                      href={`/admin/registrations/${b.registration_id}/statement`}
-                      className="text-brand underline text-xs"
-                    >
-                      Statement
-                    </a>
+                    {/* Per-family actions. <details> = no JavaScript needed;
+                        the menu expands in place. Email + Refund are planned
+                        placeholders (refunds work in Stripe today). */}
+                    <details className="inline-block text-left">
+                      <summary
+                        className="cursor-pointer select-none list-none rounded border border-neutral-300 px-2 py-0.5 font-bold text-neutral-600 hover:border-brand [&::-webkit-details-marker]:hidden"
+                        title="Actions for this family"
+                      >
+                        ⋯
+                      </summary>
+                      <div className="mt-1 flex flex-col items-end gap-1 rounded-lg border border-neutral-200 bg-white p-2 text-xs shadow-sm">
+                        <a
+                          href={`/admin/registrations/${b.registration_id}/statement`}
+                          className="text-brand underline whitespace-nowrap"
+                        >
+                          Statement
+                        </a>
+                        <button
+                          type="button"
+                          disabled
+                          title="Planned — not active yet"
+                          className="cursor-not-allowed text-neutral-400 whitespace-nowrap"
+                        >
+                          Email balance owed + payment link
+                        </button>
+                        <button
+                          type="button"
+                          disabled
+                          title="Planned — refunds work in the Stripe dashboard today"
+                          className="cursor-not-allowed text-neutral-400 whitespace-nowrap"
+                        >
+                          Refund
+                        </button>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               );

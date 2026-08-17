@@ -26,12 +26,28 @@ export async function GET(request) {
     supabase
       .from('registration_balances')
       .select('registration_id, event_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
-    supabase.from('registrations').select('id, events ( name ), households ( display_name, email, phone )'),
+    supabase.from('registrations').select('id, events ( id, name, starts_on, ends_on ), households ( display_name, email, phone )'),
   ]);
   const regById = new Map((regs ?? []).map((r) => [r.id, r]));
 
+  // Same event scope as the Event Payments page: '' = upcoming + recent
+  // (90 days each way), 'upcoming', 'recent', 'all', or one event's id.
+  const today = new Date().toISOString().slice(0, 10);
+  const plus90 = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  const minus90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const inScope = (ev) => {
+    if (eventFilter === 'all') return true;
+    if (!ev) return !eventFilter;
+    const start = ev.starts_on ?? '';
+    const end = ev.ends_on ?? ev.starts_on ?? '';
+    if (eventFilter === 'upcoming') return end >= today && start <= plus90;
+    if (eventFilter === 'recent') return end < today && end >= minus90;
+    if (eventFilter) return ev.id === eventFilter;
+    return end >= minus90 && start <= plus90;
+  };
+
   const matches = (b) => {
-    if (eventFilter && b.event_id !== eventFilter) return false;
+    if (!inScope(regById.get(b.registration_id)?.events)) return false;
     const net = (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
     const paid = b.paid_cents ?? 0;
     const bal = b.balance_cents ?? 0;

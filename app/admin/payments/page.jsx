@@ -284,7 +284,9 @@ export default async function AdminPaymentsPage({ searchParams }) {
         ))}
         <span className="text-xs text-neutral-400">coming soon</span>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white mb-8">
+      {/* lg:overflow-visible lets the row-actions menu overlay the table
+          edge on desktop; small screens keep horizontal scrolling. */}
+      <div className="overflow-x-auto lg:overflow-visible rounded-lg border border-neutral-200 bg-white mb-8">
         <table className="w-full text-left text-sm">
           <thead className="bg-neutral-50 text-neutral-500">
             <tr>
@@ -320,19 +322,20 @@ export default async function AdminPaymentsPage({ searchParams }) {
                   </td>
                   <td className="px-4 py-2 text-right">
                     {/* Per-family actions. <details> = no JavaScript needed;
-                        the menu expands in place. Email + Refund are planned
-                        placeholders (refunds work in Stripe today). */}
-                    <details className="inline-block text-left">
+                        the menu floats over the table, anchored to the ⋯
+                        button. Email + Refund are planned placeholders
+                        (refunds work in Stripe today). */}
+                    <details className="relative inline-block text-left">
                       <summary
                         className="cursor-pointer select-none list-none rounded border border-neutral-300 px-2 py-0.5 font-bold text-neutral-600 hover:border-brand [&::-webkit-details-marker]:hidden"
                         title="Actions for this family"
                       >
                         ⋯
                       </summary>
-                      <div className="mt-1 flex flex-col items-end gap-1 rounded-lg border border-neutral-200 bg-white p-2 text-xs shadow-sm">
+                      <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-neutral-200 bg-white py-1 text-left text-sm shadow-lg">
                         <a
                           href={`/admin/registrations/${b.registration_id}/statement`}
-                          className="text-brand underline whitespace-nowrap"
+                          className="block px-3 py-1.5 text-brand hover:bg-neutral-50"
                         >
                           Statement
                         </a>
@@ -340,7 +343,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
                           type="button"
                           disabled
                           title="Planned — not active yet"
-                          className="cursor-not-allowed text-neutral-400 whitespace-nowrap"
+                          className="block w-full cursor-not-allowed px-3 py-1.5 text-left text-neutral-400"
                         >
                           Email balance owed + payment link
                         </button>
@@ -348,7 +351,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
                           type="button"
                           disabled
                           title="Planned — refunds work in the Stripe dashboard today"
-                          className="cursor-not-allowed text-neutral-400 whitespace-nowrap"
+                          className="block w-full cursor-not-allowed px-3 py-1.5 text-left text-neutral-400"
                         >
                           Refund
                         </button>

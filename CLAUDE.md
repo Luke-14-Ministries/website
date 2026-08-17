@@ -30,7 +30,7 @@ The working checklist is `DO-THIS-NEXT.md` (SharePoint, `02 Accounts and Setup`)
 
 ---
 
-## Where things stand — 9 August 2026
+## Where things stand — 17 August 2026
 
 **The database is live.** Migration `0001_core_schema.sql` has been run against the Supabase
 project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). 34 tables, 75 row-level-security policies,
@@ -42,24 +42,37 @@ goes in `0002_*.sql`.
 → callback → session → dashboard rendering the person's own name out of `public.profiles`, with
 `handle_new_user()` creating that row automatically. Login, logout and password reset are wired.
 
-**Known limitation, do not treat as a bug.** Confirmation links use PKCE (`?code=`), so opening one
-in a *different browser* from the one that signed up fails — the code verifier lives in the original
+**Known limitation, now fixable.** Confirmation links use PKCE (`?code=`), so opening one in a
+*different browser* from the one that signed up fails — the code verifier lives in the original
 browser. The account is still confirmed (Supabase verifies server-side before redirecting), so the
 recovery is simply to log in, which is why `/account/link-expired` leads with a Log In button. The
-real fix is switching the email template to `token_hash` — `app/auth/callback/route.js` already
-handles both shapes — but **Supabase will not allow template edits until custom SMTP is set up**.
+real fix is switching the Supabase email templates to `token_hash` — `app/auth/callback/route.js`
+already handles both shapes — and the old blocker is gone: **custom SMTP is set up** (auth email
+sends through Resend from `camp@luke14ministries.net`), so template edits are now allowed. Making
+that template switch is an open, unblocked task.
 
-**That makes the registrar the critical path.** DNS is at Squarespace; the registration almost
-certainly is too. Getting into that account unblocks: Resend domain verification → custom SMTP →
-email templates → cross-browser confirmation links, plus a sender that says Luke 14 Ministries
-instead of `noreply@mail.app.supabase.io`, and 30 messages an hour instead of 2.
+**Update, 17 August 2026 — the platform is built and in staff testing.** Migrations run through
+`0017` (never edit a migration that has been run; new work goes in the next number). Working end
+to end in Stripe test mode: family accounts and household management (per-adult phones, linked
+caregivers), the registration wizard with true edit/update mode and tracked changes (staff review
+queue at /admin/changes; role changes on a confirmed person auto-flip to re-review), card + bank
+payments with receipts from camp@, scholarships/discounts with a credit display ("Credit −$X"),
+printable statements (staff at /admin/registrations/[id]/statement, family at
+/account/statement/[id], donors at /admin/giving/statements — all on ministry letterhead), the
+staff admin (rosters, check-in, dietary + no-names kitchen list, medical, Event Payments with a
+90-day event scope + filtered CSVs, Giving, Staff & Access), and Resend newsletters (trial sent;
+click-tracking domain verified).
 
-**Next, in order:** commit and push what is on disk (three commits — docs, schema, auth); wire the
-family registration flow to `registrations` / `registration_participants`; then Stripe in test mode.
-`DATA-MODEL.md` in SharePoint explains the schema in prose and is the place to start.
+**Working rules learned the hard way:** every new table needs explicit role grants alongside its
+RLS policies (RLS without `grant ... to authenticated` = permission denied); never swallow query
+errors in admin pages; `/account/*` "my data" queries must scope by household membership
+explicitly, never rely on RLS alone (staff RLS is broad); PostgREST nested joins with two FKs to
+the same table are fragile — use separate simple lookups.
 
-**Still mock, despite looking real:** the contact form discards submissions, and everything below
-the amber banner on the dashboard is placeholder.
+**Next, in order:** structured staff testing (test-households workbook), the volunteer
+application, Turnstile on public forms, `charge.refunded` webhook handling + wiring the payments
+page's placeholder actions (email balance reminders, per-family refund), purge ALL test data,
+then live Stripe keys. **Still mock:** the contact form discards submissions.
 
 ---
 

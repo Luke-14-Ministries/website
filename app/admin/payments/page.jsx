@@ -318,7 +318,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
                   </td>
                   <td className="px-4 py-2 text-right">{money(b.paid_cents)}</td>
                   <td className={`px-4 py-2 text-right font-semibold ${bal > 0 ? 'text-amber-700' : 'text-green-700'}`}>
-                    {bal < 0 ? `Credit −${money(-bal)}` : money(bal)}
+                    {bal < 0 ? `−${money(-bal)}` : money(bal)}
                   </td>
                   <td className="px-4 py-2 text-right">
                     {/* Per-family actions. <details> = no JavaScript needed;

@@ -74,6 +74,29 @@ export default async function RegistrationDetailPage({ params }) {
     }));
   }
 
+  // Notes TO the family (short staff messages shown on their dashboard),
+  // newest first, with author names looked up separately.
+  const { data: msgs } = await supabase
+    .from('registration_family_messages')
+    .select('id, body, created_by, created_at')
+    .eq('registration_id', id)
+    .order('created_at', { ascending: false });
+  const authorIds = [...new Set((msgs ?? []).map((m) => m.created_by).filter(Boolean))];
+  let authorNames = new Map();
+  if (authorIds.length) {
+    const { data: authors } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name')
+      .in('id', authorIds);
+    authorNames = new Map((authors ?? []).map((a) => [a.id, `${a.first_name} ${a.last_name}`.trim()]));
+  }
+  const familyMessages = (msgs ?? []).map((m) => ({
+    id: m.id,
+    body: m.body,
+    author: authorNames.get(m.created_by) ?? 'Staff',
+    at: (m.created_at ?? '').slice(0, 10),
+  }));
+
   // Reshape the PostgREST nesting into the names the client component expects.
   const registration = {
     id: reg.id,
@@ -97,5 +120,5 @@ export default async function RegistrationDetailPage({ params }) {
       ),
   };
 
-  return <RegistrationManager registration={registration} options={options ?? []} adjustmentRecords={adjustmentRecords} />;
+  return <RegistrationManager registration={registration} options={options ?? []} adjustmentRecords={adjustmentRecords} familyMessages={familyMessages} />;
 }

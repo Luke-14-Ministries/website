@@ -311,3 +311,46 @@ export async function setAdjustments(registrationId, participantId, input) {
   revalidateAll(registrationId);
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// Notes TO the family (registration_family_messages, 0019): short messages
+// shown on the family's dashboard — "We added a $100 scholarship credit to
+// your registration on 8/17." Registrar-gated here; RLS is the boundary.
+
+export async function addFamilyMessage(registrationId, body) {
+  const staff = await getStaff();
+  if (!can(staff, 'registrar')) return { ok: false, error: 'Not permitted.' };
+  const text = typeof body === 'string' ? body.trim().slice(0, 1000) : '';
+  if (!text) return { ok: false, error: 'Write the note first.' };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('registration_family_messages').insert({
+    registration_id: registrationId,
+    body: text,
+    created_by: staff.userId,
+  });
+  if (error) {
+    console.error('addFamilyMessage:', error.message);
+    return { ok: false, error: 'The note could not be saved.' };
+  }
+  revalidatePath(`/admin/registrations/${registrationId}`);
+  return { ok: true };
+}
+
+export async function deleteFamilyMessage(registrationId, messageId) {
+  const staff = await getStaff();
+  if (!can(staff, 'registrar')) return { ok: false, error: 'Not permitted.' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('registration_family_messages')
+    .delete()
+    .eq('id', messageId)
+    .eq('registration_id', registrationId);
+  if (error) {
+    console.error('deleteFamilyMessage:', error.message);
+    return { ok: false, error: 'The note could not be removed.' };
+  }
+  revalidatePath(`/admin/registrations/${registrationId}`);
+  return { ok: true };
+}

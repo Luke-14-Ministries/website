@@ -16,6 +16,8 @@ import {
   addParticipant,
   deleteParticipantPermanently,
   setAdjustments,
+  addFamilyMessage,
+  deleteFamilyMessage,
 } from './actions';
 
 const STATUS_OPTIONS = [
@@ -44,6 +46,25 @@ const ROLE_OPTIONS = [
   ['support_team', 'Support team'],
 ];
 const ROLE_LABEL = Object.fromEntries(ROLE_OPTIONS);
+const ROLE_ORDER = ROLE_OPTIONS.map(([v]) => v);
+const ROLE_PLURAL = {
+  camper: 'Campers',
+  parent_guardian: 'Parents / Guardians',
+  sibling: 'Siblings',
+  caregiver: 'Caregivers',
+  volunteer: 'Volunteers',
+  childcare: 'Childcare',
+  support_team: 'Support team',
+};
+const ROLE_BADGE = {
+  camper: 'bg-teal-100 text-teal-800',
+  parent_guardian: 'bg-neutral-200 text-neutral-700',
+  sibling: 'bg-neutral-200 text-neutral-700',
+  caregiver: 'bg-purple-100 text-purple-800',
+  volunteer: 'bg-amber-100 text-amber-800',
+  childcare: 'bg-blue-100 text-blue-800',
+  support_team: 'bg-blue-100 text-blue-800',
+};
 
 const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
 
@@ -301,9 +322,16 @@ function ParticipantRow({ registrationId, participant }) {
             {p.preferred_name ? (
               <span className="font-normal text-neutral-500"> ("{p.preferred_name}")</span>
             ) : null}
+            <span
+              className={`ml-2 rounded-full px-2.5 py-0.5 text-xs font-semibold align-middle ${
+                ROLE_BADGE[participant.camp_role] ?? 'bg-neutral-200 text-neutral-700'
+              }`}
+            >
+              {ROLE_LABEL[participant.camp_role] ?? participant.camp_role}
+            </span>
           </p>
           <p className="text-sm text-neutral-500">
-            {ROLE_LABEL[participant.camp_role] ?? participant.camp_role} · {money(participant.fee_cents)}
+            {money(participant.fee_cents)}
             {(participant.scholarship_cents ?? 0) > 0 && (
               <span className="text-green-700"> − {money(participant.scholarship_cents)} scholarship</span>
             )}
@@ -569,7 +597,76 @@ function HouseholdEditor({ registrationId, household }) {
   );
 }
 
-export default function RegistrationManager({ registration, options, adjustmentRecords = [] }) {
+// Short notes TO the family — shown on their dashboard the moment they're
+// saved. Kept separate from the staff-internal registration notes.
+function FamilyMessages({ registrationId, messages }) {
+  const router = useRouter();
+  const [body, setBody] = useState('');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+
+  async function add() {
+    if (!body.trim()) return;
+    setPending(true);
+    setError('');
+    const res = await addFamilyMessage(registrationId, body);
+    setPending(false);
+    if (!res?.ok) setError(res?.error || 'Could not save.');
+    else {
+      setBody('');
+      router.refresh();
+    }
+  }
+  async function remove(id) {
+    if (!confirm('Remove this note? The family will no longer see it.')) return;
+    const res = await deleteFamilyMessage(registrationId, id);
+    if (!res?.ok) setError(res?.error || 'Could not remove.');
+    else router.refresh();
+  }
+
+  return (
+    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+      <h2 className="text-lg font-bold mb-1">Notes to the family</h2>
+      <p className="text-sm text-neutral-500 mb-3">
+        Shown on the family&rsquo;s dashboard under this registration — e.g. &ldquo;We added a
+        $100 scholarship credit to your registration on 8/17.&rdquo; For staff-only notes, use
+        the fields above instead.
+      </p>
+      {messages.length > 0 && (
+        <ul className="mb-4 space-y-2">
+          {messages.map((m) => (
+            <li key={m.id} className="rounded border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
+              <p className="text-neutral-800 whitespace-pre-wrap">{m.body}</p>
+              <p className="mt-1 flex items-center justify-between text-xs text-neutral-500">
+                <span>
+                  {m.author} · {m.at}
+                </span>
+                <button onClick={() => remove(m.id)} className="text-red-700 underline">
+                  Remove
+                </button>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Write a short note the family will see…"
+          className="flex-1 rounded border border-neutral-300 px-3 py-2 text-sm"
+          maxLength={1000}
+        />
+        <button onClick={add} disabled={pending || !body.trim()} className="btn-primary !py-2 text-sm">
+          {pending ? 'Saving…' : 'Post note'}
+        </button>
+      </div>
+      <ErrorNote>{error}</ErrorNote>
+    </div>
+  );
+}
+
+export default function RegistrationManager({ registration, options, adjustmentRecords = [], familyMessages = [] }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
   const adjustments = parts.reduce(
@@ -616,9 +713,27 @@ export default function RegistrationManager({ registration, options, adjustmentR
             <p className="text-neutral-500 text-sm py-2">Nobody is on this registration yet.</p>
           ) : (
             <div>
-              {parts.map((p) => (
-                <ParticipantRow key={p.id} registrationId={registration.id} participant={p} />
-              ))}
+              {ROLE_ORDER.filter((role) => parts.some((p) => p.camp_role === role)).map((role) => {
+                const group = parts.filter((p) => p.camp_role === role);
+                const manyRoles = new Set(parts.map((p) => p.camp_role)).size > 1;
+                return (
+                  <div key={role}>
+                    {manyRoles && (
+                      <p className="mt-4 mb-1 text-xs font-bold uppercase tracking-wide text-neutral-400">
+                        {ROLE_PLURAL[role] ?? role} ({group.length})
+                      </p>
+                    )}
+                    {group.map((p) => (
+                      <ParticipantRow key={p.id} registrationId={registration.id} participant={p} />
+                    ))}
+                  </div>
+                );
+              })}
+              {parts
+                .filter((p) => !ROLE_ORDER.includes(p.camp_role))
+                .map((p) => (
+                  <ParticipantRow key={p.id} registrationId={registration.id} participant={p} />
+                ))}
             </div>
           )}
           <AddPerson registrationId={registration.id} options={options} />
@@ -652,6 +767,8 @@ export default function RegistrationManager({ registration, options, adjustmentR
             </div>
           )}
         </div>
+
+        <FamilyMessages registrationId={registration.id} messages={familyMessages} />
 
         {registration.family_notes && (
           <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">

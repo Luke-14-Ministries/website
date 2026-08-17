@@ -128,6 +128,21 @@ export default async function DashboardPage() {
   const regs = registrations ?? [];
   const regIds = regs.map((r) => r.id);
 
+  // Short notes from staff TO the family, per registration (0019), shown on
+  // each registration card. Scoped by regIds (own household's registrations).
+  const { data: staffMsgs } = regIds.length
+    ? await supabase
+        .from('registration_family_messages')
+        .select('registration_id, body, created_at')
+        .in('registration_id', regIds)
+        .order('created_at', { ascending: false })
+    : { data: [] };
+  const msgsByReg = new Map();
+  for (const m of staffMsgs ?? []) {
+    if (!msgsByReg.has(m.registration_id)) msgsByReg.set(m.registration_id, []);
+    msgsByReg.get(m.registration_id).push(m);
+  }
+
   // Registered volunteers who haven't filed their volunteer application yet —
   // surfaced as a nudge below, because the application is a separate short
   // form at /register/volunteer and is easy to miss.
@@ -242,14 +257,14 @@ export default async function DashboardPage() {
           <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 p-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-amber-900">
-                Volunteer application needed for{' '}
+                Additional volunteer details needed for{' '}
                 {volunteersNeedingApp
                   .map((p) => `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim())
                   .join(', ')}
               </p>
               <p className="text-sm text-amber-800">
-                Registration is in — one short application tells us where you&rsquo;d like to
-                serve, and starts the review.
+                Your registration is in — a few more questions tell us where you&rsquo;d like to
+                serve, and start the volunteer review.
               </p>
             </div>
             <Link href="/register/volunteer" className="btn-primary !py-2">
@@ -326,6 +341,26 @@ export default async function DashboardPage() {
                         <p className="mt-3 text-sm text-neutral-600">
                           <span className="font-semibold">Notes to staff:</span> {r.family_notes}
                         </p>
+                      )}
+
+                      {/* Notes FROM camp staff — e.g. "We added a $100
+                          scholarship credit to your registration on 8/17." */}
+                      {(msgsByReg.get(r.id) ?? []).length > 0 && (
+                        <div className="mt-3 rounded border border-brand/30 bg-brand-light/50 p-3">
+                          <p className="text-sm font-semibold text-brand-dark mb-1">
+                            Notes from camp staff
+                          </p>
+                          <ul className="space-y-1 text-sm text-neutral-700">
+                            {(msgsByReg.get(r.id) ?? []).map((m, i) => (
+                              <li key={i}>
+                                {m.body}{' '}
+                                <span className="text-xs text-neutral-500">
+                                  · {(m.created_at ?? '').slice(0, 10)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
 
                       {/* Payment history: every payment on this registration, with

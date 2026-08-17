@@ -104,14 +104,16 @@ export default function StaffManager({ members, selfId }) {
         </td>
         <td className="px-4 py-3 text-center">
           {m.role === 'admin' ? (
-            // Administrators always have giving access -- show it as granted
-            // rather than an unchecked-but-locked box, which reads as broken.
-            <span
-              className="text-xs font-semibold text-neutral-500"
+            // Administrators inherently have giving access -- a checked,
+            // locked box (with the hover note) reads clearer than a label.
+            <input
+              type="checkbox"
+              checked
+              disabled
+              readOnly
               title="Administrators always have giving access; no separate grant needed."
-            >
-              always ✓
-            </span>
+              className="h-4 w-4 opacity-50 cursor-not-allowed"
+            />
           ) : (
             <input
               type="checkbox"

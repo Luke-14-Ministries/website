@@ -97,7 +97,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
         .select(
           `id, event_id, family_notes, created_at,
            registration_participants ( camp_role, status,
-             people ( id, first_name, last_name, date_of_birth,
+             people ( id, first_name, last_name, date_of_birth, gender,
                person_support ( disabilities, dietary_needs ) ) )`
         )
         .eq('household_id', householdId)
@@ -116,6 +116,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
         firstName: p.people?.first_name ?? '',
         lastName: p.people?.last_name ?? '',
         dob: p.people?.date_of_birth ?? '',
+        sex: p.people?.gender ?? '',
         role: ROLE_LABEL[p.camp_role] ?? 'Camper with disability',
         needs: p.people?.person_support?.disabilities ?? '',
         diet: p.people?.person_support?.dietary_needs ?? '',

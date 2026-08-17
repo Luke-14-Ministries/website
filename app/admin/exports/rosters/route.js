@@ -29,12 +29,12 @@ export async function GET(request) {
       `id, event_id, events ( name ),
        households ( display_name, email, phone ),
        registration_participants ( camp_role, status, fee_cents, submitted_at, created_at, checked_in_at,
-         people ( first_name, last_name, date_of_birth ) )`
+         people ( first_name, last_name, date_of_birth, gender ) )`
     );
 
   const rows = [
     ['Event', 'Household', 'Email', 'Phone', 'First name', 'Last name', 'Date of birth',
-     'Role', 'Status', 'Fee', 'Submitted', 'Checked in'],
+     'Sex', 'Role', 'Status', 'Fee', 'Submitted', 'Checked in'],
   ];
   for (const r of regs ?? []) {
     if (fEvent && r.event_id !== fEvent) continue;
@@ -49,6 +49,7 @@ export async function GET(request) {
         p.people?.first_name ?? '',
         p.people?.last_name ?? '',
         p.people?.date_of_birth ?? '',
+        p.people?.gender ?? '',
         p.camp_role ?? '',
         p.status ?? '',
         ((p.fee_cents ?? 0) / 100).toFixed(2),

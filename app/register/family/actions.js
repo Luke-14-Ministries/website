@@ -45,6 +45,7 @@ export async function submitFamilyRegistration(payload) {
       firstName: m.firstName.trim(),
       lastName: m.lastName.trim(),
       dob: m.dob || null,
+      sex: m.sex || null,
       role: ROLE_MAP[m.role] || 'camper',
       needs: m.needs || '',
       diet: m.diet || '',

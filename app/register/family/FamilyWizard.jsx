@@ -9,6 +9,7 @@ const emptyMember = {
   firstName: '',
   lastName: '',
   dob: '',
+  sex: '',
   role: 'Camper with disability',
   needs: '',
   diet: '',
@@ -104,6 +105,18 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
       const names = missingDob.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
       const ok = window.confirm(
         `No date of birth entered for: ${names}.\n\nBirth dates help us tell family members apart, and help program leaders at camp plan resources and accommodations appropriately. Save anyway?`
+      );
+      if (!ok) return;
+    }
+    // Same soft requirement for sex: program leaders use it for volunteer
+    // pairing, adult programming, and rooming assignments.
+    const missingSex = members.filter(
+      (m) => m.firstName.trim() && m.lastName.trim() && !m.sex
+    );
+    if (missingSex.length > 0) {
+      const names = missingSex.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
+      const ok = window.confirm(
+        `Sex not selected for: ${names}.\n\nCamp leaders use this for rooming assignments, volunteer pairing, and program planning. Save anyway?`
       );
       if (!ok) return;
     }
@@ -211,10 +224,18 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
                   <input className={input} value={m.lastName} onChange={setM(i, 'lastName')} />
                 </div>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-3 gap-4">
                 <div>
                   <label className={label}>Date of birth</label>
                   <input type="date" className={input} value={m.dob} onChange={setM(i, 'dob')} />
+                </div>
+                <div>
+                  <label className={label}>Sex</label>
+                  <select className={input} value={m.sex} onChange={setM(i, 'sex')}>
+                    <option value="">— select —</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                  </select>
                 </div>
                 <div>
                   <label className={label}>Role</label>

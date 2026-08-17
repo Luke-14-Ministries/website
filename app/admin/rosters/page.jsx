@@ -23,7 +23,7 @@ export default async function RostersPage() {
         `id, event_id, created_at,
          households ( display_name, email, phone ),
          registration_participants ( camp_role, status, fee_cents, submitted_at, created_at,
-           people ( first_name, last_name ) )`
+           people ( first_name, last_name, gender ) )`
       )
       .order('created_at'),
   ]);
@@ -37,6 +37,7 @@ export default async function RostersPage() {
         household: r.households?.display_name ?? 'Household',
         contact: [r.households?.email, r.households?.phone].filter(Boolean).join(' · '),
         person: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
+        sex: p.people?.gender ?? '',
         role: p.camp_role,
         status: p.status,
         fee: p.fee_cents ?? 0,

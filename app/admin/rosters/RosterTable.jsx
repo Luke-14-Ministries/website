@@ -37,6 +37,7 @@ const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
 const COLS = [
   { key: 'household', label: 'Household' },
   { key: 'person', label: 'Person' },
+  { key: 'sex', label: 'Sex' },
   { key: 'role', label: 'Role' },
   { key: 'status', label: 'Status' },
   { key: 'fee', label: 'Fee', right: true },
@@ -164,6 +165,7 @@ export default function RosterTable({ events, rows }) {
                     {r.contact && <div className="text-neutral-500">{r.contact}</div>}
                   </td>
                   <td className="px-4 py-2">{r.person}</td>
+                  <td className="px-4 py-2 text-neutral-600">{r.sex || '—'}</td>
                   <td className="px-4 py-2">{ROLE_LABEL[r.role] ?? r.role}</td>
                   <td className="px-4 py-2">
                     <span

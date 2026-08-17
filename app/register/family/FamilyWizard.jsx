@@ -223,6 +223,7 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
                     <option>Parent/Guardian</option>
                     <option>Sibling</option>
                     <option>Caregiver</option>
+                    <option>Volunteer</option>
                   </select>
                 </div>
               </div>

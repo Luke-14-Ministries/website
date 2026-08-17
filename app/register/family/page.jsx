@@ -10,6 +10,7 @@ const ROLE_LABEL = {
   parent_guardian: 'Parent/Guardian',
   sibling: 'Sibling',
   caregiver: 'Caregiver',
+  volunteer: 'Volunteer',
 };
 
 // A server component: it runs on the server, so it can check who is logged in and

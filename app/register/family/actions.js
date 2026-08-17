@@ -18,6 +18,11 @@ const ROLE_MAP = {
   'Parent/Guardian': 'parent_guardian',
   'Sibling': 'sibling',
   'Caregiver': 'caregiver',
+  // Volunteers register through the same family flow (a solo volunteer is
+  // simply a household of one). The fuller volunteer APPLICATION -- experience,
+  // preferred areas, background-check hand-off -- is a separate roadmap item;
+  // this makes the fee-carrying registration itself possible today.
+  'Volunteer': 'volunteer',
 };
 
 export async function submitFamilyRegistration(payload) {

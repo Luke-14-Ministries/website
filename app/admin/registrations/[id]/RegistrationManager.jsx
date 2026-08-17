@@ -139,7 +139,6 @@ function PersonEditor({ registrationId, person, onDone }) {
     preferred_name: person.preferred_name ?? '',
     date_of_birth: person.date_of_birth ?? '',
     gender: person.gender ?? '',
-    pronouns: person.pronouns ?? '',
     email: person.email ?? '',
     phone: person.phone ?? '',
   });
@@ -187,10 +186,6 @@ function PersonEditor({ registrationId, person, onDone }) {
               <option>{f.gender}</option>
             )}
           </select>
-        </div>
-        <div>
-          <label className={labelCls}>Pronouns</label>
-          <input className={inputCls} value={f.pronouns} onChange={set('pronouns')} />
         </div>
         <div>
           <label className={labelCls}>Email</label>

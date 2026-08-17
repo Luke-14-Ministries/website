@@ -28,7 +28,7 @@ export default async function RegistrationDetailPage({ params }) {
        registration_participants (
          id, camp_role, status, fee_cents, scholarship_cents, discount_cents,
          people ( id, first_name, last_name, preferred_name, date_of_birth,
-                  gender, pronouns, email, phone )
+                  gender, email, phone )
        )`
     )
     .eq('id', id)

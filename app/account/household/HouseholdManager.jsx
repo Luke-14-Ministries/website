@@ -130,6 +130,14 @@ export default function HouseholdManager({ household, members, caregiversByPerso
               <Field label="Date of birth">
                 <input name="date_of_birth" type="date" defaultValue={m.date_of_birth ?? ''} className={inputCls} />
               </Field>
+              <Field label="Sex">
+                <select name="gender" defaultValue={m.gender ?? ''} className={inputCls}>
+                  <option value="">— select —</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  {m.gender && !['Male', 'Female'].includes(m.gender) && <option>{m.gender}</option>}
+                </select>
+              </Field>
               <Field label={isAdult ? 'Phone' : 'Phone (if they carry one)'}>
                 <input name="phone" type="tel" defaultValue={m.phone ?? ''} className={inputCls} />
               </Field>

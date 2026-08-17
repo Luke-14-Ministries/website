@@ -40,6 +40,8 @@ export async function updatePersonInfo(personId, form) {
     first_name: clean(form.first_name) ?? undefined,
     last_name: clean(form.last_name) ?? undefined,
     date_of_birth: clean(form.date_of_birth),
+    // Blank never wipes a known value — same rule as the wizard.
+    gender: clean(form.gender) ?? undefined,
     phone: clean(form.phone),
     email: clean(form.email),
   };

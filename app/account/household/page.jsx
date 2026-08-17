@@ -53,7 +53,7 @@ export default async function ManageHouseholdPage() {
         .maybeSingle(),
       supabase
         .from('people')
-        .select('id, first_name, last_name, date_of_birth, phone, email')
+        .select('id, first_name, last_name, date_of_birth, gender, phone, email')
         .eq('household_id', householdId)
         .order('created_at'),
       supabase.from('person_caregivers').select('person_id, caregiver_person_id, position'),

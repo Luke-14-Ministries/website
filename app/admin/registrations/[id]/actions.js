@@ -36,7 +36,6 @@ const PERSON_FIELDS = [
   'preferred_name',
   'date_of_birth',
   'gender',
-  'pronouns',
   'email',
   'phone',
 ];

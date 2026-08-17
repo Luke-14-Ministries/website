@@ -11,7 +11,7 @@ import { usePathname } from 'next/navigation';
 
 const OPEN_KEY = 'l14_admin_nav_events_open';
 
-export default function AdminNav({ top, events, rest, unreviewedChanges }) {
+export default function AdminNav({ top, events, rest, badges = {} }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
 
@@ -43,12 +43,12 @@ export default function AdminNav({ top, events, rest, unreviewedChanges }) {
         } ${isActive(n.href) ? 'bg-neutral-200' : ''}`}
       >
         {n.label}
-        {n.href === '/admin/changes' && unreviewedChanges > 0 && (
+        {(badges[n.href] ?? 0) > 0 && (
           <span
-            title={`${unreviewedChanges} unreviewed`}
+            title={`${badges[n.href]} needing review`}
             className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold"
           >
-            {unreviewedChanges}
+            {badges[n.href]}
           </span>
         )}
       </Link>

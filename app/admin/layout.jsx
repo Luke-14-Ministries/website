@@ -79,12 +79,22 @@ export default async function AdminLayout({ children }) {
   // exist. Count only -- cheap head query; RLS scopes what this staffer may
   // count (support-detail rows stay invisible without the sensitive grant).
   let unreviewedChanges = 0;
+  let volunteersAwaiting = 0;
   if (can(staff, 'registrar')) {
-    const { count } = await supabase
-      .from('family_change_log')
-      .select('id', { count: 'exact', head: true })
-      .is('reviewed_at', null);
-    unreviewedChanges = count ?? 0;
+    const [{ count: changesCount }, { count: volCount }] = await Promise.all([
+      supabase
+        .from('family_change_log')
+        .select('id', { count: 'exact', head: true })
+        .is('reviewed_at', null),
+      // Applications sitting in "applied" — same treatment as Recent
+      // Changes: a number on the nav whenever something needs review.
+      supabase
+        .from('volunteer_applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'applied'),
+    ]);
+    unreviewedChanges = changesCount ?? 0;
+    volunteersAwaiting = volCount ?? 0;
   }
 
   return (
@@ -121,7 +131,10 @@ export default async function AdminLayout({ children }) {
             top={items.filter((n) => !n.group && n.href === '/admin')}
             events={items.filter((n) => n.group === 'events')}
             rest={items.filter((n) => !n.group && n.href !== '/admin')}
-            unreviewedChanges={unreviewedChanges}
+            badges={{
+              '/admin/changes': unreviewedChanges,
+              '/admin/volunteers': volunteersAwaiting,
+            }}
             />
           </div>
 

@@ -121,10 +121,10 @@ function VolunteerRow({ row }) {
             }`}
           >
             {expired
-              ? `Check expired ${clearance.expires_on}`
+              ? `Background check expired ${clearance.expires_on}`
               : cleared
-                ? `Check on file${clearance?.background_check_date ? ` · ${clearance.background_check_date}` : ''}`
-                : 'No check on file'}
+                ? `Background check on file${clearance?.background_check_date ? ` · ${clearance.background_check_date}` : ''}`
+                : 'No background check on file'}
           </span>
           <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline !py-1 !px-3">
             {open ? 'Close' : 'Details'}
@@ -136,6 +136,19 @@ function VolunteerRow({ row }) {
         <div className="mt-3 rounded-lg border border-neutral-200 bg-white p-4 text-sm">
           {app ? (
             <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-3">
+              <div>
+                <dt className="text-xs font-semibold text-neutral-500">Age</dt>
+                <dd>
+                  {age != null ? `${age}` : 'unknown — no birth date on file'}
+                  {person?.date_of_birth && (
+                    <span className="text-neutral-500"> (b. {person.date_of_birth})</span>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold text-neutral-500">Sex / gender</dt>
+                <dd>{person?.gender || '—'}</dd>
+              </div>
               <div>
                 <dt className="text-xs font-semibold text-neutral-500">Preferred areas</dt>
                 <dd>{app.preferred_areas || '—'}</dd>
@@ -166,10 +179,27 @@ function VolunteerRow({ row }) {
               </div>
             </dl>
           ) : (
-            <p className="text-neutral-500 mb-3">
-              No application filed yet — the family completes it at /register/volunteer (their
-              dashboard reminds them).
-            </p>
+            <div className="mb-3">
+              <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-3">
+                <div>
+                  <dt className="text-xs font-semibold text-neutral-500">Age</dt>
+                  <dd>
+                    {age != null ? `${age}` : 'unknown — no birth date on file'}
+                    {person?.date_of_birth && (
+                      <span className="text-neutral-500"> (b. {person.date_of_birth})</span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-neutral-500">Sex / gender</dt>
+                  <dd>{person?.gender || '—'}</dd>
+                </div>
+              </dl>
+              <p className="text-neutral-500">
+                No application filed yet — the family completes it at /register/volunteer (their
+                dashboard reminds them).
+              </p>
+            </div>
           )}
 
           {app && app.status !== 'withdrawn' && (

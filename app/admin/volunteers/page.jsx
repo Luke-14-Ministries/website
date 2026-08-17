@@ -24,7 +24,7 @@ export default async function AdminVolunteersPage() {
         `id, event_id,
          households ( display_name, email, phone ),
          registration_participants ( id, camp_role, status,
-           people ( id, first_name, last_name, date_of_birth, email, phone ) )`
+           people ( id, first_name, last_name, date_of_birth, gender, email, phone ) )`
       ),
     supabase.from('events').select('id, name, starts_on, ends_on').order('starts_on', { ascending: false }),
   ]);

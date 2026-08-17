@@ -55,19 +55,27 @@ export default function CampCelebratePage() {
             Camp Celebrate 2026 registration is now OPEN!
           </h2>
           <p className="mt-4 text-lg">
-            New to Camp Celebrate and need a registration account? Click here
-            to get started and register!
+            New to Camp Celebrate? Click here to create your account and
+            register your family!
           </p>
-          <Link href="/account/signup" className="btn-primary mt-4">
+          <Link href="/account/signup/?next=/register/family/" className="btn-primary mt-4">
             Get Started!
           </Link>
           <p className="mt-8 text-lg">
-            Already have a registration account? Returning campers and
-            volunteers, click here to log in and register!
+            Already have an account? Returning campers, click here to log in
+            and register!
           </p>
-          <Link href="/account" className="btn-outline mt-4">
+          <Link href="/account/?next=/register/family/" className="btn-outline mt-4">
             Log In and Register
           </Link>
+          <p className="mt-8 text-neutral-600">
+            Coming to serve?{' '}
+            <Link href="/register/volunteer" className="text-brand underline font-semibold">
+              Volunteer registration starts here
+            </Link>{' '}
+            — it walks you through registration and the short volunteer
+            application.
+          </p>
         </div>
       </section>
 

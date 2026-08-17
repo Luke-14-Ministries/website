@@ -43,16 +43,20 @@ export default function CamperInformationPage() {
             to get started and register
           </p>
         </div>
-        <Link href="/account/signup" className="btn-primary mt-6 inline-block">
+        <Link href="/account/signup/?next=/register/family/" className="btn-primary mt-6 inline-block">
           Get Started
         </Link>
         <div className="prose-site mt-8">
           <p>
-            Already have a registration account? Returning campers and
-            volunteers, click here to log in and register!
+            Already have a registration account? Returning campers, click
+            here to log in and register! (Volunteering? Start at the{' '}
+            <Link href="/register/volunteer" className="text-brand underline">
+              volunteer page
+            </Link>
+            .)
           </p>
         </div>
-        <Link href="/account" className="btn-outline mt-6 inline-block">
+        <Link href="/account/?next=/register/family/" className="btn-outline mt-6 inline-block">
           Log In and Register
         </Link>
         {/* eslint-disable-next-line @next/next/no-img-element */}

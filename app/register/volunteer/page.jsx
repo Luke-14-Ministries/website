@@ -43,13 +43,19 @@ export default async function VolunteerPage() {
             </ol>
           </div>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/account/?next=/register/volunteer/" className="btn-primary">
-              Log in / create an account
+            <Link href="/account/signup/?next=/register/volunteer/" className="btn-primary">
+              Create an account
+            </Link>
+            <Link href="/account/?next=/register/volunteer/" className="btn-outline">
+              Log in
             </Link>
             <Link href="/volunteer-information" className="btn-outline">
               What volunteers do
             </Link>
           </div>
+          <p className="text-center text-xs text-neutral-500 mt-3">
+            Either way you&rsquo;ll come straight back here to finish.
+          </p>
         </div>
       </section>
     );

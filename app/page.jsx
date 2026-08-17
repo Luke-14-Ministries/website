@@ -31,7 +31,7 @@ const programs = [
 const actions = [
   {
     title: 'Volunteer',
-    href: '/contact',
+    href: '/volunteer-information',
     image:
       asset('/images/DSC_0199.jpg'),
   },

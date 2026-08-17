@@ -43,20 +43,23 @@ export default function VolunteerInformationPage() {
             disability.
           </p>
           <p>
-            New to Camp Celebrate and need a registration account? Click here
-            to get started and register!
+            Volunteering takes three short steps: create an account, register
+            for the week you want to serve (choosing the role
+            &ldquo;Volunteer&rdquo;), and complete a short application telling
+            us where you&rsquo;d like to help. Start here — the page walks you
+            through all three.
           </p>
         </div>
-        <Link href="/account/signup" className="btn-primary mt-6 inline-block">
-          Get Started!
+        <Link href="/register/volunteer" className="btn-primary mt-6 inline-block">
+          Volunteer — Start Here
         </Link>
         <div className="prose-site mt-8">
           <p>
-            Already have a registration account? Returning campers and
-            volunteers, click here to log in and register!
+            Already have an account? Returning volunteers, log in and pick up
+            right where you left off.
           </p>
         </div>
-        <Link href="/account" className="btn-outline mt-6 inline-block">
+        <Link href="/account/?next=/register/volunteer/" className="btn-outline mt-6 inline-block">
           Log In and Register
         </Link>
       </section>

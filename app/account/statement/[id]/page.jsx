@@ -226,7 +226,11 @@ export default async function MyStatementPage({ params }) {
         </div>
         <div className="flex justify-between py-2 border-t-2 border-neutral-800 font-bold text-base">
           <span>{(bal?.balance_cents ?? 0) < 0 ? 'Credit' : 'Balance due'}</span>
-          <span>{money(Math.abs(bal?.balance_cents ?? 0))}</span>
+          <span>
+            {(bal?.balance_cents ?? 0) < 0
+              ? `−${money(-(bal?.balance_cents ?? 0))}`
+              : money(bal?.balance_cents)}
+          </span>
         </div>
         {(bal?.balance_cents ?? 0) < 0 && (
           <p className="text-xs text-neutral-500 pt-1">

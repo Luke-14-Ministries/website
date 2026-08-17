@@ -362,7 +362,7 @@ export default async function DashboardPage() {
                             <div className="flex justify-between py-0.5 border-t border-neutral-200 font-semibold">
                               <span>{bal < 0 ? 'Credit' : 'Balance'}</span>
                               <span className={bal < 0 ? 'text-green-700' : bal > 0 ? 'text-amber-700' : ''}>
-                                {money(Math.abs(bal))}
+                                {bal < 0 ? `−${money(-bal)}` : money(bal)}
                               </span>
                             </div>
                           </div>

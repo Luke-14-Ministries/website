@@ -188,6 +188,7 @@ export async function addParticipant(registrationId, input) {
       first_name: first,
       last_name: last,
       date_of_birth: input?.date_of_birth ? input.date_of_birth : null,
+      gender: (input?.gender || '').trim() || null,
     })
     .select('id')
     .single();

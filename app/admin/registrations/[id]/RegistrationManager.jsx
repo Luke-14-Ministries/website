@@ -177,8 +177,16 @@ function PersonEditor({ registrationId, person, onDone }) {
           <input type="date" className={inputCls} value={f.date_of_birth} onChange={set('date_of_birth')} />
         </div>
         <div>
-          <label className={labelCls}>Gender</label>
-          <input className={inputCls} value={f.gender} onChange={set('gender')} />
+          <label className={labelCls}>Sex</label>
+          <select className={inputCls} value={f.gender} onChange={set('gender')}>
+            <option value="">— select —</option>
+            <option>Male</option>
+            <option>Female</option>
+            {/* Preserve any nonstandard value already on the record. */}
+            {f.gender && !['Male', 'Female'].includes(f.gender) && (
+              <option>{f.gender}</option>
+            )}
+          </select>
         </div>
         <div>
           <label className={labelCls}>Pronouns</label>
@@ -396,6 +404,7 @@ function AddPerson({ registrationId, options }) {
     first_name: '',
     last_name: '',
     date_of_birth: '',
+    gender: '',
     camp_role: 'camper',
     event_option_id: options[0]?.id ?? '',
   });
@@ -443,6 +452,14 @@ function AddPerson({ registrationId, options }) {
         <div>
           <label className={labelCls}>Date of birth</label>
           <input type="date" className={inputCls} value={f.date_of_birth} onChange={set('date_of_birth')} />
+        </div>
+        <div>
+          <label className={labelCls}>Sex</label>
+          <select className={inputCls} value={f.gender} onChange={set('gender')}>
+            <option value="">— select —</option>
+            <option>Male</option>
+            <option>Female</option>
+          </select>
         </div>
         <div>
           <label className={labelCls}>Role</label>

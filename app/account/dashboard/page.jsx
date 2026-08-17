@@ -152,16 +152,23 @@ export default async function DashboardPage() {
     )
   );
   let volunteersNeedingApp = [];
+  const volAppStatus = new Map();
   if (volunteerParts.length) {
     const { data: vapps } = await supabase
       .from('volunteer_applications')
       .select('registration_participant_id, status')
       .in('registration_participant_id', volunteerParts.map((p) => p.id));
-    const appStatus = new Map((vapps ?? []).map((a) => [a.registration_participant_id, a.status]));
+    for (const a of vapps ?? []) volAppStatus.set(a.registration_participant_id, a.status);
     volunteersNeedingApp = volunteerParts.filter(
-      (p) => !appStatus.has(p.id) || appStatus.get(p.id) === 'withdrawn'
+      (p) => !volAppStatus.has(p.id) || volAppStatus.get(p.id) === 'withdrawn'
     );
   }
+  const VOL_APP_LABEL = {
+    applied: 'submitted — under review',
+    approved: 'approved',
+    declined: 'not approved — you can update and resubmit',
+    withdrawn: 'withdrawn',
+  };
 
   // What each registration still owes, computed by the registration_balances
   // view (fees minus discounts, scholarships, coupons and payments already in).
@@ -325,14 +332,28 @@ export default async function DashboardPage() {
                         {parts.map((p, i) => {
                           const [label, cls] = STATUS[p.status] ?? STATUS.submitted;
                           return (
-                            <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                              <span>
-                                {p.people?.first_name} {p.people?.last_name}
-                                <span className="text-neutral-500"> — {ROLE_LABEL[p.camp_role] ?? p.camp_role}</span>
-                              </span>
-                              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
-                                {label}
-                              </span>
+                            <li key={i} className="py-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span>
+                                  {p.people?.first_name} {p.people?.last_name}
+                                  <span className="text-neutral-500"> — {ROLE_LABEL[p.camp_role] ?? p.camp_role}</span>
+                                </span>
+                                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
+                                  {label}
+                                </span>
+                              </div>
+                              {/* Volunteers keep a permanent path back to their
+                                  application — the amber banner only covers the
+                                  not-yet-filed case. */}
+                              {p.camp_role === 'volunteer' && p.status !== 'cancelled' && (
+                                <p className="mt-1 text-xs text-neutral-500">
+                                  Volunteer application:{' '}
+                                  {VOL_APP_LABEL[volAppStatus.get(p.id)] ?? 'not started'} ·{' '}
+                                  <Link href="/register/volunteer" className="text-brand underline font-semibold">
+                                    {volAppStatus.has(p.id) ? 'View / edit' : 'Start it'}
+                                  </Link>
+                                </p>
+                              )}
                             </li>
                           );
                         })}

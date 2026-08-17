@@ -163,8 +163,12 @@ export default async function DashboardPage() {
       (p) => !volAppStatus.has(p.id) || volAppStatus.get(p.id) === 'withdrawn'
     );
   }
+  // "Reviewed separately" matters: the registration pill (e.g. Confirmed)
+  // tracks the week's registration, while the application is reviewed by the
+  // volunteer team on its own track — without the qualifier the two read as
+  // contradictory ("Confirmed" beside "under review").
   const VOL_APP_LABEL = {
-    applied: 'submitted — under review',
+    applied: 'submitted — volunteer team reviews this separately',
     approved: 'approved',
     declined: 'not approved — you can update and resubmit',
     withdrawn: 'withdrawn',

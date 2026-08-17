@@ -302,10 +302,18 @@ export async function setAdjustments(registrationId, participantId, input) {
     reviewed_by: staff.userId,
     reviewed_at: new Date().toISOString(),
   };
-  if (existing) {
-    await supabase.from('scholarships').update(auditRow).eq('id', existing.id);
-  } else if (scholarship > 0) {
-    await supabase.from('scholarships').insert(auditRow);
+  // Never swallow these errors: a refused audit write is how the
+  // "who granted this" record silently stayed empty until 0020.
+  const { error: auditError } = existing
+    ? await supabase.from('scholarships').update(auditRow).eq('id', existing.id)
+    : scholarship > 0
+      ? await supabase.from('scholarships').insert(auditRow)
+      : { error: null };
+  if (auditError) {
+    return {
+      ok: false,
+      error: `The amounts saved, but the grant record did not: ${auditError.message}`,
+    };
   }
 
   revalidateAll(registrationId);

@@ -42,20 +42,18 @@ export default async function VolunteerPage() {
               </li>
             </ol>
           </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/account/signup/?next=/register/volunteer/" className="btn-primary">
+          <div className="text-center">
+            <Link href="/account/signup/?next=/register/volunteer/" className="btn-primary !px-8">
               Create an account
             </Link>
-            <Link href="/account/?next=/register/volunteer/" className="btn-outline">
-              Log in
-            </Link>
-            <Link href="/volunteer-information" className="btn-outline">
-              What volunteers do
-            </Link>
+            <p className="mt-4 text-neutral-600">
+              Already have one?{' '}
+              <Link href="/account/?next=/register/volunteer/" className="text-brand underline font-semibold">
+                Log in
+              </Link>{' '}
+              — either way you&rsquo;ll come straight back here to finish.
+            </p>
           </div>
-          <p className="text-center text-xs text-neutral-500 mt-3">
-            Either way you&rsquo;ll come straight back here to finish.
-          </p>
         </div>
       </section>
     );
@@ -108,13 +106,17 @@ export default async function VolunteerPage() {
               whole family in the same pass is fine — each person gets their own role. Then come
               back here (we&rsquo;ll also remind you on your dashboard).
             </p>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/register/family" className="btn-primary">
+            <div>
+              <Link href="/register/family" className="btn-primary !px-8">
                 Register now
               </Link>
-              <Link href="/account/dashboard" className="btn-outline">
-                My dashboard
-              </Link>
+              <p className="mt-3 text-sm text-neutral-600">
+                Or check{' '}
+                <Link href="/account/dashboard" className="text-brand underline font-semibold">
+                  your dashboard
+                </Link>{' '}
+                for what&rsquo;s already in place.
+              </p>
             </div>
           </div>
         </div>

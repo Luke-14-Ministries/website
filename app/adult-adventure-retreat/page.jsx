@@ -18,13 +18,17 @@ export default function AdultAdventureRetreatPage() {
           with disabilities&mdash;October 23&ndash;26 in the beautiful
           mountains near Gatlinburg, TN.
         </h2>
-        <div className="flex flex-wrap justify-center gap-4 mt-10">
-          <Link href="/account" className="btn-primary">
-            Returning Campers Register Here!
+        <div className="mt-10">
+          <Link href="/account/signup/?next=/register/family/" className="btn-primary !px-8">
+            Register for the Retreat
           </Link>
-          <Link href="/account/signup" className="btn-gold">
-            New Campers Register Here!
-          </Link>
+          <p className="mt-4 text-neutral-600">
+            Been before?{' '}
+            <Link href="/account/?next=/register/family/" className="text-brand underline font-semibold">
+              Log in and register
+            </Link>
+            .
+          </p>
         </div>
       </section>
 

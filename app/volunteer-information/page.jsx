@@ -53,15 +53,13 @@ export default function VolunteerInformationPage() {
         <Link href="/register/volunteer" className="btn-primary mt-6 inline-block">
           Volunteer — Start Here
         </Link>
-        <div className="prose-site mt-8">
-          <p>
-            Already have an account? Returning volunteers, log in and pick up
-            right where you left off.
-          </p>
-        </div>
-        <Link href="/account/?next=/register/volunteer/" className="btn-outline mt-6 inline-block">
-          Log In and Register
-        </Link>
+        <p className="mt-6 text-neutral-600">
+          Already have an account?{' '}
+          <Link href="/account/?next=/register/volunteer/" className="text-brand underline font-semibold">
+            Log in and pick up where you left off
+          </Link>
+          .
+        </p>
       </section>
 
       <section className="bg-brand-light py-14">

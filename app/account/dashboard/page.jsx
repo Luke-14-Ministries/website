@@ -118,7 +118,7 @@ export default async function DashboardPage() {
         .select(
           `id, family_notes, created_at,
            events ( id, name, starts_on, ends_on, deposit_cents ),
-           registration_participants ( camp_role, status, fee_cents,
+           registration_participants ( id, camp_role, status, fee_cents,
              people ( first_name, last_name ) )`
         )
         .in('household_id', householdIds)
@@ -127,6 +127,26 @@ export default async function DashboardPage() {
 
   const regs = registrations ?? [];
   const regIds = regs.map((r) => r.id);
+
+  // Registered volunteers who haven't filed their volunteer application yet —
+  // surfaced as a nudge below, because the application is a separate short
+  // form at /register/volunteer and is easy to miss.
+  const volunteerParts = regs.flatMap((r) =>
+    (r.registration_participants ?? []).filter(
+      (p) => p.camp_role === 'volunteer' && p.status !== 'cancelled'
+    )
+  );
+  let volunteersNeedingApp = [];
+  if (volunteerParts.length) {
+    const { data: vapps } = await supabase
+      .from('volunteer_applications')
+      .select('registration_participant_id, status')
+      .in('registration_participant_id', volunteerParts.map((p) => p.id));
+    const appStatus = new Map((vapps ?? []).map((a) => [a.registration_participant_id, a.status]));
+    volunteersNeedingApp = volunteerParts.filter(
+      (p) => !appStatus.has(p.id) || appStatus.get(p.id) === 'withdrawn'
+    );
+  }
 
   // What each registration still owes, computed by the registration_balances
   // view (fees minus discounts, scholarships, coupons and payments already in).
@@ -217,6 +237,26 @@ export default async function DashboardPage() {
             </button>
           </form>
         </div>
+
+        {volunteersNeedingApp.length > 0 && (
+          <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 p-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-amber-900">
+                Volunteer application needed for{' '}
+                {volunteersNeedingApp
+                  .map((p) => `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim())
+                  .join(', ')}
+              </p>
+              <p className="text-sm text-amber-800">
+                Registration is in — one short application tells us where you&rsquo;d like to
+                serve, and starts the review.
+              </p>
+            </div>
+            <Link href="/register/volunteer" className="btn-primary !py-2">
+              Complete it now
+            </Link>
+          </div>
+        )}
 
         {/* Staff door -- only when this login is also active staff. */}
         {staff && (

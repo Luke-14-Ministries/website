@@ -35,7 +35,7 @@ const NAV = [
   { href: '/admin/changes', label: 'Recent Changes', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: true, group: 'events' },
   { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: true, group: 'events' },
-  { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: false, group: 'events' },
+  { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: false, group: 'events' },
   { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: false, group: 'events' },
   { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true, group: 'events' },

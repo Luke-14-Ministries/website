@@ -17,6 +17,7 @@ export async function GET(request) {
 
   const url = new URL(request.url);
   const paystate = url.searchParams.get('paystate') || '';
+  const eventFilter = url.searchParams.get('event') || '';
 
   const supabase = await createClient();
   const [{ data: pays }, { data: regs }, { data: balances }] = await Promise.all([
@@ -24,7 +25,7 @@ export async function GET(request) {
       .from('payments')
       .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note')
       .order('created_at'),
-    supabase.from('registrations').select('id, events ( name ), households ( display_name )'),
+    supabase.from('registrations').select('id, events ( id, name ), households ( display_name )'),
     supabase
       .from('registration_balances')
       .select('registration_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
@@ -57,6 +58,7 @@ export async function GET(request) {
   for (const p of pays ?? []) {
     if (allowed && !allowed.has(p.registration_id)) continue;
     const r = regById.get(p.registration_id);
+    if (eventFilter && r?.events?.id !== eventFilter) continue;
     rows.push([
       p.received_on ?? (p.created_at ?? '').slice(0, 10),
       r?.households?.display_name ?? '',

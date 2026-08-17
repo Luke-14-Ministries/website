@@ -19,17 +19,19 @@ export async function GET(request) {
 
   const url = new URL(request.url);
   const paystate = url.searchParams.get('paystate') || '';
+  const eventFilter = url.searchParams.get('event') || '';
 
   const supabase = await createClient();
   const [{ data: balances }, { data: regs }] = await Promise.all([
     supabase
       .from('registration_balances')
-      .select('registration_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
+      .select('registration_id, event_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
     supabase.from('registrations').select('id, events ( name ), households ( display_name, email, phone )'),
   ]);
   const regById = new Map((regs ?? []).map((r) => [r.id, r]));
 
   const matches = (b) => {
+    if (eventFilter && b.event_id !== eventFilter) return false;
     const net = (b.fee_cents ?? 0) - (b.discount_cents ?? 0) - (b.scholarship_cents ?? 0) - (b.coupon_cents ?? 0);
     const paid = b.paid_cents ?? 0;
     const bal = b.balance_cents ?? 0;

@@ -80,10 +80,16 @@ export default async function FamilyStatementPage({ params }) {
       </div>
 
       {/* Letterhead */}
-      <div className="border-b-2 border-neutral-800 pb-3 mb-5">
-        <p className="text-2xl font-bold">Luke 14 Ministries</p>
-        <p className="text-sm text-neutral-600">
-          2348 W Andrew Johnson Hwy, #140 · Morristown, TN 37814 · camp@luke14ministries.net
+      <div className="border-b-2 border-neutral-800 pb-3 mb-5 flex flex-wrap items-end justify-between gap-3">
+        <img
+          src="/images/Luke_14_Ministries_Logo__285_x_2_in_29.png"
+          alt="Luke 14 Ministries"
+          className="h-16 w-auto"
+        />
+        <p className="text-sm text-neutral-600 text-right">
+          2348 W Andrew Johnson Hwy, #140 · Morristown, TN 37814
+          <br />
+          camp@luke14ministries.net
         </p>
       </div>
 
@@ -204,9 +210,15 @@ export default async function FamilyStatementPage({ params }) {
           <span>−{money(bal?.paid_cents)}</span>
         </div>
         <div className="flex justify-between py-2 border-t-2 border-neutral-800 font-bold text-base">
-          <span>Balance due</span>
-          <span>{money(bal?.balance_cents)}</span>
+          <span>{(bal?.balance_cents ?? 0) < 0 ? 'Credit' : 'Balance due'}</span>
+          <span>{money(Math.abs(bal?.balance_cents ?? 0))}</span>
         </div>
+        {(bal?.balance_cents ?? 0) < 0 && (
+          <p className="text-xs text-neutral-500 pt-1">
+            This family has paid more than the amount due. The credit can be refunded or applied
+            to a future event.
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-neutral-500">

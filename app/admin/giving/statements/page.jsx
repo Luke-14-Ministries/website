@@ -103,10 +103,15 @@ export default async function GivingStatementsPage({ searchParams }) {
       {donorList.map((d, di) => (
         <div key={di} className="mb-10 break-after-page">
           {/* Letterhead */}
-          <div className="border-b-2 border-neutral-800 pb-3 mb-5">
-            <p className="text-2xl font-bold">Luke 14 Ministries</p>
-            <p className="text-sm text-neutral-600">
-              2348 W Andrew Johnson Hwy, #140 · Morristown, TN 37814 ·
+          <div className="border-b-2 border-neutral-800 pb-3 mb-5 flex flex-wrap items-end justify-between gap-3">
+            <img
+              src="/images/Luke_14_Ministries_Logo__285_x_2_in_29.png"
+              alt="Luke 14 Ministries"
+              className="h-16 w-auto"
+            />
+            <p className="text-sm text-neutral-600 text-right">
+              2348 W Andrew Johnson Hwy, #140 · Morristown, TN 37814
+              <br />
               giving@luke14ministries.net
             </p>
           </div>

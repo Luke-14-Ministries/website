@@ -29,6 +29,7 @@ const STATUS_CLS = {
 export default async function AdminPaymentsPage({ searchParams }) {
   const params = await searchParams;
   const paystate = typeof params?.paystate === 'string' ? params.paystate : '';
+  const eventFilter = typeof params?.event === 'string' ? params.event : '';
 
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/payments/');
@@ -50,6 +51,13 @@ export default async function AdminPaymentsPage({ searchParams }) {
   ]);
 
   const regById = new Map((regs ?? []).map((r) => [r.id, r]));
+
+  // Every event that has at least one registration, for the filter dropdown.
+  const eventOptions = [...new Map(
+    (regs ?? [])
+      .filter((r) => r.events?.id)
+      .map((r) => [r.events.id, r.events.name])
+  ).entries()].sort((a, b) => a[1].localeCompare(b[1]));
 
   const events = new Map();
   for (const b of balances ?? []) {
@@ -96,7 +104,9 @@ export default async function AdminPaymentsPage({ searchParams }) {
         return true;
     }
   };
-  const filteredBalances = (balances ?? []).filter(matchesPaystate);
+  const filteredBalances = (balances ?? []).filter(
+    (b) => matchesPaystate(b) && (!eventFilter || b.event_id === eventFilter)
+  );
   const PAYSTATES = [
     ['', 'All'],
     ['unpaid', 'Nothing paid'],
@@ -104,7 +114,18 @@ export default async function AdminPaymentsPage({ searchParams }) {
     ['paid', 'Fully paid'],
     ['scholarship', 'Scholarship/discount'],
   ];
-  const csvHref = `/admin/exports/payments${paystate ? `?paystate=${paystate}` : ''}`;
+  // One helper builds every filter-carrying URL (pills, CSVs) so the active
+  // event + payment state always travel together.
+  const qs = (over = {}) => {
+    const p = new URLSearchParams();
+    const ps = 'paystate' in over ? over.paystate : paystate;
+    const ev = 'event' in over ? over.event : eventFilter;
+    if (ps) p.set('paystate', ps);
+    if (ev) p.set('event', ev);
+    const s = p.toString();
+    return s ? `?${s}` : '';
+  };
+  const csvHref = `/admin/exports/payments${qs()}`;
 
   return (
     <div>
@@ -112,7 +133,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
         <h2 className="text-xl font-bold">Event Payments</h2>
         <span className="flex gap-2">
           <a
-            href={`/admin/exports/balances${paystate ? `?paystate=${paystate}` : ''}`}
+            href={`/admin/exports/balances${qs()}`}
             className="btn-outline !py-2 text-sm"
             title="One row per family: fees, scholarships, paid, balance"
           >
@@ -154,11 +175,27 @@ export default async function AdminPaymentsPage({ searchParams }) {
       </div>
 
       <h3 className="font-semibold text-neutral-700 mb-2">Balances by family</h3>
-      <div className="flex flex-wrap gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {/* Event filter: narrows the table AND both CSV downloads, so a
+            simplified report never requires filtering in Excel. */}
+        <form method="get" action="/admin/payments" className="flex items-center gap-2">
+          {paystate && <input type="hidden" name="paystate" value={paystate} />}
+          <select
+            name="event"
+            defaultValue={eventFilter}
+            className="rounded border border-neutral-300 px-2 py-1 text-sm"
+          >
+            <option value="">All events</option>
+            {eventOptions.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+          <button type="submit" className="btn-outline !py-1 !px-3 text-sm">Apply</button>
+        </form>
         {PAYSTATES.map(([v, label]) => (
           <Link
             key={v}
-            href={v ? `/admin/payments?paystate=${v}` : '/admin/payments'}
+            href={`/admin/payments${qs({ paystate: v })}`}
             className={`rounded-full px-3 py-1 text-sm font-semibold border ${
               paystate === v
                 ? 'bg-brand text-white border-brand'
@@ -171,6 +208,25 @@ export default async function AdminPaymentsPage({ searchParams }) {
         <span className="text-sm text-neutral-500 self-center">
           {filteredBalances.length} {filteredBalances.length === 1 ? 'family' : 'families'}
         </span>
+      </div>
+      {/* Planned actions — visible placeholders so staff can see what is
+          coming. Wire these up before enabling: email reminders (Resend),
+          in-app refund recording (Stripe refunds already work from the
+          Stripe dashboard today; this will record them here too). */}
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+        <span className="text-neutral-500 font-semibold">Actions:</span>
+        {['Email balance reminders (all shown)', 'Email selected families', 'Record a refund'].map((label) => (
+          <button
+            key={label}
+            type="button"
+            disabled
+            title="Planned — not active yet"
+            className="cursor-not-allowed rounded border border-dashed border-neutral-300 px-3 py-1 text-neutral-400"
+          >
+            {label}
+          </button>
+        ))}
+        <span className="text-xs text-neutral-400">coming soon — refunds work in the Stripe dashboard today</span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white mb-8">
         <table className="w-full text-left text-sm">

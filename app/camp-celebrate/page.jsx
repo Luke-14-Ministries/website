@@ -39,14 +39,6 @@ export default function CampCelebratePage() {
         title="Camp Celebrate"
         subtitle="A family retreat for those affected by disability"
       >
-        <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <Link href="/camper-information" className="btn-primary">
-            Camper Information
-          </Link>
-          <Link href="/volunteer-information" className="btn-outline !border-white !text-white hover:!bg-white hover:!text-brand-dark">
-            Volunteer Information
-          </Link>
-        </div>
       </PageHero>
 
       <section className="bg-brand-light py-14">
@@ -55,26 +47,26 @@ export default function CampCelebratePage() {
             Camp Celebrate 2026 registration is now OPEN!
           </h2>
           <p className="mt-4 text-lg">
-            New to Camp Celebrate? Click here to create your account and
-            register your family!
+            Coming as a family, or coming to serve? Pick your door — each page
+            has the details, dates, and its own registration button.
           </p>
-          <Link href="/account/signup/?next=/register/family/" className="btn-primary mt-4">
-            Get Started!
-          </Link>
-          <p className="mt-8 text-lg">
-            Already have an account? Returning campers, click here to log in
-            and register!
-          </p>
-          <Link href="/account/?next=/register/family/" className="btn-outline mt-4">
-            Log In and Register
-          </Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-4">
+            <Link href="/camper-information" className="btn-primary !px-8">
+              Campers &amp; Families
+            </Link>
+            <Link
+              href="/volunteer-information"
+              className="rounded-lg border-2 border-brand bg-white px-8 py-3 font-semibold text-brand hover:bg-brand hover:text-white transition-colors"
+            >
+              Volunteers
+            </Link>
+          </div>
           <p className="mt-8 text-neutral-600">
-            Coming to serve?{' '}
-            <Link href="/register/volunteer" className="text-brand underline font-semibold">
-              Volunteer registration starts here
+            Returning camper or volunteer?{' '}
+            <Link href="/account" className="text-brand underline font-semibold">
+              Log in
             </Link>{' '}
-            — it walks you through registration and the short volunteer
-            application.
+            — your dashboard picks up right where you left off.
           </p>
         </div>
       </section>

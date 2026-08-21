@@ -41,7 +41,10 @@ const NAV = [
   { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/giving', label: 'Giving', need: 'giving', ready: true },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: false },
-  { href: '/admin/security', label: 'Two-Factor Resets', need: 'admin', ready: true },
+  // Accounts subsumes the old Two-Factor Resets page: the same reset lives in
+  // each row's menu, without typing an email address. /admin/security still
+  // works by URL as a fallback if the table itself is ever the thing broken.
+  { href: '/admin/accounts', label: 'Accounts', need: 'admin', ready: true },
   { href: '/admin/staff', label: 'Staff & Access', need: 'admin', ready: true },
 ];
 

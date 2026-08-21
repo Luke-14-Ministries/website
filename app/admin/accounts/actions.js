@@ -87,6 +87,30 @@ export async function resetMfa(userId) {
   return { ok: true, removed: data ?? 0 };
 }
 
+// Attach a login to an existing household -- the reverse of removeLogins,
+// for reconnecting a family after staff have verified who they are. Kept
+// staff-mediated on purpose: automatic relinking by email address would hand
+// the household's records to whoever controls that mailbox later.
+export async function linkLoginToHousehold(userId, householdId) {
+  const staff = await getStaff();
+  if (!can(staff, 'admin')) return { ok: false, error: 'Not permitted.' };
+  if (!userId || !householdId) return { ok: false, error: 'Missing account or household.' };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_link_login_to_household', {
+    p_user_id: userId,
+    p_household_id: householdId,
+    p_person_id: null,
+  });
+
+  if (error) {
+    console.error('admin_link_login_to_household:', error.message);
+    return { ok: false, error: error.message };
+  }
+  revalidatePath('/admin/accounts');
+  return { ok: true, role: data };
+}
+
 // Re-send the confirmation email to an account that never confirmed. Uses the
 // caller's origin for the redirect so it works identically on the preview URL
 // and, later, the real domain. Supabase rate-limits this per address; the

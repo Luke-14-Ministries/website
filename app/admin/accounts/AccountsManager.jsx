@@ -25,6 +25,7 @@ import {
   purgeHousehold,
   resetMfa,
   resendVerification,
+  linkLoginToHousehold,
 } from './actions';
 
 const FILTERS = [
@@ -43,7 +44,7 @@ const fullFmt = new Intl.DateTimeFormat('en-US', {
 const fmtDate = (iso) => (iso ? dateFmt.format(new Date(iso)) : '—');
 const fmtFull = (iso) => (iso ? fullFmt.format(new Date(iso)) : '');
 
-export default function AccountsManager({ accounts, selfId, loadError }) {
+export default function AccountsManager({ accounts, households = [], selfId, loadError }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
@@ -357,6 +358,15 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
                           Reset two-factor
                         </MenuItem>
                         <MenuItem
+                          disabled={(a.household_count ?? 0) > 0}
+                          reason={(a.household_count ?? 0) > 0 ? 'already in a household' : null}
+                          onClick={() =>
+                            setConfirm({ kind: 'link', row: a, householdId: '' })
+                          }
+                        >
+                          Link to household…
+                        </MenuItem>
+                        <MenuItem
                           disabled={isSelf}
                           reason={isSelf ? 'your own account' : null}
                           onClick={() => setConfirm({ kind: 'remove', rows: [a] })}
@@ -436,6 +446,62 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
               className="btn-primary !py-1.5"
             >
               {busy ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Link-to-household: the reverse of remove-login, for reconnecting a
+          family AFTER staff have verified who they are on the phone or in
+          person. Deliberately manual -- automatic relinking by email address
+          would hand the household's records to whoever controls that mailbox
+          later, which is not necessarily the same person. */}
+      {confirm?.kind === 'link' && (
+        <Modal onClose={() => setConfirm(null)}>
+          <h2 className="text-lg font-bold mb-2">Link this login to a household</h2>
+          <p className="text-sm text-neutral-700 mb-3">
+            Connects <strong className="break-words">{confirm.row.email}</strong> to
+            an existing family, giving it access to that household&rsquo;s
+            registrations, payments and records. Do this only after
+            you&rsquo;ve confirmed who you&rsquo;re talking to &mdash; by
+            phone or in person, not by email alone.
+          </p>
+          <label className="block text-sm font-semibold mb-1.5" htmlFor="link-household">
+            Household
+          </label>
+          <select
+            id="link-household"
+            value={confirm.householdId}
+            onChange={(e) => setConfirm({ ...confirm, householdId: e.target.value })}
+            className="w-full rounded border border-neutral-300 px-3 py-2 mb-4 bg-white"
+          >
+            <option value="">Choose a household…</option>
+            {households.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.display_name}
+                {h.city ? ` — ${h.city}` : ''}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-3 justify-end">
+            <button type="button" onClick={() => setConfirm(null)} className="btn-outline !py-1.5">
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy || !confirm.householdId}
+              onClick={() =>
+                run(
+                  () => linkLoginToHousehold(confirm.row.user_id, confirm.householdId),
+                  (r) =>
+                    `Linked ${confirm.row.email} to the household as ${
+                      r.role === 'owner' ? 'its owner' : 'an adult member'
+                    }.`
+                )
+              }
+              className="btn-primary !py-1.5"
+            >
+              {busy ? 'Linking…' : 'Link login'}
             </button>
           </div>
         </Modal>

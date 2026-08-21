@@ -18,7 +18,15 @@ export default async function AccountsPage() {
   if (!can(staff, 'admin')) redirect('/admin/');
 
   const supabase = await createClient();
-  const { data: accounts, error } = await supabase.rpc('admin_list_accounts');
+  const [{ data: accounts, error }, { data: households }] = await Promise.all([
+    supabase.rpc('admin_list_accounts'),
+    // For the "Link to household" picker. Staff RLS on households already
+    // allows this read; sorted so the dropdown is scannable.
+    supabase
+      .from('households')
+      .select('id, display_name, city')
+      .order('display_name'),
+  ]);
 
   if (error) {
     console.error('admin_list_accounts:', error.message);
@@ -35,6 +43,7 @@ export default async function AccountsPage() {
       </p>
       <AccountsManager
         accounts={accounts ?? []}
+        households={households ?? []}
         selfId={staff.userId}
         loadError={Boolean(error)}
       />

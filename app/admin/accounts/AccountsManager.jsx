@@ -30,6 +30,7 @@ import {
 
 const FILTERS = [
   { key: 'all', label: 'All' },
+  { key: 'new7', label: 'New this week' },
   { key: 'unconfirmed', label: 'Unconfirmed email' },
   { key: 'no2fa', label: 'No two-factor' },
   { key: 'staff', label: 'Staff' },
@@ -72,6 +73,12 @@ export default function AccountsManager({ accounts, households = [], unclaimedPe
         if (!hay.includes(q)) return false;
       }
       switch (filter) {
+        case 'new7':
+          // Mirrors the nav badge: created in the last 7 days.
+          return (
+            a.created_at &&
+            Date.now() - new Date(a.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+          );
         case 'unconfirmed':
           return !a.email_confirmed_at;
         case 'no2fa':

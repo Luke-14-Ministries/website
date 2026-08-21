@@ -310,13 +310,13 @@ export default async function DashboardPage() {
         <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
           {/* Registrations -- real */}
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2 ${donorFirst ? 'order-3' : 'order-1'}`}>
-            <h2 className="text-xl font-bold mb-4">My Camp Registrations</h2>
+            <h2 className="text-xl font-bold mb-4">My Registrations</h2>
 
             {regs.length === 0 ? (
               <div className="rounded border border-dashed border-neutral-300 p-6 text-center text-neutral-600">
                 <p>You haven&rsquo;t registered anyone yet.</p>
-                <Link href="/register/family" className="btn-primary !py-2 mt-4 inline-block">
-                  Start a Registration
+                <Link href="/register/" className="btn-primary !py-2 mt-4 inline-block">
+                  Register for an Event
                 </Link>
               </div>
             ) : (

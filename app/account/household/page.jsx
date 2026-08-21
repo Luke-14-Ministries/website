@@ -36,9 +36,14 @@ export default async function ManageHouseholdPage() {
           <p className="mt-4 text-neutral-700">
             No household on file yet — one is created the first time you register.
           </p>
-          <Link href="/register/family/" className="btn-primary mt-6 inline-block">
-            Start a Registration
+          <Link href="/register/" className="btn-primary mt-6 inline-block">
+            Register for an Event
           </Link>
+          <p className="mt-4 text-sm">
+            <Link href="/account/dashboard/" className="text-brand underline font-semibold">
+              &larr; Back to my dashboard
+            </Link>
+          </p>
         </div>
       </section>
     );

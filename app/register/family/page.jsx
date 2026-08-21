@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import FamilyWizard from './FamilyWizard';
 
-export const metadata = { title: 'Family Registration — Camp Celebrate' };
+export const metadata = { title: 'Family Registration — Luke 14 Ministries' };
 
 // The database's camp_role values -> the wizard's human-readable labels.
 const ROLE_LABEL = {
@@ -27,9 +27,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
     return (
       <section className="bg-neutral-50 py-12">
         <div className="container-site max-w-xl mx-auto text-center">
-          <h1 className="text-4xl font-bold">
-            Camp Celebrate 2026 — Family Registration
-          </h1>
+          <h1 className="text-4xl font-bold">Family Registration</h1>
           <p className="mt-4 text-neutral-700">
             Please log in or create an account first. Your registration is saved to
             your account so you can leave and come back to it, and only you and camp
@@ -172,14 +170,24 @@ export default async function FamilyRegisterPage({ searchParams }) {
   return (
     <section className="bg-neutral-50 py-12">
       <div className="container-site max-w-3xl mx-auto">
-        <h1 className="text-4xl font-bold text-center">
-          Camp Celebrate 2026 — Family Registration
-        </h1>
-        <p className="text-center text-neutral-600 mt-3 mb-8">
+        {/* Generic on purpose: the ministry runs several events, and this
+            wizard serves all of them -- the event itself is chosen (or
+            preselected via ?event=) in step 3. The old hardcoded
+            "Camp Celebrate 2026" title presumed camp on every neutral entry. */}
+        <h1 className="text-4xl font-bold text-center">Family Registration</h1>
+        <p className="text-center text-neutral-600 mt-3 mb-2">
           Signed in as {user.email}.{' '}
           {existing?.isUpdate
             ? 'Your saved registration is loaded below — make changes and update.'
             : 'Your answers save to your account.'}
+        </p>
+        {/* A visible escape hatch. The wizard's own "Cancel" also leads to the
+            dashboard, but as a quiet word between Back and Continue it reads
+            as "discard", not "leave" -- people reported not finding a way out. */}
+        <p className="text-center text-sm mb-8">
+          <Link href="/account/dashboard/" className="text-brand underline font-semibold">
+            &larr; Back to my dashboard
+          </Link>
         </p>
         {weeks.length === 0 ? (
           <p className="text-center text-neutral-600">

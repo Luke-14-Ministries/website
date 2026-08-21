@@ -49,7 +49,10 @@ export default async function AccountsPage() {
         Every login on the platform. Removing a login never deletes a
         family&rsquo;s registrations or payments &mdash; that takes the
         separate &ldquo;delete family &amp; data&rdquo; action, which spells
-        out what it is about to remove.
+        out what it is about to remove. The amber count on the nav is simply
+        accounts created in the last 7 days &mdash; awareness, not a review
+        queue; each one drops off as it turns a week old. The &ldquo;New this
+        week&rdquo; filter below shows exactly those.
       </p>
       <AccountsManager
         accounts={accounts ?? []}

@@ -91,7 +91,7 @@ export async function resetMfa(userId) {
 // for reconnecting a family after staff have verified who they are. Kept
 // staff-mediated on purpose: automatic relinking by email address would hand
 // the household's records to whoever controls that mailbox later.
-export async function linkLoginToHousehold(userId, householdId) {
+export async function linkLoginToHousehold(userId, householdId, personId = null) {
   const staff = await getStaff();
   if (!can(staff, 'admin')) return { ok: false, error: 'Not permitted.' };
   if (!userId || !householdId) return { ok: false, error: 'Missing account or household.' };
@@ -100,7 +100,9 @@ export async function linkLoginToHousehold(userId, householdId) {
   const { data, error } = await supabase.rpc('admin_link_login_to_household', {
     p_user_id: userId,
     p_household_id: householdId,
-    p_person_id: null,
+    // Optional "this login IS this family member" claim. The function verifies
+    // the person belongs to the household and is unclaimed.
+    p_person_id: personId || null,
   });
 
   if (error) {

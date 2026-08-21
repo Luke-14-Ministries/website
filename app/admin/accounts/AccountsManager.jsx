@@ -42,9 +42,18 @@ const fullFmt = new Intl.DateTimeFormat('en-US', {
   timeStyle: 'short',
 });
 const fmtDate = (iso) => (iso ? dateFmt.format(new Date(iso)) : '—');
+// Whole years old today, or null when the birth date is unknown.
+const ageOf = (dob) => {
+  if (!dob) return null;
+  const [y, m, d] = dob.split('-').map(Number);
+  const t = new Date();
+  let age = t.getFullYear() - y;
+  if (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d)) age -= 1;
+  return age;
+};
 const fmtFull = (iso) => (iso ? fullFmt.format(new Date(iso)) : '');
 
-export default function AccountsManager({ accounts, households = [], selfId, loadError }) {
+export default function AccountsManager({ accounts, households = [], unclaimedPeople = [], selfId, loadError }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
@@ -361,7 +370,7 @@ export default function AccountsManager({ accounts, households = [], selfId, loa
                           disabled={(a.household_count ?? 0) > 0}
                           reason={(a.household_count ?? 0) > 0 ? 'already in a household' : null}
                           onClick={() =>
-                            setConfirm({ kind: 'link', row: a, householdId: '' })
+                            setConfirm({ kind: 'link', row: a, householdId: '', personId: '' })
                           }
                         >
                           Link to household…
@@ -472,7 +481,9 @@ export default function AccountsManager({ accounts, households = [], selfId, loa
           <select
             id="link-household"
             value={confirm.householdId}
-            onChange={(e) => setConfirm({ ...confirm, householdId: e.target.value })}
+            onChange={(e) =>
+              setConfirm({ ...confirm, householdId: e.target.value, personId: '' })
+            }
             className="w-full rounded border border-neutral-300 px-3 py-2 mb-4 bg-white"
           >
             <option value="">Choose a household…</option>
@@ -483,6 +494,48 @@ export default function AccountsManager({ accounts, households = [], selfId, loa
               </option>
             ))}
           </select>
+          {confirm.householdId &&
+            (() => {
+              // Adults in the chosen household that no login has claimed.
+              // Children never appear -- a login always belongs to an adult.
+              // Unknown birth dates stay in the list (they may well be the
+              // parent) marked "age unknown".
+              const candidates = unclaimedPeople
+                .filter((pp) => pp.household_id === confirm.householdId)
+                .map((pp) => ({ ...pp, age: ageOf(pp.date_of_birth) }))
+                .filter((pp) => pp.age === null || pp.age >= 18);
+              if (candidates.length === 0) return null;
+              return (
+                <>
+                  <label
+                    className="block text-sm font-semibold mb-1.5"
+                    htmlFor="link-person"
+                  >
+                    Which family member is this?{' '}
+                    <span className="font-normal text-neutral-500">(optional)</span>
+                  </label>
+                  <select
+                    id="link-person"
+                    value={confirm.personId ?? ''}
+                    onChange={(e) => setConfirm({ ...confirm, personId: e.target.value })}
+                    className="w-full rounded border border-neutral-300 px-3 py-2 mb-1 bg-white"
+                  >
+                    <option value="">Don&rsquo;t mark anyone — just link the household</option>
+                    {candidates.map((pp) => (
+                      <option key={pp.id} value={pp.id}>
+                        {pp.first_name} {pp.last_name}
+                        {pp.age === null ? ' (age unknown)' : ` (${pp.age})`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-neutral-500 mb-4">
+                    Marks that person&rsquo;s record as belonging to this login,
+                    so the site knows which family member is signed in. Adults
+                    only; skip it if unsure &mdash; it can be set later.
+                  </p>
+                </>
+              );
+            })()}
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => setConfirm(null)} className="btn-outline !py-1.5">
               Cancel
@@ -492,11 +545,16 @@ export default function AccountsManager({ accounts, households = [], selfId, loa
               disabled={busy || !confirm.householdId}
               onClick={() =>
                 run(
-                  () => linkLoginToHousehold(confirm.row.user_id, confirm.householdId),
+                  () =>
+                    linkLoginToHousehold(
+                      confirm.row.user_id,
+                      confirm.householdId,
+                      confirm.personId || null
+                    ),
                   (r) =>
                     `Linked ${confirm.row.email} to the household as ${
                       r.role === 'owner' ? 'its owner' : 'an adult member'
-                    }.`
+                    }${confirm.personId ? ', and marked which family member they are' : ''}.`
                 )
               }
               className="btn-primary !py-1.5"

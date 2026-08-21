@@ -18,15 +18,25 @@ export default async function AccountsPage() {
   if (!can(staff, 'admin')) redirect('/admin/');
 
   const supabase = await createClient();
-  const [{ data: accounts, error }, { data: households }] = await Promise.all([
-    supabase.rpc('admin_list_accounts'),
-    // For the "Link to household" picker. Staff RLS on households already
-    // allows this read; sorted so the dropdown is scannable.
-    supabase
-      .from('households')
-      .select('id, display_name, city')
-      .order('display_name'),
-  ]);
+  const [{ data: accounts, error }, { data: households }, { data: unclaimedPeople }] =
+    await Promise.all([
+      supabase.rpc('admin_list_accounts'),
+      // For the "Link to household" picker. Staff RLS on households already
+      // allows this read; sorted so the dropdown is scannable.
+      supabase
+        .from('households')
+        .select('id, display_name, city')
+        .order('display_name'),
+      // People no login has claimed as "this is me" -- the optional second
+      // dropdown in the link modal. Children are filtered out client-side
+      // (a login always belongs to an adult), but fetching them all keeps
+      // this one simple query.
+      supabase
+        .from('people')
+        .select('id, household_id, first_name, last_name, date_of_birth')
+        .is('profile_id', null)
+        .order('last_name'),
+    ]);
 
   if (error) {
     console.error('admin_list_accounts:', error.message);
@@ -44,6 +54,7 @@ export default async function AccountsPage() {
       <AccountsManager
         accounts={accounts ?? []}
         households={households ?? []}
+        unclaimedPeople={unclaimedPeople ?? []}
         selfId={staff.userId}
         loadError={Boolean(error)}
       />

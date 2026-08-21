@@ -27,8 +27,22 @@ export default async function CheckEmailPage({ searchParams }) {
             registration.
           </p>
           <p className="mt-4 text-neutral-600 text-sm">
-            The link works once and expires after a day. If it doesn&rsquo;t
-            arrive within a few minutes, check your spam or junk folder.
+            The link works once and expires after about an hour, so it&rsquo;s
+            best to open it now. If it doesn&rsquo;t arrive within a few
+            minutes, <strong>check your spam or junk folder</strong> &mdash;
+            new senders often land there at first.
+          </p>
+          {/* The "Not junk" ask is not boilerplate — it is the single most
+              effective thing a recipient can do for our deliverability.
+              Marking Not junk + adding the sender to contacts trains their
+              provider's filter, and enough of those signals raises the
+              sending domain's reputation for everyone after them. */}
+          <p className="mt-4 text-neutral-600 text-sm">
+            If it&rsquo;s in spam: mark it <strong>&ldquo;Not junk&rdquo;</strong>{' '}
+            and add{' '}
+            <strong className="break-words">registration@luke14ministries.net</strong>{' '}
+            to your contacts or safe senders. That keeps our emails &mdash;
+            receipts, reminders, statements &mdash; out of spam for good.
           </p>
           {/* Deliberately a mailto and a phone number rather than a link to the
               contact form. Someone reading this page is stuck outside their

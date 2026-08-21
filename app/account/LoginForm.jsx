@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -11,12 +11,28 @@ import { createClient } from '@/lib/supabase/client';
 // A random token stays in this browser; its SHA-256 hash sits in
 // mfa_trusted_devices, whose insert policy requires an aal2 session -- so the
 // skip cannot be faked by someone who only knows the password.
+// The token lives in a COOKIE (not localStorage) because the middleware is
+// what enforces the two-factor rule on protected pages, and middleware can
+// read cookies but never a browser's localStorage. The old localStorage slot
+// is still read as a fallback so browsers trusted before this change keep
+// their skip at login; passing the code once more writes the cookie and
+// brings them fully into the new scheme.
 const TRUST_KEY = 'l14_mfa_trust';
 const TRUST_DAYS = 30;
 
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function readTrustCookie() {
+  const m = document.cookie.match(/(?:^|;\s*)l14_mfa_trust=([^;]*)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function writeTrustCookie(token, expires) {
+  document.cookie =
+    `l14_mfa_trust=${encodeURIComponent(token)}; path=/; expires=${expires.toUTCString()}; SameSite=Lax; Secure`;
 }
 
 function readTrustStore() {
@@ -60,6 +76,75 @@ export default function LoginForm() {
 
   const supabase = createClient();
 
+  // Is this browser trusted for the signed-in user? Cookie first (the form
+  // the middleware can also verify), then the legacy localStorage slot.
+  async function isTrustedBrowser(user) {
+    const candidates = [];
+    const cookieToken = readTrustCookie();
+    if (cookieToken) candidates.push(cookieToken);
+    const legacy = user ? readTrustStore()[user.id] : null;
+    if (legacy?.token && legacy.exp > Date.now()) candidates.push(legacy.token);
+    for (const token of candidates) {
+      const hash = await sha256Hex(token);
+      const { data: device } = await supabase
+        .from('mfa_trusted_devices')
+        .select('id, expires_at')
+        .eq('token_hash', hash)
+        .maybeSingle();
+      if (device && new Date(device.expires_at).getTime() > Date.now()) {
+        supabase
+          .from('mfa_trusted_devices')
+          .update({ last_used_at: new Date().toISOString() })
+          .eq('id', device.id)
+          .then(() => {});
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function startChallenge() {
+    const { data: list } = await supabase.auth.mfa.listFactors();
+    const factor = (list?.totp ?? []).find((f) => f.status === 'verified');
+    if (!factor) return false;
+    const { data: ch, error: chError } = await supabase.auth.mfa.challenge({
+      factorId: factor.id,
+    });
+    if (chError) return false;
+    setMfa({ factorId: factor.id, challengeId: ch.id });
+    setCode('');
+    return true;
+  }
+
+  // A session can arrive at this page ALREADY half signed in: password
+  // accepted, code never entered. That happens when someone backs out of the
+  // code step and later returns, and when the middleware bounces such a
+  // session off a protected page (it adds ?verify=1). Either way the right
+  // thing is to resume at the code step, not to ask for the password again --
+  // signInWithPassword already created the session; only the upgrade to aal2
+  // is missing.
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal?.currentLevel !== 'aal1' || aal?.nextLevel !== 'aal2') return;
+      try {
+        if (await isTrustedBrowser(user)) {
+          finish();
+          return;
+        }
+      } catch {
+        /* fall through to the code step */
+      }
+      await startChallenge();
+    })();
+    // Run once on mount; the login flow drives everything after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -95,45 +180,22 @@ export default function LoginForm() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        const trust = user ? readTrustStore()[user.id] : null;
-        if (trust?.token && trust.exp > Date.now()) {
-          const hash = await sha256Hex(trust.token);
-          const { data: device } = await supabase
-            .from('mfa_trusted_devices')
-            .select('id, expires_at')
-            .eq('token_hash', hash)
-            .maybeSingle();
-          if (device && new Date(device.expires_at).getTime() > Date.now()) {
-            // Trusted: skip the code. Touch last_used_at, don't wait for it.
-            supabase
-              .from('mfa_trusted_devices')
-              .update({ last_used_at: new Date().toISOString() })
-              .eq('id', device.id)
-              .then(() => {});
-            finish();
-            return;
-          }
+        if (await isTrustedBrowser(user)) {
+          finish();
+          return;
         }
       } catch {
         /* fall through to the code step */
       }
 
-      const { data: list } = await supabase.auth.mfa.listFactors();
-      const factor = (list?.totp ?? []).find((f) => f.status === 'verified');
-      if (factor) {
-        const { data: ch, error: chError } = await supabase.auth.mfa.challenge({
-          factorId: factor.id,
-        });
-        if (chError) {
-          setError('Could not start the two-factor step. Please try logging in again.');
-          setBusy(false);
-          return;
-        }
-        setMfa({ factorId: factor.id, challengeId: ch.id });
-        setCode('');
+      const started = await startChallenge();
+      if (started) {
         setBusy(false);
         return; // Show the code step instead of finishing the login.
       }
+      setError('Could not start the two-factor step. Please try logging in again.');
+      setBusy(false);
+      return;
     }
 
     finish();
@@ -175,6 +237,9 @@ export default function LoginForm() {
             expires_at: expires.toISOString(),
           });
           if (!insError) {
+            // Cookie first -- the middleware checks it. localStorage kept as
+            // a same-browser backup in case cookies get cleared selectively.
+            writeTrustCookie(token, expires);
             const store = readTrustStore();
             store[user.id] = { token, exp: expires.getTime() };
             writeTrustStore(store);
@@ -202,6 +267,12 @@ export default function LoginForm() {
         onSubmit={handleVerify}
       >
         <h2 className="text-2xl font-bold mb-1">Enter your code</h2>
+        {searchParams.get('verify') && !error && (
+          <p className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 text-sm">
+            For your security, this page needs your two-factor code before
+            continuing.
+          </p>
+        )}
         <p className="text-sm text-neutral-500 mb-5">
           Open your authenticator app and enter the current 6-digit code for
           Luke 14 Ministries.

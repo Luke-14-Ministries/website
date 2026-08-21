@@ -10,6 +10,14 @@ export const metadata = { title: 'My Account' };
 // login form they don't need. So if there's already a valid session, send them
 // on: to wherever they were headed (?next=, when middleware bounced them here)
 // or to the dashboard. Only a genuinely logged-out visitor sees the form.
+//
+// EXCEPT a session that is only HALF signed in: password accepted, two-factor
+// code never entered (currentLevel aal1 while nextLevel says aal2 is owed).
+// The middleware bounces those OFF protected pages and onto this one -- so if
+// this page bounced them straight back, the two redirects would chase each
+// other forever (ERR_TOO_MANY_REDIRECTS -- shipped and caught within the
+// hour, 21 Aug 2026). A half-verified session must LAND here and be shown
+// the form; LoginForm sees the pending session and resumes at the code step.
 export default async function AccountPage({ searchParams }) {
   const params = await searchParams;
 
@@ -19,12 +27,17 @@ export default async function AccountPage({ searchParams }) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    const rawNext = typeof params?.next === 'string' ? params.next : '';
-    const dest =
-      rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
-        ? rawNext
-        : '/account/dashboard/';
-    redirect(dest);
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const mfaPending =
+      aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2';
+    if (!mfaPending) {
+      const rawNext = typeof params?.next === 'string' ? params.next : '';
+      const dest =
+        rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+          ? rawNext
+          : '/account/dashboard/';
+      redirect(dest);
+    }
   }
 
   return (

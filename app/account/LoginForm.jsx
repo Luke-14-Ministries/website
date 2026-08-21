@@ -97,6 +97,11 @@ export default function LoginForm() {
           .update({ last_used_at: new Date().toISOString() })
           .eq('id', device.id)
           .then(() => {});
+        // Whichever store the token came from, make sure the COOKIE holds it
+        // now -- the middleware trusts only the cookie, so a browser trusted
+        // under the old localStorage scheme would otherwise pass here, get
+        // sent onward, and be bounced right back, forever.
+        writeTrustCookie(token, new Date(device.expires_at));
         return true;
       }
     }

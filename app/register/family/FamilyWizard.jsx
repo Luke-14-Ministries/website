@@ -169,6 +169,19 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
 
       {step === 0 && (
         <div>
+          {/* The fields below arrive prefilled from the person's account (or
+              their saved registration). Deliberately editable defaults rather
+              than a "fill my info" checkbox: the account holder is almost
+              always the right contact, and when they aren't -- say a
+              grandparent's account where a parent should be called -- typing
+              the right name over the wrong one is all it takes. This sentence
+              is what tells them that's allowed. */}
+          <p className="text-sm text-neutral-600 mb-4">
+            We&rsquo;ve filled in what we know from your account. The primary
+            contact is who camp staff will call or email about this
+            registration &mdash; if that should be someone else, just change
+            the details below.
+          </p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className={label}>Primary contact first name</label>

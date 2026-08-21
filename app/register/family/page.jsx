@@ -73,25 +73,37 @@ export default async function FamilyRegisterPage({ searchParams }) {
     })
     .filter(Boolean);
 
-  // ---- Prefill: if this account already has a household, load what we know so
-  // the wizard opens filled in (an "update", not a blank slate). ?event=<id>
-  // picks which registration to prefill; otherwise the most recent. ----
+  // ---- Prefill. Two tiers:
+  //  1. An account with a household gets its saved registration loaded (an
+  //     "update", not a blank slate).
+  //  2. A FIRST-TIME account still gets its signup details back -- name and
+  //     phone were typed into the signup form minutes ago and live in
+  //     public.profiles, so re-asking for them made the first registration
+  //     feel like starting over. (Reported by the user, 21 Aug 2026.)
+  // ?event=<id> picks which registration to prefill; otherwise the most
+  // recent. ----
   let existing = null;
-  const { data: memberRows } = await supabase
-    .from('household_members')
-    .select('household_id')
-    .eq('profile_id', user.id)
-    .limit(1);
+  const [{ data: memberRows }, { data: profile }] = await Promise.all([
+    supabase
+      .from('household_members')
+      .select('household_id')
+      .eq('profile_id', user.id)
+      .limit(1),
+    supabase
+      .from('profiles')
+      .select('first_name, last_name, phone')
+      .eq('id', user.id)
+      .maybeSingle(),
+  ]);
   const householdId = memberRows?.[0]?.household_id;
 
   if (householdId) {
-    const [{ data: household }, { data: profile }, { data: regs }] = await Promise.all([
+    const [{ data: household }, { data: regs }] = await Promise.all([
       supabase
         .from('households')
         .select('email, phone, address_line1, home_church')
         .eq('id', householdId)
         .maybeSingle(),
-      supabase.from('profiles').select('first_name, last_name').eq('id', user.id).maybeSingle(),
       supabase
         .from('registrations')
         .select(
@@ -130,11 +142,30 @@ export default async function FamilyRegisterPage({ searchParams }) {
         contactFirst: profile?.first_name ?? '',
         contactLast: profile?.last_name ?? '',
         email: household?.email ?? user.email ?? '',
-        phone: household?.phone ?? '',
+        phone: household?.phone ?? profile?.phone ?? '',
         address: household?.address_line1 ?? '',
         church: household?.home_church ?? '',
       },
       members,
+    };
+  } else {
+    // No household yet -- first registration on this account. Hand the wizard
+    // what signup already collected so step 1 opens filled in. members stays
+    // empty (the wizard shows one blank person card), and isUpdate stays
+    // false so the wording remains "Submit".
+    existing = {
+      isUpdate: false,
+      eventId: typeof params?.event === 'string' ? params.event : null,
+      notes: '',
+      family: {
+        contactFirst: profile?.first_name ?? '',
+        contactLast: profile?.last_name ?? '',
+        email: user.email ?? '',
+        phone: profile?.phone ?? '',
+        address: '',
+        church: '',
+      },
+      members: [],
     };
   }
 

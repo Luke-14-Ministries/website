@@ -44,8 +44,11 @@ export default function LinkExpiredPage() {
               info@luke14ministries.net
             </a>{' '}
             or call{' '}
-            <a href="tel:+14237484954" className="text-brand underline">
-              (423) 748-4954
+            {/* 4953 is Larry (CEO), who handles account/platform help; 4954 is
+                the camp director and remains the general ministry line in the
+                footer. Confirmed 21 Aug 2026 -- don't "fix" this to match. */}
+            <a href="tel:+14237484953" className="text-brand underline">
+              (423) 748-4953
             </a>{' '}
             and we&rsquo;ll get you in.
           </p>

@@ -57,8 +57,10 @@ export default async function CheckEmailPage({ searchParams }) {
               info@luke14ministries.net
             </a>{' '}
             or call{' '}
-            <a href="tel:+14237484954" className="text-brand underline">
-              (423) 748-4954
+            {/* 4953 = Larry (CEO), account/platform help; the footer's 4954 is
+                the camp director's general ministry line. Confirmed 21 Aug 2026. */}
+            <a href="tel:+14237484953" className="text-brand underline">
+              (423) 748-4953
             </a>{' '}
             and we&rsquo;ll sort it out with you.
           </p>

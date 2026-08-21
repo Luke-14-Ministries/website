@@ -4,6 +4,15 @@
 // the quick-filter chips, select rows for a batch removal, and use the row
 // menu for the one-account actions. All the interactivity lives here; every
 // consequence goes through a server action that re-checks admin.
+//
+// Layout notes, learned the hard way on Event Payments and repeated here:
+// - The wrapper is overflow-x-auto lg:overflow-visible. Small screens scroll
+//   sideways; on desktop the table must FIT, because overflow-visible is what
+//   lets the row menu float over the table edge instead of being clipped
+//   inside the scroll box (where it also distorts the box's dimensions).
+// - Width is won by merging columns, not shrinking text: name + email share
+//   one cell, and timestamps show the date with the exact time in the hover
+//   tooltip.
 
 import { useMemo, useState, useTransition } from 'react';
 import {
@@ -21,11 +30,13 @@ const FILTERS = [
   { key: 'never', label: 'Never signed in' },
 ];
 
-const dtf = new Intl.DateTimeFormat('en-US', {
+const dateFmt = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
+const fullFmt = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
-const fmt = (iso) => (iso ? dtf.format(new Date(iso)) : '—');
+const fmtDate = (iso) => (iso ? dateFmt.format(new Date(iso)) : '—');
+const fmtFull = (iso) => (iso ? fullFmt.format(new Date(iso)) : '');
 
 export default function AccountsManager({ accounts, selfId, loadError }) {
   const [query, setQuery] = useState('');
@@ -66,8 +77,10 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
       let va = a[key];
       let vb = b[key];
       if (key === 'name') {
-        va = `${a.last_name ?? ''} ${a.first_name ?? ''}`.trim().toLowerCase();
-        vb = `${b.last_name ?? ''} ${b.first_name ?? ''}`.trim().toLowerCase();
+        // Sort the merged Account column by name, falling back to email for
+        // rows that never filled in a profile.
+        va = (`${a.last_name ?? ''} ${a.first_name ?? ''}`.trim() || a.email || '').toLowerCase();
+        vb = (`${b.last_name ?? ''} ${b.first_name ?? ''}`.trim() || b.email || '').toLowerCase();
       }
       if (key === 'mfa_factor_count') {
         va = a.mfa_factor_count ?? 0;
@@ -215,10 +228,21 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
         </p>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-t border-neutral-200">
-          <thead>
-            <tr className="border-b border-neutral-200 text-neutral-600">
+      {/* Click-away closer for the row menu: an invisible layer under the
+          menu (z-10 vs the menu's z-20), so one click anywhere else closes
+          it instead of leaving it stranded open. */}
+      {menuFor && (
+        <div
+          className="fixed inset-0 z-10"
+          aria-hidden
+          onClick={() => setMenuFor(null)}
+        />
+      )}
+
+      <div className="overflow-x-auto lg:overflow-visible rounded-lg border border-neutral-200">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-50 text-neutral-500">
+            <tr className="border-b border-neutral-200">
               <th className="px-3 py-2 w-8">
                 <input
                   type="checkbox"
@@ -230,8 +254,7 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
                   onChange={toggleAllVisible}
                 />
               </th>
-              <Th k="name">Name</Th>
-              <Th k="email">Email</Th>
+              <Th k="name">Account</Th>
               <Th k="created_at">Created</Th>
               <Th k="last_sign_in_at">Last sign-in</Th>
               <Th k="mfa_factor_count">2FA</Th>
@@ -242,11 +265,10 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
           <tbody>
             {rows.map((a) => {
               const isSelf = a.user_id === selfId;
-              const name =
-                [a.first_name, a.last_name].filter(Boolean).join(' ') || '—';
+              const name = [a.first_name, a.last_name].filter(Boolean).join(' ');
               return (
-                <tr key={a.user_id} className="border-b border-neutral-100 hover:bg-neutral-50">
-                  <td className="px-3 py-2">
+                <tr key={a.user_id} className="border-b border-neutral-100 hover:bg-neutral-50 align-top">
+                  <td className="px-3 py-2.5">
                     <input
                       type="checkbox"
                       aria-label={`Select ${a.email}`}
@@ -255,103 +277,124 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
                       onChange={() => toggleRow(a.user_id)}
                     />
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {name}
-                    {isSelf && (
-                      <span className="ml-1.5 text-xs rounded bg-neutral-200 px-1.5 py-0.5">you</span>
-                    )}
-                    {a.staff_role && a.staff_active !== false && (
-                      <span className="ml-1.5 text-xs rounded bg-blue-100 text-blue-800 px-1.5 py-0.5">
-                        {a.staff_role}
-                      </span>
-                    )}
+                  {/* Name and email share the cell: name (bold) with badges,
+                      email in smaller type below. Halves the table width. */}
+                  <td className="px-3 py-2.5">
+                    <div className="font-medium text-neutral-900">
+                      {name || <span className="text-neutral-400">No name</span>}
+                      {isSelf && (
+                        <span className="ml-1.5 text-xs rounded bg-neutral-200 px-1.5 py-0.5 align-middle">you</span>
+                      )}
+                      {a.staff_role && a.staff_active !== false && (
+                        <span className="ml-1.5 text-xs rounded bg-blue-100 text-blue-800 px-1.5 py-0.5 align-middle">
+                          {a.staff_role}
+                        </span>
+                      )}
+                      {!a.email_confirmed_at && (
+                        <span
+                          title="Never confirmed their email address"
+                          className="ml-1.5 text-xs rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 align-middle"
+                        >
+                          unconfirmed
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-neutral-500 break-all">{a.email}</div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {a.email}
-                    {!a.email_confirmed_at && (
-                      <span
-                        title="Never confirmed their email address"
-                        className="ml-1.5 text-xs rounded bg-amber-100 text-amber-800 px-1.5 py-0.5"
-                      >
-                        unconfirmed
-                      </span>
-                    )}
+                  <td className="px-3 py-2.5 text-neutral-600" title={fmtFull(a.created_at)}>
+                    {fmtDate(a.created_at)}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-neutral-600">{fmt(a.created_at)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-neutral-600">{fmt(a.last_sign_in_at)}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5 text-neutral-600" title={fmtFull(a.last_sign_in_at)}>
+                    {fmtDate(a.last_sign_in_at)}
+                  </td>
+                  <td className="px-3 py-2.5">
                     {(a.mfa_factor_count ?? 0) > 0 ? (
                       <span className="text-green-700 font-semibold">On</span>
                     ) : (
                       <span className="text-neutral-400">Off</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-neutral-600">
+                  <td className="px-3 py-2.5 text-neutral-600">
                     {a.household_name ?? '—'}
                     {(a.household_count ?? 0) > 1 && (
                       <span className="text-xs text-neutral-400"> (+{a.household_count - 1})</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 relative text-right">
-                    <button
-                      type="button"
-                      aria-label={`Actions for ${a.email}`}
-                      onClick={() => setMenuFor(menuFor === a.user_id ? null : a.user_id)}
-                      className="rounded px-2 py-1 hover:bg-neutral-200 font-bold"
-                    >
-                      ⋯
-                    </button>
-                    {menuFor === a.user_id && (
-                      <div className="absolute right-2 top-9 z-10 w-60 rounded border border-neutral-200 bg-white shadow-lg text-left">
-                        {!a.email_confirmed_at && (
-                          <MenuItem
-                            onClick={() =>
-                              run(
-                                () => resendVerification(a.email),
-                                () => `Confirmation email re-sent to ${a.email}.`
-                              )
-                            }
-                          >
-                            Re-send confirmation email
-                          </MenuItem>
-                        )}
-                        {(a.mfa_factor_count ?? 0) > 0 && (
-                          <MenuItem
-                            onClick={() =>
-                              run(
-                                () => resetMfa(a.user_id),
-                                (r) =>
-                                  `Two-factor reset for ${a.email} — removed ${r.removed} ${
-                                    r.removed === 1 ? 'device' : 'devices'
-                                  }.`
-                              )
-                            }
-                          >
-                            Reset two-factor
-                          </MenuItem>
-                        )}
-                        {!isSelf && (
-                          <MenuItem onClick={() => setConfirm({ kind: 'remove', rows: [a] })}>
-                            Remove login…
-                          </MenuItem>
-                        )}
-                        {!isSelf && a.household_id && (
-                          <MenuItem
-                            danger
-                            onClick={() => setConfirm({ kind: 'purge', row: a, typed: '' })}
-                          >
-                            Delete family &amp; all their data…
-                          </MenuItem>
-                        )}
-                      </div>
-                    )}
+                  <td className="px-3 py-2.5 text-right">
+                    {/* Same anchored-overlay pattern as Event Payments: a
+                        visible bordered button, menu floating over the table.
+                        Needs the wrapper's lg:overflow-visible to escape. */}
+                    <div className="relative inline-block text-left">
+                      <button
+                        type="button"
+                        aria-label={`Actions for ${a.email}`}
+                        title={`Actions for ${a.email}`}
+                        onClick={() => setMenuFor(menuFor === a.user_id ? null : a.user_id)}
+                        className={`rounded border px-2 py-0.5 font-bold ${
+                          menuFor === a.user_id
+                            ? 'border-brand text-brand'
+                            : 'border-neutral-300 text-neutral-600 hover:border-brand'
+                        }`}
+                      >
+                        ⋯
+                      </button>
+                      {menuFor === a.user_id && (
+                        <div className="absolute right-0 top-full z-20 mt-1 w-60 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg text-left">
+                          {!a.email_confirmed_at && (
+                            <MenuItem
+                              onClick={() =>
+                                run(
+                                  () => resendVerification(a.email),
+                                  () => `Confirmation email re-sent to ${a.email}.`
+                                )
+                              }
+                            >
+                              Re-send confirmation email
+                            </MenuItem>
+                          )}
+                          {(a.mfa_factor_count ?? 0) > 0 && (
+                            <MenuItem
+                              onClick={() =>
+                                run(
+                                  () => resetMfa(a.user_id),
+                                  (r) =>
+                                    `Two-factor reset for ${a.email} — removed ${r.removed} ${
+                                      r.removed === 1 ? 'device' : 'devices'
+                                    }.`
+                                )
+                              }
+                            >
+                              Reset two-factor
+                            </MenuItem>
+                          )}
+                          {!isSelf && (
+                            <MenuItem onClick={() => setConfirm({ kind: 'remove', rows: [a] })}>
+                              Remove login…
+                            </MenuItem>
+                          )}
+                          {!isSelf && a.household_id && (
+                            <MenuItem
+                              danger
+                              onClick={() => setConfirm({ kind: 'purge', row: a, typed: '' })}
+                            >
+                              Delete family &amp; all their data…
+                            </MenuItem>
+                          )}
+                          {isSelf && !a.household_id && (a.mfa_factor_count ?? 0) === 0 && (
+                            <div className="px-3 py-1.5 text-sm text-neutral-400">
+                              No actions for this account.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
                   No accounts match.
                 </td>
               </tr>
@@ -458,7 +501,7 @@ function MenuItem({ children, onClick, danger = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`block w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 ${
+      className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-neutral-50 ${
         danger ? 'text-red-700' : 'text-neutral-800'
       }`}
     >

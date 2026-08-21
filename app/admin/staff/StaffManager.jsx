@@ -3,11 +3,13 @@
 // The staff editor: change roles, flip the sensitive/giving grants, set titles,
 // deactivate, and add new staff by email. Every change goes through the
 // admin-only server actions; the staff_write RLS policy is the real gate.
-// Deactivating (not deleting) keeps history intact and is reversible.
+// Deactivating (not deleting) keeps history intact and is reversible; the
+// Deactivated section also offers Remove, which drops the staff row entirely
+// for helpers who have moved on (re-addable later; nothing else is touched).
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateStaffMember, addStaffMember } from './actions';
+import { updateStaffMember, addStaffMember, removeStaffMember } from './actions';
 
 const ROLE_LABEL = { registrar: 'Registrar', coordinator: 'Coordinator', admin: 'Administrator' };
 
@@ -29,6 +31,19 @@ export default function StaffManager({ members, selfId }) {
     start(async () => {
       const res = await updateStaffMember(profileId, changes);
       if (!res.ok) setError(res.error);
+      setBusyId(null);
+      router.refresh();
+    });
+  }
+
+  function remove(m) {
+    setError('');
+    setNotice('');
+    setBusyId(m.profileId);
+    start(async () => {
+      const res = await removeStaffMember(m.profileId);
+      if (!res.ok) setError(res.error);
+      else setNotice(`${m.name} removed from staff. Their account and records are untouched.`);
       setBusyId(null);
       router.refresh();
     });
@@ -140,13 +155,34 @@ export default function StaffManager({ members, selfId }) {
               {busy ? '…' : 'Deactivate'}
             </button>
           ) : (
-            <button
-              onClick={() => patch(m.profileId, { active: true })}
-              disabled={busy}
-              className="rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-800"
-            >
-              {busy ? '…' : 'Reactivate'}
-            </button>
+            <div className="flex flex-col items-end gap-1.5">
+              <button
+                onClick={() => patch(m.profileId, { active: true })}
+                disabled={busy}
+                className="rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-800"
+              >
+                {busy ? '…' : 'Reactivate'}
+              </button>
+              {/* For someone who has genuinely moved on. Deliberately only
+                  offered AFTER deactivation -- two distinct clicks stand
+                  between "active admin" and "gone from the list", and the
+                  deactivated row is the natural place to decide. */}
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Remove ${m.name} from the staff list entirely? Their account and family records are untouched, and they can be re-added later — but their role and access grants here will be forgotten.`
+                    )
+                  ) {
+                    remove(m);
+                  }
+                }}
+                disabled={busy}
+                className="rounded border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:border-red-400 hover:text-red-700 disabled:opacity-40"
+              >
+                {busy ? '…' : 'Remove'}
+              </button>
+            </div>
           )}
         </td>
       </tr>

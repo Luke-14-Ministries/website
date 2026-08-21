@@ -62,8 +62,13 @@ export default async function StaffAccessPage() {
         <div className="rounded-lg bg-white border border-neutral-200 p-4">
           <p className="font-bold mb-1">Administrator</p>
           <p className="text-neutral-600">
-            Everything — including staff &amp; access, event setup, two-factor resets, and giving
-            records. Keep this list short.
+            Everything — including this page: an administrator can add and remove staff,
+            change anyone&rsquo;s role, and <span className="font-semibold">grant or revoke
+            administrator itself</span>. All administrators are equal (there is no
+            &ldquo;super admin&rdquo;), and nobody can demote, deactivate, or remove
+            themselves — that always takes another administrator, which is one reason to
+            have two. Also: event setup, accounts, two-factor resets, giving records.
+            Keep this list short.
           </p>
         </div>
       </div>

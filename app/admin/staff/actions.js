@@ -73,3 +73,22 @@ export async function addStaffMember(email, role) {
   const name = [person.first_name, person.last_name].filter(Boolean).join(' ') || cleanEmail;
   return { ok: true, name };
 }
+
+// Remove someone from the staff list entirely -- for a helper who has moved
+// on, as opposed to Deactivate, which parks them for reactivation. Deletes
+// ONLY the staff row: their account, family records, and anything they
+// recorded as staff (notes, grants -- those reference profiles, not staff)
+// are untouched, and they can be re-added later with "Add a staff member".
+export async function removeStaffMember(profileId) {
+  const staff = await getStaff();
+  if (!can(staff, 'admin')) return { ok: false, error: 'Admins only.' };
+  if (profileId === staff.userId) {
+    return { ok: false, error: 'You cannot remove yourself from staff. Ask another admin.' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('staff').delete().eq('profile_id', profileId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/admin/staff');
+  return { ok: true };
+}

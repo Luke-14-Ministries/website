@@ -14,7 +14,8 @@ export const metadata = { title: 'Staff Admin — Luke 14 Ministries' };
 const ROLE_INFO = {
   admin: {
     label: 'Administrator',
-    blurb: 'Full access — registrations, rosters, settings, staff, and two-factor resets.',
+    blurb:
+      'Full access — registrations, rosters, settings, accounts, and two-factor resets; can grant or revoke any staff role, administrator included.',
   },
   registrar: {
     label: 'Registrar',

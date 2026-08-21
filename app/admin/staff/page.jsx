@@ -67,8 +67,9 @@ export default async function StaffAccessPage() {
             administrator itself</span>. All administrators are equal (there is no
             &ldquo;super admin&rdquo;), and nobody can demote, deactivate, or remove
             themselves — that always takes another administrator, which is one reason to
-            have two. Also: event setup, accounts, two-factor resets, giving records.
-            Keep this list short.
+            have two. Also: event setup, accounts, and two-factor resets. Sensitive and
+            Giving are separate grants even for administrators — self-grantable, but
+            deliberately not automatic. Keep this list short.
           </p>
         </div>
       </div>
@@ -77,8 +78,23 @@ export default async function StaffAccessPage() {
         <p className="text-neutral-600">
           <span className="font-semibold">Sensitive</span> — medical, dietary, and support
           details (Dietary, Medical &amp; Support pages, red flags at check-in).{' '}
-          <span className="font-semibold">Giving</span> — donor gift records (administrators have
-          this automatically). Grants are need-to-know: give them only where duties require.
+          <span className="font-semibold">Giving</span> — donor gift records. Grants are
+          need-to-know: give them only where duties require.
+        </p>
+        {/* Why NEITHER grant is automatic, even for administrators (decided
+            21 Aug 2026; migration 0025 removed the old admin auto-grant on
+            giving). The checkboxes are not barriers against the person -- an
+            admin self-grants in one click -- they are protection for the
+            room: the difference between "can't see" and "doesn't see". */}
+        <p className="text-neutral-600 mt-2">
+          <span className="font-semibold">Why neither grant is automatic, even for
+          administrators:</span> nothing about running the platform requires seeing medical
+          details or donor giving, and an administrator with a grant <em>off</em> has safe
+          screens to project at check-in or share in a meeting — and keeps the list of
+          people who can see that information short and nameable. Any administrator can
+          grant either to themselves in one click when a task truly needs it; the point is
+          that seeing this data is a deliberate choice, not something that comes along
+          with other duties.
         </p>
       </div>
 

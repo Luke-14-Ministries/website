@@ -118,26 +118,16 @@ export default function StaffManager({ members, selfId }) {
           />
         </td>
         <td className="px-4 py-3 text-center">
-          {m.role === 'admin' ? (
-            // Administrators inherently have giving access -- a checked,
-            // locked box (with the hover note) reads clearer than a label.
-            <input
-              type="checkbox"
-              checked
-              disabled
-              readOnly
-              title="Administrators always have giving access; no separate grant needed."
-              className="h-4 w-4 opacity-50 cursor-not-allowed"
-            />
-          ) : (
-            <input
-              type="checkbox"
-              checked={m.giving}
-              disabled={busy}
-              onChange={(e) => patch(m.profileId, { can_view_giving: e.target.checked })}
-              className="h-4 w-4"
-            />
-          )}
+          {/* Editable for every role, admins included (migration 0025): like
+              Sensitive, Giving is an explicit grant -- protection for the
+              room, not a barrier against the person. */}
+          <input
+            type="checkbox"
+            checked={m.giving}
+            disabled={busy}
+            onChange={(e) => patch(m.profileId, { can_view_giving: e.target.checked })}
+            className="h-4 w-4"
+          />
         </td>
         <td className="px-4 py-3 text-right">
           {m.active ? (

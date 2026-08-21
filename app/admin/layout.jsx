@@ -84,6 +84,13 @@ export default async function AdminLayout({ children }) {
   // count (support-detail rows stay invisible without the sensitive grant).
   let unreviewedChanges = 0;
   let volunteersAwaiting = 0;
+  let recentAccounts = 0;
+  if (can(staff, 'admin')) {
+    // Accounts created in the last 7 days -- the same amber treatment as the
+    // review queues, so a burst of new signups is visible from any admin page.
+    const { data: n } = await supabase.rpc('admin_recent_account_count', { p_days: 7 });
+    recentAccounts = n ?? 0;
+  }
   if (can(staff, 'registrar')) {
     const [{ count: changesCount }, { count: volCount }] = await Promise.all([
       supabase
@@ -138,6 +145,10 @@ export default async function AdminLayout({ children }) {
             badges={{
               '/admin/changes': unreviewedChanges,
               '/admin/volunteers': volunteersAwaiting,
+              '/admin/accounts': recentAccounts,
+            }}
+            badgeTitles={{
+              '/admin/accounts': 'created in the last 7 days',
             }}
             />
           </div>

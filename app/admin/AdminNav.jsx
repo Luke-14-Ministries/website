@@ -11,7 +11,7 @@ import { usePathname } from 'next/navigation';
 
 const OPEN_KEY = 'l14_admin_nav_events_open';
 
-export default function AdminNav({ top, events, rest, badges = {} }) {
+export default function AdminNav({ top, events, rest, badges = {}, badgeTitles = {} }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
 
@@ -45,7 +45,7 @@ export default function AdminNav({ top, events, rest, badges = {} }) {
         {n.label}
         {(badges[n.href] ?? 0) > 0 && (
           <span
-            title={`${badges[n.href]} needing review`}
+            title={`${badges[n.href]} ${badgeTitles[n.href] ?? 'needing review'}`}
             className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold"
           >
             {badges[n.href]}

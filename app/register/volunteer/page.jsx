@@ -134,6 +134,16 @@ export default async function VolunteerPage() {
     .in('registration_participant_id', volIds);
   const appByPart = new Map((apps ?? []).map((a) => [a.registration_participant_id, a]));
 
+  // The family wizard already asked for the home church; hand it to the
+  // application as the default so nobody types it twice. Their own earlier
+  // answer on a saved application still wins.
+  const { data: hh } = await supabase
+    .from('households')
+    .select('home_church')
+    .in('id', householdIds)
+    .limit(1);
+  const defaultChurch = hh?.[0]?.home_church ?? '';
+
   // Adults in the household, for a minor volunteer's accompanying adult.
   const { data: householdPeople } = await supabase
     .from('people')
@@ -168,9 +178,18 @@ export default async function VolunteerPage() {
               eventName={`${event?.name ?? 'Event'} (${event?.starts_on ?? ''} – ${event?.ends_on ?? ''})`}
               existing={appByPart.get(participant.id) ?? null}
               adults={adults}
+              defaultChurch={defaultChurch}
             />
           ))}
         </div>
+        {/* The way out. After submitting, this page shows status chips and
+            View/edit -- and previously nothing else, leaving people stranded
+            (reported from mobile testing). */}
+        <p className="mt-8 text-center text-sm">
+          <Link href="/account/dashboard/" className="text-brand underline font-semibold">
+            &larr; Back to my dashboard
+          </Link>
+        </p>
       </div>
     </section>
   );

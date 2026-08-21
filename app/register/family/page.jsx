@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
+import { programOf, registrationOpen, OPEN_EVENT_COLUMNS } from '@/lib/events';
 import FamilyWizard from './FamilyWizard';
 
 export const metadata = { title: 'Family Registration — Luke 14 Ministries' };
@@ -51,11 +52,23 @@ export default async function FamilyRegisterPage({ searchParams }) {
   const supabase = await createClient();
   const { data: events } = await supabase
     .from('events')
-    .select('id, name, starts_on, ends_on, event_options ( id, fee_cents, published )')
+    .select(OPEN_EVENT_COLUMNS)
     .eq('published', true)
     .order('starts_on', { ascending: true });
 
-  const weeks = (events ?? [])
+  // Honor the registration windows staff set on the Setup page, and -- when
+  // the chooser sent a ?program= -- narrow the week picker to that program's
+  // sessions, so nobody chooses twice. An unknown program value just falls
+  // back to everything open rather than a dead end.
+  const chosenProgram =
+    typeof params?.program === 'string' ? params.program : null;
+  let openEvents = (events ?? []).filter((e) => registrationOpen(e));
+  if (chosenProgram) {
+    const scoped = openEvents.filter((e) => programOf(e.name) === chosenProgram);
+    if (scoped.length > 0) openEvents = scoped;
+  }
+
+  const weeks = openEvents
     .map((e) => {
       const opt = (e.event_options ?? []).find((o) => o.published);
       return opt
@@ -175,6 +188,11 @@ export default async function FamilyRegisterPage({ searchParams }) {
             preselected via ?event=) in step 3. The old hardcoded
             "Camp Celebrate 2026" title presumed camp on every neutral entry. */}
         <h1 className="text-4xl font-bold text-center">Family Registration</h1>
+        {chosenProgram && weeks.length > 0 && (
+          <p className="text-center text-lg text-brand-dark font-semibold mt-1">
+            {chosenProgram}
+          </p>
+        )}
         <p className="text-center text-neutral-600 mt-3 mb-2">
           Signed in as {user.email}.{' '}
           {existing?.isUpdate

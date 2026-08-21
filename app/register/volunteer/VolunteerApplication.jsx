@@ -37,6 +37,7 @@ export default function VolunteerApplication({
   eventName,
   existing,
   adults,
+  defaultChurch = '',
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!existing); // new applications start open
@@ -50,7 +51,9 @@ export default function VolunteerApplication({
   const [picked, setPicked] = useState(
     existing?.preferred_areas ? existing.preferred_areas.split(' · ') : []
   );
-  const [church, setChurch] = useState(existing?.church_attendance ?? '');
+  // Their saved application answer wins; otherwise start from the household's
+  // home church, which the registration wizard already collected.
+  const [church, setChurch] = useState(existing?.church_attendance ?? defaultChurch ?? '');
   const [faith, setFaith] = useState(existing?.faith_statement ?? '');
   const [skills, setSkills] = useState(existing?.relevant_skills ?? '');
   const [experience, setExperience] = useState(existing?.disability_experience ?? '');

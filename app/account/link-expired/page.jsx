@@ -2,9 +2,13 @@ import Link from 'next/link';
 
 export const metadata = { title: 'Link Expired' };
 
-// Where app/auth/callback/route.js sends anyone whose emailed link did not
-// work. Expired, already used, or opened in a different browser from the one
-// that asked for it -- all ordinary, none of them worth an error code.
+// Where the auth callback and the /auth/confirm button page send anyone whose
+// emailed link did not work. Since 21 Aug 2026 there are only two ways to get
+// here: the link was already used, or it expired (about an hour). The old
+// third cause -- "opened in a different browser than the one that signed up"
+// -- was the PKCE device-binding bug, fixed by the switch to the implicit
+// flow; do not resurrect that wording, it sends people chasing a cause that
+// no longer exists.
 export default function LinkExpiredPage() {
   return (
     <section className="bg-brand-light min-h-[60vh] py-14">
@@ -12,18 +16,16 @@ export default function LinkExpiredPage() {
         <div className="rounded-lg border border-neutral-200 shadow bg-white p-6 sm:p-8">
           <h1 className="text-3xl font-bold mb-3">That link didn&rsquo;t work</h1>
           <p className="text-neutral-700">
-            Email links can only be used once, and they expire after a while.
-            This one has already been used, has run out, or was opened in a
-            different browser from the one you signed up in.
+            Email links work once and expire after about an hour. This one has
+            already been used, or its hour has passed.
           </p>
-          {/* Try logging in FIRST, and it is the primary button below.
-              When a confirmation link is opened in a different browser, the
-              account has in fact already been confirmed -- Supabase verifies
-              the token on its own servers before redirecting here, so
-              email_confirmed_at is set. The only thing that failed was handing
-              THIS browser a session. Sending someone to request another link
-              would fail identically; sending them to log in just works.
-              Genuinely expired links fall through to the second button. */}
+          {/* Try logging in FIRST, and it is the primary button below. The
+              most common way to land here is a link something already spent
+              -- a second press of the confirm button, or a mail scanner that
+              got past the button page. In those cases the account IS
+              confirmed; only this browser lacks a session, and logging in
+              just works. Genuinely expired links fall through to the second
+              button. */}
           <p className="mt-4 text-neutral-700">
             Nothing is lost, and your account is safe. <strong>Try logging in
             first</strong> — if you were confirming a new account, it is very

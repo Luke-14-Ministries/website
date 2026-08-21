@@ -13,6 +13,11 @@
 // - Width is won by merging columns, not shrinking text: name + email share
 //   one cell, and timestamps show the date with the exact time in the hover
 //   tooltip.
+// - The row menu is a native <details> element, exactly like Event Payments:
+//   the browser owns open/close, so there is no script between the click and
+//   the menu appearing. And every action is ALWAYS listed -- the ones that
+//   don't apply to a row are disabled with the reason written beside them,
+//   because a menu that silently hides items reads as broken.
 
 import { useMemo, useState, useTransition } from 'react';
 import {
@@ -43,7 +48,6 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
   const [selected, setSelected] = useState(() => new Set());
-  const [menuFor, setMenuFor] = useState(null); // user_id of the open row menu
   const [confirm, setConfirm] = useState(null); // { kind, rows } | { kind: 'purge', row, typed }
   const [notice, setNotice] = useState(null); // { ok, message }
   const [busy, startTransition] = useTransition();
@@ -124,8 +128,12 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
     startTransition(async () => {
       const result = await fn();
       setConfirm(null);
-      setMenuFor(null);
       setSelected(new Set());
+      // The row menus are native <details> elements, so close any open one
+      // the native way once an action lands.
+      document
+        .querySelectorAll('details[data-row-menu][open]')
+        .forEach((d) => d.removeAttribute('open'));
       setNotice(
         result.ok
           ? { ok: true, message: doneMessage(result) }
@@ -228,17 +236,6 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
         </p>
       )}
 
-      {/* Click-away closer for the row menu: an invisible layer under the
-          menu (z-10 vs the menu's z-20), so one click anywhere else closes
-          it instead of leaving it stranded open. */}
-      {menuFor && (
-        <div
-          className="fixed inset-0 z-10"
-          aria-hidden
-          onClick={() => setMenuFor(null)}
-        />
-      )}
-
       <div className="overflow-x-auto lg:overflow-visible rounded-lg border border-neutral-200">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-neutral-500">
@@ -321,73 +318,67 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    {/* Same anchored-overlay pattern as Event Payments: a
-                        visible bordered button, menu floating over the table.
-                        Needs the wrapper's lg:overflow-visible to escape. */}
-                    <div className="relative inline-block text-left">
-                      <button
-                        type="button"
-                        aria-label={`Actions for ${a.email}`}
+                    {/* Same native <details> anchored-overlay as Event
+                        Payments -- the browser handles open/close, so there
+                        is nothing to go wrong in script. */}
+                    <details data-row-menu className="relative inline-block text-left">
+                      <summary
+                        className="cursor-pointer select-none list-none rounded border border-neutral-300 px-2 py-0.5 font-bold text-neutral-600 hover:border-brand [&::-webkit-details-marker]:hidden"
                         title={`Actions for ${a.email}`}
-                        onClick={() => setMenuFor(menuFor === a.user_id ? null : a.user_id)}
-                        className={`rounded border px-2 py-0.5 font-bold ${
-                          menuFor === a.user_id
-                            ? 'border-brand text-brand'
-                            : 'border-neutral-300 text-neutral-600 hover:border-brand'
-                        }`}
                       >
                         ⋯
-                      </button>
-                      {menuFor === a.user_id && (
-                        <div className="absolute right-0 top-full z-20 mt-1 w-60 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg text-left">
-                          {!a.email_confirmed_at && (
-                            <MenuItem
-                              onClick={() =>
-                                run(
-                                  () => resendVerification(a.email),
-                                  () => `Confirmation email re-sent to ${a.email}.`
-                                )
-                              }
-                            >
-                              Re-send confirmation email
-                            </MenuItem>
-                          )}
-                          {(a.mfa_factor_count ?? 0) > 0 && (
-                            <MenuItem
-                              onClick={() =>
-                                run(
-                                  () => resetMfa(a.user_id),
-                                  (r) =>
-                                    `Two-factor reset for ${a.email} — removed ${r.removed} ${
-                                      r.removed === 1 ? 'device' : 'devices'
-                                    }.`
-                                )
-                              }
-                            >
-                              Reset two-factor
-                            </MenuItem>
-                          )}
-                          {!isSelf && (
-                            <MenuItem onClick={() => setConfirm({ kind: 'remove', rows: [a] })}>
-                              Remove login…
-                            </MenuItem>
-                          )}
-                          {!isSelf && a.household_id && (
-                            <MenuItem
-                              danger
-                              onClick={() => setConfirm({ kind: 'purge', row: a, typed: '' })}
-                            >
-                              Delete family &amp; all their data…
-                            </MenuItem>
-                          )}
-                          {isSelf && !a.household_id && (a.mfa_factor_count ?? 0) === 0 && (
-                            <div className="px-3 py-1.5 text-sm text-neutral-400">
-                              No actions for this account.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                      </summary>
+                      <div className="absolute right-0 top-full z-20 mt-1 w-72 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg text-left">
+                        <MenuItem
+                          disabled={Boolean(a.email_confirmed_at)}
+                          reason={a.email_confirmed_at ? 'email already confirmed' : null}
+                          onClick={() =>
+                            run(
+                              () => resendVerification(a.email),
+                              () => `Confirmation email re-sent to ${a.email}.`
+                            )
+                          }
+                        >
+                          Re-send confirmation email
+                        </MenuItem>
+                        <MenuItem
+                          disabled={(a.mfa_factor_count ?? 0) === 0}
+                          reason={(a.mfa_factor_count ?? 0) === 0 ? 'no two-factor set up' : null}
+                          onClick={() =>
+                            run(
+                              () => resetMfa(a.user_id),
+                              (r) =>
+                                `Two-factor reset for ${a.email} — removed ${r.removed} ${
+                                  r.removed === 1 ? 'device' : 'devices'
+                                }.`
+                            )
+                          }
+                        >
+                          Reset two-factor
+                        </MenuItem>
+                        <MenuItem
+                          disabled={isSelf}
+                          reason={isSelf ? 'your own account' : null}
+                          onClick={() => setConfirm({ kind: 'remove', rows: [a] })}
+                        >
+                          Remove login…
+                        </MenuItem>
+                        <MenuItem
+                          danger
+                          disabled={isSelf || !a.household_id}
+                          reason={
+                            isSelf
+                              ? 'your own account'
+                              : !a.household_id
+                                ? 'no household attached'
+                                : null
+                          }
+                          onClick={() => setConfirm({ kind: 'purge', row: a, typed: '' })}
+                        >
+                          Delete family &amp; all their data…
+                        </MenuItem>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               );
@@ -496,16 +487,24 @@ export default function AccountsManager({ accounts, selfId, loadError }) {
   );
 }
 
-function MenuItem({ children, onClick, danger = false }) {
+function MenuItem({ children, onClick, danger = false, disabled = false, reason = null }) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-neutral-50 ${
-        danger ? 'text-red-700' : 'text-neutral-800'
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`block w-full text-left px-3 py-1.5 text-sm ${
+        disabled
+          ? 'text-neutral-400 cursor-default'
+          : danger
+            ? 'text-red-700 hover:bg-neutral-50'
+            : 'text-neutral-800 hover:bg-neutral-50'
       }`}
     >
       {children}
+      {disabled && reason && (
+        <span className="block text-xs text-neutral-400">{reason}</span>
+      )}
     </button>
   );
 }

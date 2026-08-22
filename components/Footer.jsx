@@ -20,7 +20,7 @@ export default function Footer() {
             <li><Link href="/mission" className="hover:underline">About</Link></li>
             <li><Link href="/contact" className="hover:underline">Contact</Link></li>
             <li><Link href="/donate" className="hover:underline">Donate</Link></li>
-            <li><Link href="/account" className="hover:underline">My Account</Link></li>
+            <li><Link href="/account/dashboard/" className="hover:underline">My Account</Link></li>
           </ul>
           <p className="mt-4 text-neutral-300">Follow us on social media!</p>
           <div className="flex gap-4 mt-2 text-neutral-200">

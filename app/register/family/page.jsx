@@ -94,6 +94,10 @@ export default async function FamilyRegisterPage({ searchParams }) {
   // ?event=<id> picks which registration to prefill; otherwise the most
   // recent. ----
   let existing = null;
+  // "How did you hear about us?" is a first-contact question, so it is asked
+  // once per family and never again. CampSite asks it on every enrolment, which
+  // is why their export repeats the same answer for every child every year.
+  let askHeardAbout = true;
   const [{ data: memberRows }, { data: profile }] = await Promise.all([
     supabase
       .from('household_members')
@@ -112,14 +116,14 @@ export default async function FamilyRegisterPage({ searchParams }) {
     const [{ data: household }, { data: regs }] = await Promise.all([
       supabase
         .from('households')
-        .select('email, phone, address_line1, home_church')
+        .select('email, phone, address_line1, home_church, how_did_you_hear')
         .eq('id', householdId)
         .maybeSingle(),
       supabase
         .from('registrations')
         .select(
           `id, event_id, family_notes, created_at,
-           registration_participants ( camp_role, status,
+           registration_participants ( camp_role, status, tshirt_size, first_time_attending,
              people ( id, first_name, last_name, date_of_birth, gender,
                person_support ( disabilities, dietary_needs ) ) )`
         )
@@ -129,6 +133,22 @@ export default async function FamilyRegisterPage({ searchParams }) {
 
     const wanted = typeof params?.event === 'string' ? params.event : null;
     const reg = (regs ?? []).find((r) => r.event_id === wanted) ?? (regs ?? [])[0] ?? null;
+
+    // T-shirt size and "first time?" carry across events: someone who told us
+    // their size last summer should not have to hunt for it again. `regs` is
+    // newest-first, so the first non-null answer we meet is the freshest one.
+    const carried = new Map();
+    for (const r of regs ?? []) {
+      for (const p of r.registration_participants ?? []) {
+        const id = p.people?.id;
+        if (!id) continue;
+        const prev = carried.get(id) ?? {};
+        carried.set(id, {
+          tshirt: prev.tshirt ?? p.tshirt_size ?? null,
+          firstTime: prev.firstTime ?? p.first_time_attending ?? null,
+        });
+      }
+    }
 
     const members = (reg?.registration_participants ?? [])
       .filter((p) => p.status !== 'cancelled')
@@ -140,10 +160,21 @@ export default async function FamilyRegisterPage({ searchParams }) {
         lastName: p.people?.last_name ?? '',
         dob: p.people?.date_of_birth ?? '',
         sex: p.people?.gender ?? '',
-        role: ROLE_LABEL[p.camp_role] ?? 'Camper with disability',
+        // No fallback label: an unrecognised role must be re-chosen, not
+        // silently defaulted to the most sensitive answer on the form.
+        role: ROLE_LABEL[p.camp_role] ?? '',
+        tshirt:
+          p.tshirt_size ?? carried.get(p.people?.id)?.tshirt ?? '',
+        firstTime: (() => {
+          const v = p.first_time_attending ?? carried.get(p.people?.id)?.firstTime;
+          // The wizard's select holds strings; null means "not answered".
+          return v === true ? 'true' : v === false ? 'false' : '';
+        })(),
         needs: p.people?.person_support?.disabilities ?? '',
         diet: p.people?.person_support?.dietary_needs ?? '',
       }));
+
+    askHeardAbout = !household?.how_did_you_hear;
 
     existing = {
       isUpdate: !!reg,
@@ -156,13 +187,15 @@ export default async function FamilyRegisterPage({ searchParams }) {
         phone: household?.phone ?? profile?.phone ?? '',
         address: household?.address_line1 ?? '',
         church: household?.home_church ?? '',
+        heardAbout: '',
+        heardAboutFrom: '',
       },
       members,
     };
   } else {
-    // No household yet -- first registration on this account. Hand the wizard
-    // what signup already collected so step 1 opens filled in. members stays
-    // empty (the wizard shows one blank person card), and isUpdate stays
+    // No household yet -- first registration on this account. Hand the form
+    // what signup already collected so "Your family" opens filled in. members
+    // stays empty (the form shows one blank person card), and isUpdate stays
     // false so the wording remains "Submit".
     existing = {
       isUpdate: false,
@@ -175,6 +208,8 @@ export default async function FamilyRegisterPage({ searchParams }) {
         phone: profile?.phone ?? '',
         address: '',
         church: '',
+        heardAbout: '',
+        heardAboutFrom: '',
       },
       members: [],
     };
@@ -212,7 +247,12 @@ export default async function FamilyRegisterPage({ searchParams }) {
             Registration isn&rsquo;t open just yet. Please check back soon.
           </p>
         ) : (
-          <FamilyWizard weeks={weeks} defaultEmail={user.email} existing={existing} />
+          <FamilyWizard
+            weeks={weeks}
+            defaultEmail={user.email}
+            existing={existing}
+            askHeardAbout={askHeardAbout}
+          />
         )}
       </div>
     </section>

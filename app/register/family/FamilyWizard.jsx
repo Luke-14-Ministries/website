@@ -1,5 +1,22 @@
 'use client';
 
+// Family registration, as ONE scrolling page rather than a four-step
+// click-through (CampSite moved the same way; a family filling this in on a
+// phone can see the whole shape of what is being asked, scroll back to fix
+// something, and never lose answers to a mis-tapped Back button).
+//
+// The old step machine is gone. What replaces it:
+//   - numbered cards, each a section of the form
+//   - a sticky summary bar with the running total and the submit button, so
+//     "what will this cost / am I done" is always on screen
+//   - validation reported against named sections instead of step numbers
+//
+// The DEEP support profile (medications, allergies, seizure and behaviour
+// detail, emergency contact) is deliberately NOT here -- it lives in a
+// per-person form the family completes after registering
+// (/account/details/[personId]). Registration should take a few minutes and
+// secure a place; the medical detail can follow before camp.
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { submitFamilyRegistration } from './actions';
@@ -10,10 +27,34 @@ const emptyMember = {
   lastName: '',
   dob: '',
   sex: '',
-  role: 'Camper with disability',
+  // Deliberately blank: role is a choice the family must make, not a default
+  // we make for them -- especially since the old default ("Camper with
+  // disability") was also the most sensitive answer on the form, and it stuck
+  // silently to anyone who skipped the dropdown.
+  role: '',
+  tshirt: '',
+  firstTime: '',
   needs: '',
   diet: '',
 };
+
+const TSHIRT_SIZES = [
+  'Youth S', 'Youth M', 'Youth L',
+  'Adult S', 'Adult M', 'Adult L', 'Adult XL', 'Adult 2XL', 'Adult 3XL',
+];
+
+// Kept as a short list rather than free text: CampSite's free-text version
+// produced answers like "My Friend" that cannot be counted or reported on.
+const HEARD_ABOUT = [
+  'A friend or family member',
+  'Our church',
+  'Another church',
+  'Social media',
+  'Web search',
+  'A Luke 14 staff member or volunteer',
+  "We've been before",
+  'Other',
+];
 
 const money = (cents) =>
   `$${((cents ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}`;
@@ -31,38 +72,35 @@ const fmtWeek = (w) => {
   return `${w.name} · ${d(w.startsOn)}–${d(w.endsOn)}`;
 };
 
-function Steps({ step }) {
-  const labels = ['Family Info', 'Family Members', 'Week & Needs', 'Review'];
-  return (
-    <ol className="flex flex-wrap gap-2 mb-8">
-      {labels.map((l, i) => (
-        <li
-          key={l}
-          className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
-            i === step
-              ? 'bg-brand text-white'
-              : i < step
-              ? 'bg-brand-light text-brand-dark'
-              : 'bg-neutral-100 text-neutral-400'
-          }`}
-        >
-          {i + 1}. {l}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
 const label = 'block font-semibold mb-1.5 mt-4 first:mt-0';
 
-// `existing` (from the server page) prefills the whole wizard when this account
+function Card({ n, title, subtitle, children }) {
+  return (
+    <section className="rounded-lg border border-neutral-200 shadow-sm bg-white p-6 sm:p-8">
+      <div className="flex items-baseline gap-3 mb-1">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-white text-sm font-bold">
+          {n}
+        </span>
+        <h2 className="text-xl font-bold">{title}</h2>
+      </div>
+      {subtitle && <p className="text-sm text-neutral-600 mb-4 ml-10">{subtitle}</p>}
+      <div className={subtitle ? '' : 'mt-4'}>{children}</div>
+    </section>
+  );
+}
+
+// `existing` (from the server page) prefills the whole form when this account
 // already has a registration -- so "Edit Registration" opens the saved answers,
 // not a blank form. isUpdate flips the wording from Submit to Update.
-export default function FamilyWizard({ weeks, defaultEmail = '', existing = null }) {
+export default function FamilyWizard({
+  weeks,
+  defaultEmail = '',
+  existing = null,
+  askHeardAbout = false,
+}) {
   const isUpdate = existing?.isUpdate === true;
 
-  const [step, setStep] = useState(0);
   const [family, setFamily] = useState(
     existing?.family ?? {
       contactFirst: '',
@@ -71,6 +109,8 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
       phone: '',
       address: '',
       church: '',
+      heardAbout: '',
+      heardAboutFrom: '',
     }
   );
   const [members, setMembers] = useState(
@@ -86,7 +126,8 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
   const [result, setResult] = useState(null);
 
   const week = weeks[weekIdx] ?? weeks[0];
-  const namedCount = members.filter((m) => m.firstName.trim() && m.lastName.trim()).length;
+  const named = members.filter((m) => m.firstName.trim() && m.lastName.trim());
+  const namedCount = named.length;
   const total = (week?.feeCents ?? 0) * namedCount;
 
   const setF = (k) => (e) => setFamily({ ...family, [k]: e.target.value });
@@ -96,11 +137,18 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
   };
 
   async function handleSubmit() {
+    // HARD requirement: role. DOB and sex below are soft confirms, but a
+    // missing role has no sensible fallback -- fees, rosters, and volunteer
+    // review all key off it.
+    const missingRole = named.filter((m) => !m.role);
+    if (missingRole.length > 0) {
+      const names = missingRole.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
+      setError(`Please choose a role for: ${names} — in “Who's coming” above.`);
+      return;
+    }
     // Soft requirement: date of birth. It is one of the ways family members
     // are told apart, so warn (but do not block) when it is missing.
-    const missingDob = members.filter(
-      (m) => m.firstName.trim() && m.lastName.trim() && !m.dob
-    );
+    const missingDob = named.filter((m) => !m.dob);
     if (missingDob.length > 0) {
       const names = missingDob.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
       const ok = window.confirm(
@@ -110,9 +158,7 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
     }
     // Same soft requirement for sex: program leaders use it for volunteer
     // pairing, adult programming, and rooming assignments.
-    const missingSex = members.filter(
-      (m) => m.firstName.trim() && m.lastName.trim() && !m.sex
-    );
+    const missingSex = named.filter((m) => !m.sex);
     if (missingSex.length > 0) {
       const names = missingSex.map((m) => `${m.firstName} ${m.lastName}`.trim()).join(', ');
       const ok = window.confirm(
@@ -153,8 +199,13 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
           <strong>{week?.name}</strong>.{' '}
           {isUpdate
             ? 'Camp staff can see what changed and will follow up if anything needs attention.'
-            : 'Camp staff will review your registration and follow up.'}{' '}
-          You can see it any time on your dashboard.
+            : 'Camp staff will review your registration and follow up.'}
+        </p>
+        <p className="mt-3 text-neutral-700">
+          <strong>One more thing before camp:</strong> each person attending has a short
+          details form — allergies, medications, support needs and an emergency
+          contact. You&rsquo;ll find a link for each of them on your dashboard, and you
+          can fill them in whenever suits.
         </p>
         <Link href="/account/dashboard/" className="btn-primary mt-6">
           Go to My Dashboard
@@ -164,59 +215,108 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
   }
 
   return (
-    <div className="rounded-lg border border-neutral-200 shadow bg-white p-6 sm:p-8">
-      <Steps step={step} />
-
-      {step === 0 && (
-        <div>
-          {/* The fields below arrive prefilled from the person's account (or
-              their saved registration). Deliberately editable defaults rather
-              than a "fill my info" checkbox: the account holder is almost
-              always the right contact, and when they aren't -- say a
-              grandparent's account where a parent should be called -- typing
-              the right name over the wrong one is all it takes. This sentence
-              is what tells them that's allowed. */}
-          <p className="text-sm text-neutral-600 mb-4">
-            We&rsquo;ve filled in what we know from your account. The primary
-            contact is who camp staff will call or email about this
-            registration &mdash; if that should be someone else, just change
-            the details below.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Primary contact first name</label>
-              <input className={input} value={family.contactFirst} onChange={setF('contactFirst')} />
-            </div>
-            <div>
-              <label className={label}>Primary contact last name</label>
-              <input className={input} value={family.contactLast} onChange={setF('contactLast')} />
-            </div>
-          </div>
-          <label className={label}>Email</label>
-          <input type="email" className={input} value={family.email} onChange={setF('email')} />
-          <label className={label}>Phone</label>
-          <input type="tel" className={input} value={family.phone} onChange={setF('phone')} />
-          <label className={label}>Home address</label>
-          <input className={input} value={family.address} onChange={setF('address')} />
-          <label className={label}>Home church (optional)</label>
-          <input className={input} value={family.church} onChange={setF('church')} />
+    <div className="space-y-6">
+      {/* 1 — what they're registering for. First, because it sets the price. */}
+      <Card
+        n={1}
+        title="What you're registering for"
+        subtitle={
+          weeks.length === 1
+            ? 'One session is open for registration right now.'
+            : 'Choose the session your family is attending.'
+        }
+      >
+        <div className="space-y-2">
+          {weeks.map((w, i) => (
+            <label
+              key={w.optionId}
+              className="flex items-center justify-between gap-3 rounded border border-neutral-300 p-3 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-light"
+            >
+              <span className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="week"
+                  checked={weekIdx === i}
+                  onChange={() => setWeekIdx(i)}
+                />
+                <span className="font-semibold">{fmtWeek(w)}</span>
+              </span>
+              <span className="text-sm text-neutral-600 shrink-0">
+                {money(w.feeCents)}/person
+              </span>
+            </label>
+          ))}
         </div>
-      )}
+      </Card>
 
-      {step === 1 && (
+      {/* 2 — the family's own details. */}
+      <Card
+        n={2}
+        title="Your family"
+        subtitle="We've filled in what we know from your account. The primary contact is who camp staff will call or email about this registration — if that should be someone else, just change the details below."
+      >
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={label}>Primary contact first name</label>
+            <input className={input} value={family.contactFirst} onChange={setF('contactFirst')} />
+          </div>
+          <div>
+            <label className={label}>Primary contact last name</label>
+            <input className={input} value={family.contactLast} onChange={setF('contactLast')} />
+          </div>
+        </div>
+        <label className={label}>Email</label>
+        <input type="email" className={input} value={family.email} onChange={setF('email')} />
+        <label className={label}>Phone</label>
+        <input type="tel" className={input} value={family.phone} onChange={setF('phone')} />
+        <label className={label}>Home address</label>
+        <input className={input} value={family.address} onChange={setF('address')} />
+        <label className={label}>Home church (optional)</label>
+        <input className={input} value={family.church} onChange={setF('church')} />
+
+        {/* Asked once per family, never again -- the server only sends
+            askHeardAbout when this household has no answer on file. */}
+        {askHeardAbout && (
+          <>
+            <label className={label}>How did you hear about Luke 14 Ministries?</label>
+            <select className={input} value={family.heardAbout} onChange={setF('heardAbout')}>
+              <option value="">— select —</option>
+              {HEARD_ABOUT.map((h) => (
+                <option key={h}>{h}</option>
+              ))}
+            </select>
+            {family.heardAbout && (
+              <>
+                <label className={label}>
+                  Anyone we should thank, or anything to add? (optional)
+                </label>
+                <input
+                  className={input}
+                  value={family.heardAboutFrom}
+                  onChange={setF('heardAboutFrom')}
+                  placeholder="e.g. the Smiths, or First Baptist"
+                />
+              </>
+            )}
+          </>
+        )}
+      </Card>
+
+      {/* 3 — the people. */}
+      <Card
+        n={3}
+        title="Who's coming"
+        subtitle="Everyone attending — including yourself if you're coming. Each person gets their own place and fee."
+      >
         <div className="space-y-6">
-          <p className="text-sm text-neutral-600 rounded bg-neutral-50 border border-neutral-200 px-4 py-3">
-            List everyone who will attend — <span className="font-semibold">including yourself</span> if
-            you&rsquo;re coming. Support and dietary needs can be noted for any family member, adults
-            included. Please include each person&rsquo;s{' '}
-            <span className="font-semibold">date of birth</span> — it helps us tell family members
-            apart. Each adult&rsquo;s own phone number is managed under{' '}
-            <span className="font-semibold">Manage Household</span> on your dashboard.
-          </p>
           {members.map((m, i) => (
             <div key={i} className="rounded border border-neutral-200 p-4">
               <div className="flex justify-between items-center">
-                <h3 className="font-bold">Family member {i + 1}</h3>
+                <h3 className="font-bold">
+                  {m.firstName.trim() || m.lastName.trim()
+                    ? `${m.firstName} ${m.lastName}`.trim()
+                    : `Person ${i + 1}`}
+                </h3>
                 {members.length > 1 && (
                   <button
                     type="button"
@@ -253,6 +353,9 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
                 <div>
                   <label className={label}>Role</label>
                   <select className={input} value={m.role} onChange={setM(i, 'role')}>
+                    <option value="" disabled>
+                      Choose a role…
+                    </option>
                     <option>Camper with disability</option>
                     <option>Parent/Guardian</option>
                     <option>Sibling</option>
@@ -261,12 +364,36 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
                   </select>
                 </div>
               </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={label}>T-shirt size</label>
+                  <select className={input} value={m.tshirt} onChange={setM(i, 'tshirt')}>
+                    <option value="">— select —</option>
+                    {TSHIRT_SIZES.map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={label}>First time at a Luke 14 event?</label>
+                  <select className={input} value={m.firstTime} onChange={setM(i, 'firstTime')}>
+                    <option value="">— select —</option>
+                    <option value="true">Yes — first time</option>
+                    <option value="false">No — been before</option>
+                  </select>
+                </div>
+              </div>
               <label className={label}>
-                Disability / support needs (buddies, mobility, medical)
+                Disability / support needs — the short version
               </label>
               <textarea className={input} rows={2} value={m.needs} onChange={setM(i, 'needs')} />
-              <label className={label}>Dietary needs / allergies</label>
+              <label className={label}>Dietary needs / allergies — the short version</label>
               <input className={input} value={m.diet} onChange={setM(i, 'diet')} />
+              <p className="mt-2 text-xs text-neutral-500">
+                A fuller form for {m.firstName.trim() || 'this person'} — medications,
+                allergy detail, what helps on a hard day, emergency contact — appears on
+                your dashboard after you {isUpdate ? 'update' : 'submit'}.
+              </p>
             </div>
           ))}
           <button
@@ -274,149 +401,76 @@ export default function FamilyWizard({ weeks, defaultEmail = '', existing = null
             className="btn-outline !py-2"
             onClick={() => setMembers([...members, { ...emptyMember }])}
           >
-            + Add family member
+            + Add another person
           </button>
         </div>
+      </Card>
+
+      {/* 4 — free text. */}
+      <Card
+        n={4}
+        title="Anything else?"
+        subtitle="Optional — anything that doesn't fit neatly above."
+      >
+        <textarea
+          className={input}
+          rows={4}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </Card>
+
+      {error && (
+        <p
+          role="alert"
+          className="rounded border border-red-300 bg-red-50 px-4 py-3 text-red-800"
+        >
+          {error}
+        </p>
       )}
 
-      {step === 2 && (
-        <div>
-          <label className={label}>Choose your week</label>
-          <div className="space-y-2 mt-2">
-            {weeks.map((w, i) => (
-              <label
-                key={w.optionId}
-                className="flex items-center gap-3 rounded border border-neutral-300 p-3 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-light"
-              >
-                <input
-                  type="radio"
-                  name="week"
-                  checked={weekIdx === i}
-                  onChange={() => setWeekIdx(i)}
-                />
-                <span className="font-semibold">{fmtWeek(w)}</span>
-              </label>
-            ))}
-          </div>
-          <label className={label}>Anything else camp staff should know?</label>
-          <textarea
-            className={input}
-            rows={4}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-          <div className="mt-4 rounded bg-brand-light p-4">
-            <p className="font-semibold">
-              Camp fee: {money(week?.feeCents)} per person
-            </p>
-            <p className="text-sm text-neutral-600">
-              Scholarships available &mdash; contact camp@luke14ministries.net. Payment happens
-              from your dashboard after you {isUpdate ? 'update' : 'submit'}.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div className="space-y-4">
-          <h3 className="text-xl font-bold">Review</h3>
-          <p>
-            <strong>Contact:</strong>{' '}
-            {`${family.contactFirst} ${family.contactLast}`.trim() || '—'} · {family.email || '—'} ·{' '}
-            {family.phone || '—'}
-          </p>
-          <p>
-            <strong>Week:</strong> {week ? fmtWeek(week) : '—'}
-          </p>
+      {/* The running total and the way out, pinned to the bottom of the
+          viewport so a long scroll never hides either. */}
+      <div className="sticky bottom-0 z-20 -mx-4 sm:mx-0 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] sm:rounded-lg sm:border">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <strong>Family members ({namedCount}):</strong>
-            <ul className="list-disc pl-6 mt-1">
-              {members
-                .filter((m) => m.firstName.trim() && m.lastName.trim())
-                .map((m, i) => (
-                  <li key={i}>
-                    {m.firstName} {m.lastName}
-                    {m.dob ? ` (b. ${m.dob})` : ''} — {m.role}
-                  </li>
-                ))}
-            </ul>
+            <p className="font-bold">
+              {namedCount === 0
+                ? 'No one added yet'
+                : `${namedCount} ${namedCount === 1 ? 'person' : 'people'} · ${money(total)}`}
+            </p>
+            <p className="text-xs text-neutral-500">
+              {week ? fmtWeek(week) : 'Choose a session above'} · payment happens on your
+              dashboard afterwards
+            </p>
           </div>
-          {notes && (
-            <p>
-              <strong>Notes:</strong> {notes}
-            </p>
-          )}
-          <p className="rounded bg-brand-light p-4">
-            <strong>
-              Total: {money(total)}
-            </strong>{' '}
-            — {namedCount} × {money(week?.feeCents)}. Payment is collected from your dashboard.
-          </p>
-          {namedCount === 0 && (
-            <p className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
-              Add at least one family member (step 2 — first and last name) before{' '}
-              {isUpdate ? 'updating' : 'submitting'}.
-            </p>
-          )}
-          {isUpdate && namedCount > 0 && (
-            <p className="text-sm text-neutral-500">
-              Updating replaces your saved answers for this week. People are matched by name and
-              date of birth, so nobody is duplicated.
-            </p>
-          )}
-          {error && (
-            <p
-              role="alert"
-              className="rounded border border-red-300 bg-red-50 px-4 py-3 text-red-800"
+          <div className="flex items-center gap-4">
+            <Link
+              href="/account/dashboard/"
+              title="Leave without saving changes"
+              className="text-neutral-500 font-semibold hover:text-neutral-700 hover:underline"
             >
-              {error}
-            </p>
-          )}
+              Cancel
+            </Link>
+            <button
+              type="button"
+              className="btn-gold !py-2 disabled:opacity-50"
+              disabled={busy || namedCount === 0}
+              title={namedCount === 0 ? 'Add at least one person first' : undefined}
+              onClick={handleSubmit}
+            >
+              {busy ? 'Saving…' : isUpdate ? 'Update Registration' : 'Submit Registration'}
+            </button>
+          </div>
         </div>
-      )}
-
-      <div className="mt-8 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            className="btn-outline !py-2 disabled:opacity-40"
-            disabled={step === 0 || busy}
-            onClick={() => setStep(step - 1)}
-          >
-            Back
-          </button>
-          <Link
-            href="/account/dashboard/"
-            title="Leave without saving changes"
-            className="text-neutral-500 font-semibold hover:text-neutral-700 hover:underline"
-          >
-            Cancel
-          </Link>
-        </div>
-        {step < 3 ? (
-          <button
-            type="button"
-            className="btn-primary !py-2"
-            onClick={() => setStep(step + 1)}
-          >
-            Continue
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="btn-gold !py-2 disabled:opacity-50"
-            disabled={busy || namedCount === 0}
-            title={namedCount === 0 ? 'Add at least one family member first' : undefined}
-            onClick={handleSubmit}
-          >
-            {busy
-              ? 'Saving…'
-              : isUpdate
-              ? 'Update Registration'
-              : 'Submit Registration'}
-          </button>
-        )}
       </div>
+
+      <p className="text-center text-sm text-neutral-500 pb-2">
+        Scholarships are available — ask at camp@luke14ministries.net.
+        {isUpdate
+          ? ' Updating replaces your saved answers for this session; people are matched by name and date of birth, so nobody is duplicated.'
+          : ''}
+      </p>
     </div>
   );
 }

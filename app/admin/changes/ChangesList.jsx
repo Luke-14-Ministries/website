@@ -20,6 +20,10 @@ const FIELD_LABEL = {
   last_name: 'Last name',
   preferred_name: 'Preferred name',
   date_of_birth: 'Date of birth',
+  // The column kept its original name; the ministry collects "Sex" (decided
+  // 21 Aug 2026, pronouns dropped) and every form says so -- the change log
+  // must match the form, not the schema.
+  gender: 'Sex',
   phone: 'Phone',
   email: 'Email',
   display_name: 'Family name',

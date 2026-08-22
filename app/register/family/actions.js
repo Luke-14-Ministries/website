@@ -47,6 +47,11 @@ export async function submitFamilyRegistration(payload) {
       dob: m.dob || null,
       sex: m.sex || null,
       role: ROLE_MAP[m.role] || 'camper',
+      // Enrollment questions. The selects hold strings, and '' means "not
+      // answered" -- which has to reach the database as null, not as a blank,
+      // so an answer given last time is never wiped by a skipped dropdown.
+      tshirt: m.tshirt || null,
+      firstTime: m.firstTime === '' || m.firstTime == null ? null : m.firstTime,
       needs: m.needs || '',
       diet: m.diet || '',
     }));

@@ -606,6 +606,12 @@ export default async function DashboardPage() {
                 </Link>
               </li>
               <li>
+                {/* A family should never have to ask us what they signed. */}
+                <Link href="/account/agreements" className="text-brand underline">
+                  Signed agreements &amp; permissions
+                </Link>
+              </li>
+              <li>
                 <Link href="/account/contact#email-preferences" className="text-brand underline">
                   Email preferences
                 </Link>

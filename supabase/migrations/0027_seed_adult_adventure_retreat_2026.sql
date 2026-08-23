@@ -13,7 +13,12 @@
 --
 -- Idempotent: fixed UUIDs plus on-conflict updates, so re-running is a no-op.
 
-insert into public.events (id, name, event_type, starts_on, ends_on, deposit_cents, published)
+-- Location, capacity and description are taken from the ministry's own live
+-- page at luke14ministries.net/adultadventureretreat, so the two never
+-- disagree: 30 spots, the mountains near Gatlinburg, 6pm Thursday arrival,
+-- every participant paired with a trained buddy.
+insert into public.events (id, name, event_type, starts_on, ends_on, deposit_cents,
+                           location, capacity, description, published)
 values (
   'e7e70000-0000-4000-8000-000000000101',
   'Adult Adventure Retreat 2026',
@@ -21,6 +26,9 @@ values (
   date '2026-10-29',
   date '2026-11-01',
   5000,
+  'The mountains near Gatlinburg, Tennessee',
+  30,
+  'A weekend of adventure, worship, and community for independent young adults with disabilities. Arrival is 6:00 PM on Thursday, October 29. Every participant is paired with a trained buddy for the weekend. Spots are limited to 30 — early registration is recommended.',
   true
 )
 on conflict (id) do update set
@@ -29,6 +37,9 @@ on conflict (id) do update set
   starts_on     = excluded.starts_on,
   ends_on       = excluded.ends_on,
   deposit_cents = excluded.deposit_cents,
+  location      = excluded.location,
+  capacity      = excluded.capacity,
+  description   = excluded.description,
   published     = excluded.published;
 
 insert into public.event_options (id, event_id, name, fee_cents, deposit_cents, published)

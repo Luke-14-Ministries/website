@@ -36,6 +36,11 @@ const emptyMember = {
   firstTime: '',
   needs: '',
   diet: '',
+  // Permissions, not agreements: a family may answer "no" to either of these
+  // and still register. Blank means "not answered", which is stored as null
+  // rather than as a "no" -- silence is not a refusal, and it is not consent.
+  mediaConsent: '',
+  directoryConsent: '',
 };
 
 const TSHIRT_SIZES = [
@@ -98,8 +103,14 @@ export default function FamilyWizard({
   defaultEmail = '',
   existing = null,
   askHeardAbout = false,
+  agreements = [],
+  signedAlready = null,
 }) {
   const isUpdate = existing?.isUpdate === true;
+  // A signature is evidence with a date on it. If this household already
+  // signed for this registration, the original stands and we do not ask again
+  // -- we show what was signed and when, and offer a copy.
+  const alreadySigned = Boolean(signedAlready?.signedAt);
 
   const [family, setFamily] = useState(
     existing?.family ?? {
@@ -121,6 +132,9 @@ export default function FamilyWizard({
     return i >= 0 ? i : 0;
   });
   const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [agreed, setAgreed] = useState(() => new Set());
+  const [signerName, setSignerName] = useState('');
+  const [signerRole, setSignerRole] = useState('self');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -166,6 +180,22 @@ export default function FamilyWizard({
       );
       if (!ok) return;
     }
+    // HARD requirement: the agreements. These are conditions of attending, not
+    // preferences -- so unlike the two permissions below, an unanswered one
+    // stops the submit rather than saving as null.
+    if (!alreadySigned && agreements.length > 0) {
+      const unchecked = agreements.filter((a) => !agreed.has(a.key));
+      if (unchecked.length > 0) {
+        setError(
+          `Please read and agree to: ${unchecked.map((a) => a.title).join(', ')} — in “Agreements & permissions” below.`
+        );
+        return;
+      }
+      if (!signerName.trim()) {
+        setError('Please type your full name as your signature at the bottom of “Agreements & permissions”.');
+        return;
+      }
+    }
     setError('');
     setBusy(true);
     try {
@@ -175,6 +205,13 @@ export default function FamilyWizard({
         eventId: week.eventId,
         optionId: week.optionId,
         notes,
+        agreements: alreadySigned
+          ? null
+          : {
+              signerName: signerName.trim(),
+              signerRole,
+              keys: agreements.map((a) => a.key),
+            },
       });
       if (res?.ok) {
         setResult(res);
@@ -207,6 +244,15 @@ export default function FamilyWizard({
           contact. You&rsquo;ll find a link for each of them on your dashboard, and you
           can fill them in whenever suits.
         </p>
+        {result.signed > 0 && (
+          <p className="mt-3 text-neutral-700">
+            Your signed agreements are saved.{' '}
+            <Link href="/account/agreements/" className="text-brand underline font-semibold">
+              View or print a copy
+            </Link>{' '}
+            any time.
+          </p>
+        )}
         <Link href="/account/dashboard/" className="btn-primary mt-6">
           Go to My Dashboard
         </Link>
@@ -389,6 +435,46 @@ export default function FamilyWizard({
               <textarea className={input} rows={2} value={m.needs} onChange={setM(i, 'needs')} />
               <label className={label}>Dietary needs / allergies — the short version</label>
               <input className={input} value={m.diet} onChange={setM(i, 'diet')} />
+
+              {/* Permissions live with the PERSON they are about, and each is
+                  free to be "no" without affecting the registration. */}
+              <div className="mt-4 grid sm:grid-cols-2 gap-4 rounded bg-neutral-50 p-3">
+                <div>
+                  <label className={label}>
+                    May we feature {m.firstName.trim() || 'this person'} in photos and videos?
+                  </label>
+                  <select className={input} value={m.mediaConsent} onChange={setM(i, 'mediaConsent')}>
+                    <option value="">— select —</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    This is about being <em>featured</em> — a photo where they are the
+                    subject, used on our website, social media or printed material. We
+                    can&rsquo;t promise nobody appears in a wide group or whole-camp
+                    shot, and we&rsquo;d rather say so than make a promise we
+                    can&rsquo;t keep.
+                  </p>
+                </div>
+                <div>
+                  <label className={label}>
+                    Include {m.firstName.trim() || 'this person'} in the participant directory?
+                  </label>
+                  <select
+                    className={input}
+                    value={m.directoryConsent}
+                    onChange={setM(i, 'directoryConsent')}
+                  >
+                    <option value="">— select —</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    A list shared with the other families attending, so people can
+                    connect before and after. Answering no changes nothing else.
+                  </p>
+                </div>
+              </div>
               <p className="mt-2 text-xs text-neutral-500">
                 A fuller form for {m.firstName.trim() || 'this person'} — medications,
                 allergy detail, what helps on a hard day, emergency contact — appears on
@@ -419,6 +505,108 @@ export default function FamilyWizard({
           onChange={(e) => setNotes(e.target.value)}
         />
       </Card>
+
+      {/* 5 — the agreements, signed once for the whole family. */}
+      {agreements.length > 0 && (
+        <Card
+          n={5}
+          title="Agreements"
+          subtitle={
+            alreadySigned
+              ? 'Already signed for this registration — nothing to do here.'
+              : 'Please read each one. Your typed name at the bottom signs all of them, for everyone listed above.'
+          }
+        >
+          {alreadySigned ? (
+            <div className="rounded border border-green-300 bg-green-50 px-4 py-3">
+              <p className="text-green-900">
+                Signed by <strong>{signedAlready.signerName}</strong> on{' '}
+                {new Date(signedAlready.signedAt).toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+                .
+              </p>
+              <p className="mt-1 text-sm text-green-800">
+                Signatures aren&rsquo;t re-taken when you update a registration — the
+                date on a release is part of the record.{' '}
+                <Link href="/account/agreements/" className="underline font-semibold">
+                  View or print your copy
+                </Link>
+                .
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {agreements.map((a) => (
+                  <label
+                    key={a.key}
+                    className="block rounded border border-neutral-300 p-4 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-light"
+                  >
+                    <span className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 shrink-0"
+                        checked={agreed.has(a.key)}
+                        onChange={(e) => {
+                          const next = new Set(agreed);
+                          if (e.target.checked) next.add(a.key);
+                          else next.delete(a.key);
+                          setAgreed(next);
+                        }}
+                      />
+                      <span>
+                        <span className="block font-bold">{a.title}</span>
+                        <span className="mt-1 block text-sm text-neutral-700">{a.body}</span>
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-6 rounded border border-neutral-300 bg-neutral-50 p-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={label}>Type your full name to sign</label>
+                    <input
+                      className={`${input} font-serif italic text-lg`}
+                      value={signerName}
+                      onChange={(e) => setSignerName(e.target.value)}
+                      placeholder="Your full name"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div>
+                    <label className={label}>I am signing</label>
+                    <select
+                      className={input}
+                      value={signerRole}
+                      onChange={(e) => setSignerRole(e.target.value)}
+                    >
+                      <option value="self">for myself</option>
+                      <option value="parent">as a parent</option>
+                      <option value="guardian">as a legal guardian</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-neutral-600">
+                  Dated {new Date().toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                  . Typing your name here has the same effect as signing on paper. We
+                  record which version of each agreement you signed, so you can always
+                  see the exact wording you agreed to — a copy is available on your
+                  dashboard afterwards.
+                </p>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
 
       {error && (
         <p

@@ -31,7 +31,7 @@ export async function submitFamilyRegistration(payload) {
     return { ok: false, error: 'Your session has expired. Please log in and try again.' };
   }
 
-  const { family = {}, members = [], eventId, optionId, notes } = payload || {};
+  const { family = {}, members = [], eventId, optionId, notes, agreements = null } = payload || {};
   if (!eventId || !optionId) {
     return { ok: false, error: 'Please choose a camp week before submitting.' };
   }
@@ -52,6 +52,12 @@ export async function submitFamilyRegistration(payload) {
       // so an answer given last time is never wiped by a skipped dropdown.
       tshirt: m.tshirt || null,
       firstTime: m.firstTime === '' || m.firstTime == null ? null : m.firstTime,
+      // Permissions. Unanswered stays null on purpose: silence is neither a
+      // grant nor a refusal, and recording it as "no" would misrepresent a
+      // family that simply skipped the question.
+      mediaConsent: m.mediaConsent === '' || m.mediaConsent == null ? null : m.mediaConsent,
+      directoryConsent:
+        m.directoryConsent === '' || m.directoryConsent == null ? null : m.directoryConsent,
       needs: m.needs || '',
       diet: m.diet || '',
     }));
@@ -62,9 +68,29 @@ export async function submitFamilyRegistration(payload) {
     };
   }
 
+  // The signature block is only sent when this household has not already
+  // signed for this registration; the RPC also refuses to overwrite an
+  // existing signature, so a tampered payload cannot rewrite the date on a
+  // release either.
+  const signature =
+    agreements && (agreements.signerName || '').trim() && Array.isArray(agreements.keys)
+      ? {
+          signerName: agreements.signerName.trim(),
+          signerRole: agreements.signerRole || 'account_holder',
+          keys: agreements.keys,
+        }
+      : null;
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('submit_family_registration', {
-    payload: { family, members: mapped, eventId, optionId, notes: notes || '' },
+    payload: {
+      family,
+      members: mapped,
+      eventId,
+      optionId,
+      notes: notes || '',
+      ...(signature ? { agreements: signature } : {}),
+    },
   });
 
   if (error) {
@@ -78,5 +104,10 @@ export async function submitFamilyRegistration(payload) {
     return { ok: false, error: `Could not save your registration: ${msg}` };
   }
 
-  return { ok: true, registrationId: data?.registrationId, saved: data?.saved ?? mapped.length };
+  return {
+    ok: true,
+    registrationId: data?.registrationId,
+    saved: data?.saved ?? mapped.length,
+    signed: data?.signed ?? 0,
+  };
 }

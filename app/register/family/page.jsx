@@ -14,6 +14,20 @@ const ROLE_LABEL = {
   volunteer: 'Volunteer',
 };
 
+// Display order for the agreement block. Anything not listed sorts to the end.
+const AGREEMENT_ORDER = [
+  'emergency_consent',
+  'hold_harmless',
+  'event_rules',
+  'communication_consent',
+  'scholarship_agreement',
+  'payment_by_check',
+];
+const agreementRank = (key) => {
+  const i = AGREEMENT_ORDER.indexOf(key);
+  return i === -1 ? AGREEMENT_ORDER.length : i;
+};
+
 // A server component: it runs on the server, so it can check who is logged in and
 // read the published camp weeks straight from the database before rendering.
 export default async function FamilyRegisterPage({ searchParams }) {
@@ -68,6 +82,30 @@ export default async function FamilyRegisterPage({ searchParams }) {
     if (scoped.length > 0) openEvents = scoped;
   }
 
+  // The agreements required for the sessions on offer. Loaded through
+  // agreement_requirements rather than "all active agreements", so an event
+  // that has not had its paperwork reviewed cannot silently inherit someone
+  // else's liability text. Deduped by key -- the same six currently apply to
+  // every event, and a family signs each one once.
+  const openEventIds = openEvents.map((e) => e.id);
+  let requiredAgreements = [];
+  if (openEventIds.length > 0) {
+    const { data: reqRows } = await supabase
+      .from('agreement_requirements')
+      .select('agreement_id, is_required, agreements ( key, title, body, active )')
+      .in('event_id', openEventIds)
+      .eq('is_required', true);
+
+    const seen = new Set();
+    requiredAgreements = (reqRows ?? [])
+      .map((r) => r.agreements)
+      .filter((a) => a?.active && !seen.has(a.key) && seen.add(a.key))
+      .map((a) => ({ key: a.key, title: a.title, body: a.body }))
+      // Heaviest first: the two that decide whether someone may attend at all,
+      // then the rules, then the three that are informational for most people.
+      .sort((a, b) => agreementRank(a.key) - agreementRank(b.key));
+  }
+
   const weeks = openEvents
     .map((e) => {
       const opt = (e.event_options ?? []).find((o) => o.published);
@@ -94,6 +132,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
   // ?event=<id> picks which registration to prefill; otherwise the most
   // recent. ----
   let existing = null;
+  let signedAlready = null;
   // "How did you hear about us?" is a first-contact question, so it is asked
   // once per family and never again. CampSite asks it on every enrolment, which
   // is why their export repeats the same answer for every child every year.
@@ -134,6 +173,36 @@ export default async function FamilyRegisterPage({ searchParams }) {
     const wanted = typeof params?.event === 'string' ? params.event : null;
     const reg = (regs ?? []).find((r) => r.event_id === wanted) ?? (regs ?? [])[0] ?? null;
 
+    // Has this household already signed for THIS registration? If so the form
+    // shows the signature rather than asking for it again.
+    if (reg?.id) {
+      const { data: sigs } = await supabase
+        .from('agreement_signatures')
+        .select('signer_name, signed_at')
+        .eq('registration_id', reg.id)
+        .eq('household_id', householdId)
+        .order('signed_at', { ascending: true })
+        .limit(1);
+      if (sigs?.[0]) {
+        signedAlready = { signerName: sigs[0].signer_name, signedAt: sigs[0].signed_at };
+      }
+    }
+
+    // Latest media / directory answer per person, so the form opens showing
+    // what this family already told us rather than a blank select that reads
+    // as "we never asked".
+    const { data: consentRows } = await supabase
+      .from('person_consents')
+      .select('person_id, kind, granted, recorded_at, people!inner ( household_id )')
+      .eq('people.household_id', householdId)
+      .order('recorded_at', { ascending: false });
+
+    const latestConsent = new Map(); // `${personId}:${kind}` -> 'true' | 'false'
+    for (const c of consentRows ?? []) {
+      const k = `${c.person_id}:${c.kind}`;
+      if (!latestConsent.has(k)) latestConsent.set(k, c.granted ? 'true' : 'false');
+    }
+
     // T-shirt size and "first time?" carry across events: someone who told us
     // their size last summer should not have to hunt for it again. `regs` is
     // newest-first, so the first non-null answer we meet is the freshest one.
@@ -170,6 +239,8 @@ export default async function FamilyRegisterPage({ searchParams }) {
           // The wizard's select holds strings; null means "not answered".
           return v === true ? 'true' : v === false ? 'false' : '';
         })(),
+        mediaConsent: latestConsent.get(`${p.people?.id}:media`) ?? '',
+        directoryConsent: latestConsent.get(`${p.people?.id}:directory`) ?? '',
         needs: p.people?.person_support?.disabilities ?? '',
         diet: p.people?.person_support?.dietary_needs ?? '',
       }));
@@ -252,6 +323,8 @@ export default async function FamilyRegisterPage({ searchParams }) {
             defaultEmail={user.email}
             existing={existing}
             askHeardAbout={askHeardAbout}
+            agreements={requiredAgreements}
+            signedAlready={signedAlready}
           />
         )}
       </div>

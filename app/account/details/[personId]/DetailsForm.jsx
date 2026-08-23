@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import PhotoUpload from '@/components/PhotoUpload';
 import { savePersonSupport } from './actions';
 
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
@@ -67,7 +68,12 @@ function YesNo({ id, question, value, onChange, children }) {
   );
 }
 
-export default function DetailsForm({ person, support, backHref = '/account/dashboard/' }) {
+export default function DetailsForm({
+  person,
+  support,
+  photoUrl = null,
+  backHref = '/account/dashboard/',
+}) {
   const s = support ?? {};
   const [f, setF] = useState({
     disabilities: s.disabilities ?? '',
@@ -144,6 +150,14 @@ export default function DetailsForm({ person, support, backHref = '/account/dash
         title={`About ${name}`}
         subtitle="Answer what you can. Every box is optional — a blank tells us as much as a guess, and you can come back and add to this at any time."
       >
+        {/* CampSite blocks registration until a photo is uploaded. We ask here
+            instead, and do not block: a family without a good photo to hand
+            should still be able to secure a place. Staff can see who is
+            missing one. */}
+        <div className="mb-6 rounded border border-neutral-200 bg-neutral-50 p-4">
+          <PhotoUpload personId={person.id} personName={name} initialUrl={photoUrl} />
+        </div>
+
         <label className={label}>
           Disability or diagnosis, in your own words <span className="font-normal text-neutral-500">(optional)</span>
         </label>

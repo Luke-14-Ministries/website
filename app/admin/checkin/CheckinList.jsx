@@ -73,7 +73,19 @@ export default function CheckinList({ rows }) {
       <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200 bg-white">
         {filtered.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              {/* Only present for staff holding the sensitive grant — the
+                  query behind it returns nothing for anyone else, so the
+                  layout has to look right with no photo at all. */}
+              {r.photoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={r.photoUrl}
+                  alt=""
+                  className="h-11 w-11 shrink-0 rounded-full object-cover border border-neutral-200"
+                />
+              )}
+              <div className="min-w-0">
               <p className="font-semibold">
                 {r.name}
                 <span className="font-normal text-neutral-500"> · {ROLE_LABEL[r.role] ?? r.role}</span>
@@ -105,6 +117,7 @@ export default function CheckinList({ rows }) {
                   </span>
                 )}
               </p>
+              </div>
             </div>
             <button
               onClick={() => toggle(r)}

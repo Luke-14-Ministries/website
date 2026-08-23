@@ -575,6 +575,17 @@ export default async function DashboardPage() {
                         >
                           Statement
                         </Link>
+                        {/* Offered plainly beside the other actions rather than
+                            hidden behind "having trouble?" — the ministry
+                            raises money for this, and a link people have to
+                            hunt for is one most families will not click. */}
+                        <Link
+                          href={`/account/scholarship/${r.id}`}
+                          title="Ask for help with the fee. It will not affect anyone's place."
+                          className="btn-outline !py-2"
+                        >
+                          Help with the fee
+                        </Link>
                       </div>
                     </div>
                   );

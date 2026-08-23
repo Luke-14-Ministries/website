@@ -37,6 +37,23 @@ export default async function PersonDetailsPage({ params }) {
     .eq('person_id', personId)
     .maybeSingle();
 
+  // The photo bucket is private, so a viewable URL is minted here, for this
+  // request, by a client that carries this user's own permissions. A leaked
+  // path is not a leaked photograph, and the link expires within the hour.
+  const { data: photoRow } = await supabase
+    .from('person_photos')
+    .select('storage_path')
+    .eq('person_id', personId)
+    .maybeSingle();
+
+  let photoUrl = null;
+  if (photoRow?.storage_path) {
+    const { data: signed } = await supabase.storage
+      .from('person-photos')
+      .createSignedUrl(photoRow.storage_path, 3600);
+    photoUrl = signed?.signedUrl ?? null;
+  }
+
   const name = person.preferred_name || person.first_name;
 
   return (
@@ -56,7 +73,7 @@ export default async function PersonDetailsPage({ params }) {
           </Link>
         </p>
 
-        <DetailsForm person={person} support={support} />
+        <DetailsForm person={person} support={support} photoUrl={photoUrl} />
       </div>
     </section>
   );

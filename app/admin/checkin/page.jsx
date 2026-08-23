@@ -54,6 +54,23 @@ export default async function CheckinPage({ searchParams }) {
       (consents ?? []).filter((c) => c.granted === false).map((c) => c.person_id)
     );
 
+    // Identification thumbnails. The bucket is private and person_photos is
+    // gated by can_view_person_support, so this comes back EMPTY for door
+    // staff without the sensitive grant — which is the documented rule for
+    // camper ID photos, and means the query needs no permission check of its
+    // own. Signed URLs are minted per request and expire in an hour.
+    const { data: photoRows } = await supabase
+      .from('person_photos')
+      .select('person_id, storage_path');
+    const photoUrlOf = new Map();
+    for (const row of photoRows ?? []) {
+      if (!row.storage_path) continue;
+      const { data: signed } = await supabase.storage
+        .from('person-photos')
+        .createSignedUrl(row.storage_path, 3600);
+      if (signed?.signedUrl) photoUrlOf.set(row.person_id, signed.signedUrl);
+    }
+
     for (const r of regs ?? []) {
       for (const p of r.registration_participants ?? []) {
         if (p.status === 'cancelled' || p.status === 'draft') continue;
@@ -72,6 +89,7 @@ export default async function CheckinPage({ searchParams }) {
           checkedInAt: p.checked_in_at,
           flags,
           noPhoto: p.people?.id ? noPhotoIds.has(p.people.id) : false,
+          photoUrl: p.people?.id ? photoUrlOf.get(p.people.id) ?? null : null,
         });
       }
     }

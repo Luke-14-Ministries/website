@@ -119,10 +119,25 @@ export default async function AgreementsPage() {
           </div>
         </div>
 
-        {/* Only visible on paper / in the PDF. */}
-        <div className="hidden print:block mb-6">
-          <h1 className="text-2xl font-bold">Luke 14 Ministries — Signed Agreements</h1>
-          <p className="text-sm text-neutral-600">Account: {user.email}</p>
+        {/* Only visible on paper / in the PDF. The logo matters here in a way
+            it does not on screen: this page becomes a standalone document that
+            may be printed, filed, or emailed on years later, and a page of
+            legal text with no letterhead does not read as the ministry's. */}
+        <div className="hidden print:block mb-6 border-b-2 border-neutral-800 pb-3">
+          <img
+            src="/images/Luke_14_Ministries_Logo__285_x_2_in_29.png"
+            alt="Luke 14 Ministries"
+            className="h-14 w-auto mb-3"
+          />
+          <h1 className="text-2xl font-bold">Signed Agreements</h1>
+          <p className="text-sm text-neutral-600">
+            Account: {user.email} · Printed{' '}
+            {new Date().toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </p>
         </div>
 
         {queryError && (

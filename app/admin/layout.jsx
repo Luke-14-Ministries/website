@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
@@ -115,7 +116,8 @@ export default async function AdminLayout({ children }) {
             with the ACCESS LEVEL as the headline. The dashboard leads with the
             person; this now matches -- name first, what they can do second,
             spelled out once each. */}
-        <div className="mb-6 print:hidden">
+        <div className="mb-6 print:hidden flex flex-wrap items-start justify-between gap-4">
+          <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
             Staff Admin
           </p>
@@ -140,6 +142,23 @@ export default async function AdminLayout({ children }) {
             {(ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
             {staff.can_view_sensitive ? ' Plus medical & support details.' : ''}
           </p>
+          </div>
+
+          {/* Leaving should not require a detour. Staff previously had to open
+              the family dashboard just to find a Log Out button, and the only
+              route back to their own account was the site nav's "My Account".
+              Both are one click from here now. Sign-out is a POST form, not a
+              link — see app/auth/signout/route.js for why. */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/account/dashboard/" className="btn-outline !py-1.5 text-sm">
+              My Dashboard
+            </Link>
+            <form action="/auth/signout/" method="post">
+              <button type="submit" className="btn-outline !py-1.5 text-sm">
+                Log Out
+              </button>
+            </form>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[220px_1fr] print:block">

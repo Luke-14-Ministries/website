@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 // --- Trusted browser ("remember this browser for 30 days") -----------------
@@ -63,12 +63,23 @@ export default function LoginForm() {
   const [code, setCode] = useState('');
   const [remember, setRemember] = useState(true);
 
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Middleware puts ?next=/whatever on the URL when it turns an anonymous
   // visitor away from a signed-in page, so login can send them back there.
-  const next = searchParams.get('next') || '/account/dashboard/';
+  //
+  // SANITISED, because this value arrives in the query string and we redirect
+  // to it after a successful login. Unchecked, /account/?next=https://evil.example
+  // is a working phishing link: it shows the REAL Luke 14 login page, takes a
+  // genuine login, then hands the visitor to somebody else's site, where a
+  // convincing "session expired, please log in again" page collects the
+  // password. Only a path on this site is allowed. The leading-// case matters
+  // as much as the scheme, because //evil.example is a protocol-relative URL,
+  // not a path. app/account/page.jsx already applies this rule to its own
+  // redirect; this was the branch that missed it.
+  const rawNext = searchParams.get('next') || '';
+  const next =
+    rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/account/dashboard/';
 
   // Set by the idle auto-logout when it signs someone out, so the login page can
   // explain why they landed back here.
@@ -259,9 +270,40 @@ export default function LoginForm() {
   }
 
   function finish() {
-    // refresh() makes the server re-render with the new session cookie.
-    router.push(next);
-    router.refresh();
+    // A FULL-DOCUMENT navigation, not router.push().
+    //
+    // Reported 23 Aug: the button stuck on "Logging in…" two or three times in
+    // an evening of frequent deploys, and a manual refresh then landed
+    // straight in the dashboard -- meaning the login had SUCCEEDED and only
+    // the navigation was stuck.
+    //
+    // router.push() is a client-side navigation: it fetches the route's
+    // payload from the deployment the page was loaded from. Deploy a new build
+    // while someone has the login page open and those files are gone, so the
+    // fetch fails, no render happens, and the page simply sits there. Nothing
+    // resets the button because finish() never returned. A hard reload pulls
+    // the new build and works, which is exactly the reported symptom.
+    //
+    // window.location.assign asks the server for a fresh document against the
+    // CURRENT deployment, so a mid-session deploy cannot strand anyone. For a
+    // post-login redirect that is the better behaviour anyway: the server
+    // re-renders with the new session cookie, which is what the router.refresh()
+    // below this was reaching for.
+    //
+    // `next` is sanitised at the top of this component to a path on this site.
+    window.location.assign(next);
+
+    // Belt and braces. A full-document navigation should never fail to leave
+    // this page, but the failure we are fixing looked like a dead button, and
+    // a dead button with no explanation is the worst version of any bug. If we
+    // are somehow still here after five seconds, give the person something to
+    // act on rather than a spinner that never stops.
+    setTimeout(() => {
+      setBusy(false);
+      setError(
+        'You are signed in, but this page did not move on. Please refresh, or go straight to your dashboard.'
+      );
+    }, 5000);
   }
 
   // --- the two-factor code step ---------------------------------------------

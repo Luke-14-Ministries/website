@@ -239,8 +239,11 @@ export default async function FamilyRegisterPage({ searchParams }) {
           // The wizard's select holds strings; null means "not answered".
           return v === true ? 'true' : v === false ? 'false' : '';
         })(),
-        mediaConsent: latestConsent.get(`${p.people?.id}:media`) ?? '',
-        directoryConsent: latestConsent.get(`${p.people?.id}:directory`) ?? '',
+        // Both default ON for someone we have never asked, matching the form's
+        // own default. A recorded answer -- including a recorded "no" -- always
+        // wins, so a family that opted out once never has to opt out again.
+        mediaConsent: latestConsent.get(`${p.people?.id}:media`) ?? 'true',
+        directoryConsent: latestConsent.get(`${p.people?.id}:directory`) ?? 'true',
         needs: p.people?.person_support?.disabilities ?? '',
         diet: p.people?.person_support?.dietary_needs ?? '',
       }));

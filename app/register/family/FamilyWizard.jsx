@@ -36,11 +36,32 @@ const emptyMember = {
   firstTime: '',
   needs: '',
   diet: '',
-  // Permissions, not agreements: a family may answer "no" to either of these
-  // and still register. Blank means "not answered", which is stored as null
-  // rather than as a "no" -- silence is not a refusal, and it is not consent.
-  mediaConsent: '',
-  directoryConsent: '',
+  // Permissions, not agreements: a family may say no to either of these and
+  // still register. They start CHECKED, which is how the ministry has always
+  // run them -- the CEO's account is that chasing individual permissions for a
+  // small team is unmanageable, and that in practice a handful of families
+  // have pushed back while the large majority are content. Unchecking is one
+  // click and always honoured; the prompt asks them to reconsider once, and
+  // then gets out of the way.
+  mediaConsent: 'true',
+  directoryConsent: 'true',
+};
+
+// Shown once, when a family turns a permission OFF. Written to persuade
+// honestly rather than to nag: it says what the cost actually is, and it says
+// out loud that some families have good reason and will not be argued with.
+// OK keeps the permission; Cancel turns it off.
+const RECONSIDER = {
+  mediaConsent: (who) =>
+    `Photos are how the ministry shows people what camp is actually like — most of what you see on the website and in print came from a week like this one.\n\n` +
+    `Turning this off means staff have to check every photo before anything is published, which is real work for a small team.\n\n` +
+    `Some families have good reasons to say no, and we honour that without needing an explanation. Would you like to keep photo permission on for ${who}?\n\n` +
+    `OK = keep it on.  Cancel = turn it off.`,
+  directoryConsent: (who) =>
+    `The directory is how attending families find each other — it is the main way people connect before and after, and a lot of friendships have started there.\n\n` +
+    `Leaving ${who} out means other families can't reach you.\n\n` +
+    `Some families prefer to keep their details private, and that is entirely fine. Would you like to stay listed?\n\n` +
+    `OK = stay listed.  Cancel = leave us out.`,
 };
 
 const TSHIRT_SIZES = [
@@ -148,6 +169,21 @@ export default function FamilyWizard({
   const setM = (i, k) => (e) => {
     const next = members.map((m, j) => (j === i ? { ...m, [k]: e.target.value } : m));
     setMembers(next);
+  };
+
+  // Permission checkboxes. Turning one ON is instant; turning one OFF asks
+  // once, and takes no for an answer.
+  const setConsent = (i, k) => (e) => {
+    const on = e.target.checked;
+    if (!on) {
+      const who = members[i]?.firstName?.trim() || 'this person';
+      if (!window.confirm(RECONSIDER[k](who))) {
+        setMembers(members.map((m, j) => (j === i ? { ...m, [k]: 'false' } : m)));
+      }
+      // Confirmed = they reconsidered and are keeping it on, so nothing to do.
+      return;
+    }
+    setMembers(members.map((m, j) => (j === i ? { ...m, [k]: 'true' } : m)));
   };
 
   async function handleSubmit() {
@@ -438,42 +474,46 @@ export default function FamilyWizard({
 
               {/* Permissions live with the PERSON they are about, and each is
                   free to be "no" without affecting the registration. */}
-              <div className="mt-4 grid sm:grid-cols-2 gap-4 rounded bg-neutral-50 p-3">
-                <div>
-                  <label className={label}>
-                    May we feature {m.firstName.trim() || 'this person'} in photos and videos?
-                  </label>
-                  <select className={input} value={m.mediaConsent} onChange={setM(i, 'mediaConsent')}>
-                    <option value="">— select —</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    This is about being <em>featured</em> — a photo where they are the
-                    subject, used on our website, social media or printed material. We
-                    can&rsquo;t promise nobody appears in a wide group or whole-camp
-                    shot, and we&rsquo;d rather say so than make a promise we
-                    can&rsquo;t keep.
-                  </p>
-                </div>
-                <div>
-                  <label className={label}>
-                    Include {m.firstName.trim() || 'this person'} in the participant directory?
-                  </label>
-                  <select
-                    className={input}
-                    value={m.directoryConsent}
-                    onChange={setM(i, 'directoryConsent')}
-                  >
-                    <option value="">— select —</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    A list shared with the other families attending, so people can
-                    connect before and after. Answering no changes nothing else.
-                  </p>
-                </div>
+              <div className="mt-4 space-y-3 rounded bg-neutral-50 p-4">
+                <p className="text-sm font-semibold text-neutral-700">
+                  Permissions for {m.firstName.trim() || 'this person'}
+                </p>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0"
+                    checked={m.mediaConsent === 'true'}
+                    onChange={setConsent(i, 'mediaConsent')}
+                  />
+                  <span className="text-sm">
+                    <span className="font-semibold">Photos and videos.</span> We may feature{' '}
+                    {m.firstName.trim() || 'this person'} in material we publish — our
+                    website, social media, printed pieces.
+                    <span className="block mt-1 text-xs text-neutral-500">
+                      This is about being <em>featured</em>, where they are the subject of
+                      the picture. We can&rsquo;t promise nobody appears in a wide group or
+                      whole-camp shot, and we&rsquo;d rather say so than make a promise we
+                      can&rsquo;t keep. Uncheck if you&rsquo;d rather we didn&rsquo;t.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0"
+                    checked={m.directoryConsent === 'true'}
+                    onChange={setConsent(i, 'directoryConsent')}
+                  />
+                  <span className="text-sm">
+                    <span className="font-semibold">Participant directory.</span> Include{' '}
+                    {m.firstName.trim() || 'this person'} in the list shared with the other
+                    families attending.
+                    <span className="block mt-1 text-xs text-neutral-500">
+                      It&rsquo;s how families connect before and after. Uncheck to be left
+                      out — nothing else about your registration changes.
+                    </span>
+                  </span>
+                </label>
               </div>
               <p className="mt-2 text-xs text-neutral-500">
                 A fuller form for {m.firstName.trim() || 'this person'} — medications,

@@ -36,7 +36,7 @@ const SIGNER_ROLE_LABEL = {
 };
 
 const CONSENT_LABEL = {
-  media: 'May be featured in published photos and videos',
+  media: 'Photos and video — may be featured in published material',
   directory: 'Included in the participant directory',
 };
 
@@ -198,7 +198,10 @@ export default async function AgreementsPage() {
               To change one, open your registration and update the person&rsquo;s
               answer, or contact camp staff. We keep the history of what was
               permitted when, because published material outlives the permission
-              that allowed it.
+              that allowed it. If a particular photo ever concerns you, email{' '}
+              <span className="font-semibold">info@luke14ministries.net</span> — we
+              can&rsquo;t promise nobody appears in a wide group shot, but we will work
+              to address a specific request promptly.
             </p>
           </div>
         )}

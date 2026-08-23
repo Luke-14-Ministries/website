@@ -60,9 +60,10 @@ const emptyMember = {
 const RECONSIDER = {
   mediaConsent: (who) =>
     `Photos are how the ministry shows people what camp is actually like — most of what you see on the website and in print came from a week like this one.\n\n` +
-    `Turning this off means staff have to check every photo before anything is published, which is real work for a small team.\n\n` +
-    `Some families have good reasons to say no, and we honour that without needing an explanation. Would you like to keep photo permission on for ${who}?\n\n` +
-    `OK = keep it on.  Cancel = turn it off.`,
+    `Unchecking tells us you'd rather we didn't feature ${who}, and we'll do our best to honour that. Some families have good reasons, and we'd much rather you tell us than not.\n\n` +
+    `You can change your mind at any time, and if a particular photo ever concerns you, email info@luke14ministries.net and we'll work to sort it out promptly.\n\n` +
+    `Would you like to leave photo permission on for ${who}?\n\n` +
+    `OK = leave it on.  Cancel = tell us you'd rather we didn't.`,
   directoryConsent: (who) =>
     `The directory is how attending families find each other — it is the main way people connect before and after, and a lot of friendships have started there.\n\n` +
     `Leaving ${who} out means other families can't reach you.\n\n` +
@@ -495,17 +496,29 @@ export default function FamilyWizard({
                     <span className="font-semibold">Photos and videos.</span> We may feature{' '}
                     {m.firstName.trim() || 'this person'} in material we publish — our
                     website, social media, printed pieces.
+                    {/* Deliberately worded as a PREFERENCE we will work hard to
+                        honour, not a guarantee we can enforce. Luke 14 has two
+                        paid staff and runs on volunteers, and a week of camp
+                        produces thousands of frames; promising that a named
+                        person will never appear anywhere is a promise the
+                        ministry cannot keep. Naming the route for a specific
+                        concern is worth more than a broad assurance. */}
                     <span className="block mt-1 text-xs text-neutral-500">
-                      This is about being <em>featured</em>, where they are the subject of
-                      the picture. We can&rsquo;t promise nobody appears in a wide group or
-                      whole-camp shot, and we&rsquo;d rather say so than make a promise we
-                      can&rsquo;t keep. Uncheck if you&rsquo;d rather we didn&rsquo;t.
+                      Unchecking tells us you&rsquo;d rather we didn&rsquo;t, and
+                      we&rsquo;ll do our best to honour that. Being straight with you
+                      about the limits: this is about not <em>featuring</em> someone as
+                      the subject of a picture, and with a small team and thousands of
+                      photos in a week we can&rsquo;t promise nobody ever appears in a
+                      wide group or whole-camp shot. If you see something you&rsquo;re
+                      not comfortable with, email{' '}
+                      <span className="font-semibold">info@luke14ministries.net</span> and
+                      we&rsquo;ll work to address it promptly.
                     </span>
                     {m.mediaWasNo && m.mediaConsent === 'true' && (
                       <span className="mt-1 block rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
-                        Last time you asked us not to. We ask again each year in case
-                        you feel differently now — uncheck if your answer hasn&rsquo;t
-                        changed.
+                        Last time you told us you&rsquo;d rather we didn&rsquo;t. We ask
+                        again each year in case you feel differently now — uncheck if
+                        your preference hasn&rsquo;t changed.
                       </span>
                     )}
                   </span>

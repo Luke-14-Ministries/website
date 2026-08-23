@@ -26,6 +26,51 @@ const FAMILY_IDLE = 30 * MIN;
 // hard below so it does not become a busy loop.
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
 
+// WHY THE LAST-ACTIVITY TIME IS WRITTEN TO STORAGE -- do not remove.
+//
+// Reported 24 Aug 2026: a phone opened on yesterday's session was still signed
+// in. The reason was that idleness was measured entirely by a live clock in
+// memory. `lastActivity` was a React ref and the check ran in a setInterval, so
+// the moment the tab closed -- or the phone locked, or the browser froze a
+// background tab, which mobile browsers do aggressively -- the clock simply
+// stopped. On reopening, the component started fresh and stamped "last active:
+// now", and the eighteen hours in between were invisible. Supabase had
+// meanwhile kept the session alive and refreshed it, exactly as configured.
+//
+// So the control only ever worked for a tab left open. The case it was written
+// for -- someone walks away and comes back later, or somebody else picks up the
+// device -- was the case it missed.
+//
+// Persisting the timestamp fixes it: elapsed real time is compared on every
+// load, on tab focus, and on restore from the back/forward cache. Note the
+// consequence, which is intended rather than a side effect: returning to the
+// site after the idle window now signs you out, because there is no way to tell
+// the person who walked away from the person who picked up their phone.
+const LAST_KEY = 'l14_last_activity';
+
+function readLastActivity(userId) {
+  try {
+    const raw = window.localStorage.getItem(LAST_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (!v || typeof v.t !== 'number') return null;
+    // A stamp belonging to a different account is not evidence about this one.
+    if (userId && v.u && v.u !== userId) return null;
+    return v.t;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastActivity(userId, t) {
+  try {
+    window.localStorage.setItem(LAST_KEY, JSON.stringify({ u: userId, t }));
+  } catch {
+    /* private mode, storage full, storage disabled -- the in-memory clock
+       still works for an open tab, which is where we were before. */
+  }
+}
+
 export default function IdleTimeout() {
   const supabase = createClient();
 
@@ -38,6 +83,12 @@ export default function IdleTimeout() {
   const warningRef = useRef(false);
   const channelRef = useRef(null);
   const lastBroadcast = useRef(0);
+  const userIdRef = useRef(null);
+  const idleLimitRef = useRef(FAMILY_IDLE);
+
+  useEffect(() => {
+    idleLimitRef.current = idleLimit;
+  }, [idleLimit]);
 
   useEffect(() => {
     warningRef.current = warning;
@@ -67,11 +118,18 @@ export default function IdleTimeout() {
   // because it means the person is genuinely still working somewhere.
   const registerLocalActivity = useCallback(() => {
     if (warningRef.current) return;
-    lastActivity.current = Date.now();
     const now = Date.now();
-    if (channelRef.current && now - lastBroadcast.current > 4000) {
+    lastActivity.current = now;
+    // Throttled: the same 4-second gate covers the cross-tab message and the
+    // storage write, so a mousemove does not touch localStorage sixty times a
+    // second. Four seconds of staleness is nothing against a 15-minute window,
+    // and it means whatever is on disk when a tab dies is close enough.
+    if (now - lastBroadcast.current > 4000) {
       lastBroadcast.current = now;
-      channelRef.current.postMessage({ type: 'activity', t: now });
+      writeLastActivity(userIdRef.current, now);
+      if (channelRef.current) {
+        channelRef.current.postMessage({ type: 'activity', t: now });
+      }
     }
   }, []);
 
@@ -95,8 +153,27 @@ export default function IdleTimeout() {
         .maybeSingle();
       if (!active) return;
       const isStaff = Boolean(staffRow && staffRow.active);
-      setIdleLimit(isStaff ? STAFF_IDLE : FAMILY_IDLE);
-      lastActivity.current = Date.now();
+      const limit = isStaff ? STAFF_IDLE : FAMILY_IDLE;
+      userIdRef.current = session.user.id;
+
+      // THE FIX. Before starting a clock, ask how long it has actually been.
+      // A stored stamp older than the limit means this session was idle
+      // through a closed tab, a locked phone, or overnight -- so end it now
+      // rather than starting a fresh countdown and pretending the gap did not
+      // happen.
+      const stored = readLastActivity(session.user.id);
+      const now = Date.now();
+      if (stored != null && now - stored >= limit) {
+        doLogout(true);
+        return;
+      }
+
+      // Keep the stored stamp when there is one: the countdown continues from
+      // where the person actually left off, rather than restarting because
+      // they loaded a page.
+      lastActivity.current = stored ?? now;
+      writeLastActivity(session.user.id, lastActivity.current);
+      setIdleLimit(limit);
       setEnabled(true);
     }
     init();
@@ -107,7 +184,15 @@ export default function IdleTimeout() {
       if (event === 'SIGNED_OUT' || !session) {
         setEnabled(false);
         setWarning(false);
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      } else if (event === 'SIGNED_IN') {
+        // A fresh login IS activity, and it may be a different person on a
+        // shared device — so clear any stamp left by the last one before init
+        // reads it, or they would inherit somebody else's countdown.
+        if (session?.user?.id) writeLastActivity(session.user.id, Date.now());
+        init();
+      } else if (event === 'TOKEN_REFRESHED') {
+        // NOT activity. A refresh happens on a timer with nobody present, and
+        // treating it as presence is how a session lives forever.
         init();
       }
     });
@@ -116,7 +201,7 @@ export default function IdleTimeout() {
       active = false;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, doLogout]);
 
   // Cross-tab coordination: one active tab keeps the others awake, and a logout
   // (manual, timed, or from another tab) ends them all.
@@ -130,7 +215,9 @@ export default function IdleTimeout() {
         lastActivity.current = Math.max(lastActivity.current, msg.t);
         if (warningRef.current) setWarning(false); // someone is active elsewhere
       } else if (msg.type === 'stay') {
-        lastActivity.current = Date.now();
+        const now = Date.now();
+        lastActivity.current = now;
+        writeLastActivity(userIdRef.current, now);
         setWarning(false);
       } else if (msg.type === 'logout') {
         doLogout(false);
@@ -170,8 +257,45 @@ export default function IdleTimeout() {
     };
   }, [enabled, idleLimit, registerLocalActivity, doLogout]);
 
+  // Waking up. The interval above only ticks while the page is running, so a
+  // phone that was locked for an hour learns nothing from it. These are the
+  // three moments a frozen page comes back to life:
+  //
+  //   visibilitychange -> the tab is looked at again, or the phone unlocks
+  //   pageshow         -> restored from the back/forward cache, where the
+  //                       component is NOT re-mounted and init never re-runs,
+  //                       which is precisely how a stale page slips through
+  //   focus            -> the window is returned to on a desktop
+  //
+  // All three ask the same question of the stored stamp: has too much real
+  // time passed?
+  useEffect(() => {
+    if (!enabled) return;
+
+    const recheck = () => {
+      const stored = readLastActivity(userIdRef.current);
+      if (stored != null && Date.now() - stored >= idleLimitRef.current) {
+        doLogout(true);
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', recheck);
+    window.addEventListener('focus', recheck);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', recheck);
+      window.removeEventListener('focus', recheck);
+    };
+  }, [enabled, doLogout]);
+
   function stay() {
-    lastActivity.current = Date.now();
+    const now = Date.now();
+    lastActivity.current = now;
+    writeLastActivity(userIdRef.current, now);
     setWarning(false);
     if (channelRef.current) channelRef.current.postMessage({ type: 'stay' });
   }

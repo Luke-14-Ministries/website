@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
@@ -111,29 +110,36 @@ export default async function AdminLayout({ children }) {
   return (
     <section className="bg-neutral-50 min-h-[70vh] print:bg-white">
       <div className="container-site py-8 print:p-0 print:max-w-none">
-        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6 print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold">
-              Staff Admin{' '}
-              <span className="text-brand">
-                [{(ROLE_INFO[staff.role] ?? {}).label ?? staff.role}
-                {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
+        {/* Header, tidied 23 Aug. It previously said the person's name twice,
+            repeated a "My Account" link the site nav already carries, and led
+            with the ACCESS LEVEL as the headline. The dashboard leads with the
+            person; this now matches -- name first, what they can do second,
+            spelled out once each. */}
+        <div className="mb-6 print:hidden">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            Staff Admin
+          </p>
+          <h1 className="text-2xl font-bold">{fullName}</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-brand-light text-brand-dark px-2.5 py-0.5 text-xs font-semibold">
+              {(ROLE_INFO[staff.role] ?? {}).label ?? staff.role}
+            </span>
+            {staff.can_view_sensitive && (
+              <span className="rounded-full bg-neutral-200 text-neutral-700 px-2.5 py-0.5 text-xs font-semibold">
+                Sensitive access
               </span>
-            </h1>
-            <p className="text-sm text-neutral-700 mt-1">
-              Signed in as <span className="font-semibold">{fullName}</span> · {staff.email}
-            </p>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {(ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
-              {staff.can_view_sensitive ? ' Plus medical & support details.' : ''}
-            </p>
+            )}
+            {staff.can_view_giving && (
+              <span className="rounded-full bg-neutral-200 text-neutral-700 px-2.5 py-0.5 text-xs font-semibold">
+                Giving
+              </span>
+            )}
+            <span className="text-xs text-neutral-500">{staff.email}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-neutral-700 hidden sm:inline">{fullName}</span>
-            <Link href="/account/dashboard/" className="btn-outline !py-1.5 text-sm">
-              My Account
-            </Link>
-          </div>
+          <p className="text-xs text-neutral-500 mt-1.5">
+            {(ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
+            {staff.can_view_sensitive ? ' Plus medical & support details.' : ''}
+          </p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[220px_1fr] print:block">

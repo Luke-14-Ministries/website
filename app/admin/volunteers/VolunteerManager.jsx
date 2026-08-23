@@ -17,13 +17,34 @@ const APP_CHIP = {
   withdrawn: ['Withdrawn', 'bg-neutral-200 text-neutral-600'],
 };
 
+// Checkr report states, mirrored into volunteer_clearances.checkr_status by the
+// webhook handler once that exists. Nothing writes these today -- the columns
+// and this display are the placeholder, so the shape of the finished feature is
+// visible (and reviewable) before any key is issued.
+const CHECKR_CHIP = {
+  not_started: ['Not started', 'bg-neutral-100 text-neutral-500'],
+  invited: ['Invited — waiting on volunteer', 'bg-amber-100 text-amber-800'],
+  pending: ['Running at Checkr', 'bg-blue-100 text-blue-800'],
+  clear: ['Clear', 'bg-green-100 text-green-800'],
+  consider: ['Consider — needs a decision', 'bg-red-100 text-red-800'],
+  suspended: ['Suspended at Checkr', 'bg-red-100 text-red-800'],
+  dispute: ['Disputed by volunteer', 'bg-amber-100 text-amber-800'],
+  canceled: ['Cancelled', 'bg-neutral-200 text-neutral-600'],
+};
+
+const ADJUDICATION_LABEL = {
+  engaged: 'Engaged — proceeding despite the result',
+  pre_adverse_action: 'Pre-adverse action notice sent',
+  post_adverse_action: 'Post-adverse action — declined',
+};
+
 const fmtAge = (dob) => {
   if (!dob) return null;
   const age = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 86400000));
   return age;
 };
 
-function ClearanceEditor({ personId, clearance, onDone }) {
+function ClearanceEditor({ personId, clearance, email, onDone }) {
   const router = useRouter();
   const [onFile, setOnFile] = useState(Boolean(clearance?.background_check_on_file));
   const [date, setDate] = useState(clearance?.background_check_date ?? '');
@@ -64,6 +85,76 @@ function ClearanceEditor({ personId, clearance, onDone }) {
         </button>
       </div>
       {error && <p className="mt-2 text-red-700">{error}</p>}
+
+      <CheckrPanel clearance={clearance} email={email} />
+    </div>
+  );
+}
+
+// PLACEHOLDER. The database columns behind this are live (migration 0029) but
+// nothing writes them yet: no API key has been issued and no webhook handler
+// exists. It is here so the shape of the finished feature -- and the promise
+// that we never touch a Social Security number -- is visible and reviewable
+// before anyone wires it up.
+function CheckrPanel({ clearance, email }) {
+  const status = clearance?.checkr_status ?? 'not_started';
+  const [label, tone] = CHECKR_CHIP[status] ?? CHECKR_CHIP.not_started;
+  const started = status !== 'not_started';
+
+  return (
+    <div className="mt-3 rounded border border-dashed border-neutral-300 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold text-neutral-700">
+          Checkr background check{' '}
+          <span className="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-semibold text-neutral-600">
+            not connected yet
+          </span>
+        </p>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}`}>{label}</span>
+      </div>
+
+      <p className="mt-2 text-xs text-neutral-600">
+        When this is switched on, Checkr is sent an email address and nothing else. Checkr
+        emails the volunteer, the volunteer enters their Social Security number and date of
+        birth into <em>Checkr&rsquo;s</em> form, and the result comes back to us as a
+        pass/fail. Luke 14 never receives, transmits, or stores the number — which is the
+        whole reason to use the API rather than a form of our own.
+      </p>
+
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled
+          title="Not available yet — needs a Checkr account administrator and an API key. See the Staff Questions log, section 8."
+          className="btn-outline !py-1 !px-3 text-sm opacity-50 cursor-not-allowed"
+        >
+          Send background-check invitation
+        </button>
+        <span className="text-xs text-neutral-500">
+          would go to {email || 'this volunteer’s email — none on file'}
+        </span>
+      </div>
+
+      {started && (
+        <dl className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+          <div>
+            <dt className="font-semibold text-neutral-500">Invited</dt>
+            <dd>{clearance?.invitation_sent_at?.slice(0, 10) ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-neutral-500">Report completed</dt>
+            <dd>{clearance?.report_completed_at?.slice(0, 10) ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-neutral-500">Package</dt>
+            <dd>{clearance?.checkr_package ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-neutral-500">Decision</dt>
+            <dd>{ADJUDICATION_LABEL[clearance?.adjudication] ?? '—'}</dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }
@@ -222,7 +313,11 @@ function VolunteerRow({ row }) {
           )}
           {error && <p className="mt-2 text-red-700 text-sm">{error}</p>}
 
-          <ClearanceEditor personId={person?.id} clearance={clearance} />
+          <ClearanceEditor
+            personId={person?.id}
+            clearance={clearance}
+            email={person?.email || household?.email}
+          />
         </div>
       )}
     </div>

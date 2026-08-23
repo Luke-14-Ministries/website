@@ -60,7 +60,14 @@ export default async function AdminVolunteersPage() {
     personIds.length
       ? supabase
           .from('volunteer_clearances')
-          .select('person_id, background_check_on_file, background_check_date, expires_on')
+          // Checkr columns are read but never written yet (migration 0029) --
+          // the panel that shows them is a reviewable placeholder, not a
+          // working integration.
+          .select(
+            `person_id, background_check_on_file, background_check_date, expires_on,
+             provider, checkr_status, checkr_package, adjudication,
+             invitation_sent_at, report_completed_at`
+          )
           .in('person_id', personIds)
       : Promise.resolve({ data: [] }),
   ]);

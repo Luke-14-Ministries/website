@@ -54,11 +54,11 @@ export default async function CheckinPage({ searchParams }) {
       (consents ?? []).filter((c) => c.granted === false).map((c) => c.person_id)
     );
 
-    // Identification thumbnails. The bucket is private and person_photos is
-    // gated by can_view_person_support, so this comes back EMPTY for door
-    // staff without the sensitive grant — which is the documented rule for
-    // camper ID photos, and means the query needs no permission check of its
-    // own. Signed URLs are minted per request and expire in an hour.
+    // Identification thumbnails — the point of the photo. Readable by ANY
+    // active staff member since 0033, because the door volunteers who need it
+    // rarely hold the sensitive grant, and a photo they cannot see does not do
+    // the job it exists to do. The bucket itself stays private: every view is
+    // a signed URL minted here, for this request, expiring within the hour.
     const { data: photoRows } = await supabase
       .from('person_photos')
       .select('person_id, storage_path');

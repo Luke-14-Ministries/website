@@ -74,9 +74,8 @@ export default function CheckinList({ rows }) {
         {filtered.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
-              {/* Only present for staff holding the sensitive grant — the
-                  query behind it returns nothing for anyone else, so the
-                  layout has to look right with no photo at all. */}
+              {/* Absent until a family uploads one, so the layout still has to
+                  look right with no photo at all. */}
               {r.photoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

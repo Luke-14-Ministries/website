@@ -133,7 +133,8 @@ export default function PhotoUpload({ personId, personName, initialUrl = null })
         <p className="mt-2 text-xs text-neutral-500 max-w-sm">
           A clear photo of {personName || 'this person'}&rsquo;s face helps staff greet them by
           name at check-in. It is resized on your device before it is sent, so any photo from
-          your phone is fine. Only camp staff who handle support details can see it.
+          your phone is fine. Camp staff can see it; it is never published, never shown
+          on a public page, and never leaves the ministry.
         </p>
         {note && <p className="mt-1 text-xs text-green-700 font-semibold">{note}</p>}
         {error && <p className="mt-1 text-xs text-red-700">{error}</p>}

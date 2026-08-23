@@ -239,11 +239,17 @@ export default async function FamilyRegisterPage({ searchParams }) {
           // The wizard's select holds strings; null means "not answered".
           return v === true ? 'true' : v === false ? 'false' : '';
         })(),
-        // Both default ON for someone we have never asked, matching the form's
-        // own default. A recorded answer -- including a recorded "no" -- always
-        // wins, so a family that opted out once never has to opt out again.
-        mediaConsent: latestConsent.get(`${p.people?.id}:media`) ?? 'true',
-        directoryConsent: latestConsent.get(`${p.people?.id}:directory`) ?? 'true',
+        // Both open CHECKED every year, including for a family that declined
+        // last time. Lawrence's reasoning, 23 Aug: trust is built by attending
+        // -- a family who was wary before camp is often comfortable after it,
+        // and a permanently remembered "no" never gives them the chance to say
+        // yes. A prior refusal is surfaced beside the box instead (see
+        // mediaWasNo / directoryWasNo) so nobody flips a considered decision by
+        // skimming.
+        mediaConsent: 'true',
+        directoryConsent: 'true',
+        mediaWasNo: latestConsent.get(`${p.people?.id}:media`) === 'false',
+        directoryWasNo: latestConsent.get(`${p.people?.id}:directory`) === 'false',
         needs: p.people?.person_support?.disabilities ?? '',
         diet: p.people?.person_support?.dietary_needs ?? '',
       }));

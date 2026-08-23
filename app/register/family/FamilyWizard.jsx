@@ -45,6 +45,12 @@ const emptyMember = {
   // then gets out of the way.
   mediaConsent: 'true',
   directoryConsent: 'true',
+  // Set by the server when this person declined the same permission before.
+  // The box still opens checked -- trust grows with attending, and a
+  // permanently remembered refusal never lets a family change its mind -- but
+  // the previous answer is shown so the change is a decision, not a slip.
+  mediaWasNo: false,
+  directoryWasNo: false,
 };
 
 // Shown once, when a family turns a permission OFF. Written to persuade
@@ -495,6 +501,13 @@ export default function FamilyWizard({
                       whole-camp shot, and we&rsquo;d rather say so than make a promise we
                       can&rsquo;t keep. Uncheck if you&rsquo;d rather we didn&rsquo;t.
                     </span>
+                    {m.mediaWasNo && m.mediaConsent === 'true' && (
+                      <span className="mt-1 block rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
+                        Last time you asked us not to. We ask again each year in case
+                        you feel differently now — uncheck if your answer hasn&rsquo;t
+                        changed.
+                      </span>
+                    )}
                   </span>
                 </label>
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -512,6 +525,13 @@ export default function FamilyWizard({
                       It&rsquo;s how families connect before and after. Uncheck to be left
                       out — nothing else about your registration changes.
                     </span>
+                    {m.directoryWasNo && m.directoryConsent === 'true' && (
+                      <span className="mt-1 block rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
+                        Last time you asked to be left out. We ask again each year in
+                        case you feel differently now — uncheck if your answer
+                        hasn&rsquo;t changed.
+                      </span>
+                    )}
                   </span>
                 </label>
               </div>

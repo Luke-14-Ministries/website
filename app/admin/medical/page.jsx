@@ -27,7 +27,7 @@ export default async function MedicalPage() {
          registration_participants ( camp_role, status,
            people ( first_name, last_name,
              person_support ( medications, has_seizures, has_rescue_medication,
-               rescue_medication_detail, buddy_required,
+               seizure_detail, rescue_medication_detail, buddy_required,
                emergency_contact_name, emergency_contact_phone, emergency_contact_relationship ) ) )`
       ),
   ]);
@@ -39,7 +39,8 @@ export default async function MedicalPage() {
       const s = p.people?.person_support;
       if (!s) continue;
       const hasMedical =
-        s.medications || s.has_seizures || s.has_rescue_medication || s.rescue_medication_detail;
+        s.medications || s.has_seizures || s.has_rescue_medication ||
+        s.rescue_medication_detail || s.seizure_detail;
       if (!hasMedical && !s.emergency_contact_name) continue;
       if (!byEvent.has(r.event_id)) byEvent.set(r.event_id, []);
       byEvent.get(r.event_id).push({
@@ -49,6 +50,7 @@ export default async function MedicalPage() {
         phone: r.households?.phone ?? '',
         medications: s.medications,
         seizures: s.has_seizures,
+        seizureDetail: s.seizure_detail,
         rescue: s.has_rescue_medication,
         rescueDetail: s.rescue_medication_detail,
         buddy: s.buddy_required,
@@ -127,9 +129,24 @@ export default async function MedicalPage() {
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-pre-wrap">{r.medications || '—'}</td>
+                        {/* Seizure plan and rescue medication are shown as
+                            SEPARATE lines. They answer different questions --
+                            "what do I do right now" versus "what is kept where"
+                            -- and until 0031 the family form had nowhere to put
+                            the first, so it was landing in the second. */}
                         <td className="px-4 py-2 whitespace-pre-wrap">
-                          {r.seizures ? 'Seizure history. ' : ''}
-                          {r.rescueDetail || (r.rescue ? 'Rescue medication (no detail recorded).' : '')}
+                          {r.seizures && (
+                            <span className="block">
+                              <span className="font-semibold">Seizures. </span>
+                              {r.seizureDetail || 'No plan recorded.'}
+                            </span>
+                          )}
+                          {(r.rescue || r.rescueDetail) && (
+                            <span className="block mt-1">
+                              <span className="font-semibold">Rescue med. </span>
+                              {r.rescueDetail || 'No detail recorded.'}
+                            </span>
+                          )}
                           {!r.seizures && !r.rescue && !r.rescueDetail ? '—' : ''}
                         </td>
                         <td className="px-4 py-2">

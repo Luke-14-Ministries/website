@@ -119,7 +119,7 @@ export default async function DashboardPage() {
           `id, family_notes, created_at,
            events ( id, name, starts_on, ends_on, deposit_cents ),
            registration_participants ( id, camp_role, status, fee_cents,
-             people ( first_name, last_name ) )`
+             people ( id, first_name, last_name ) )`
         )
         .in('household_id', householdIds)
         .order('created_at', { ascending: false })
@@ -141,6 +141,50 @@ export default async function DashboardPage() {
   for (const m of staffMsgs ?? []) {
     if (!msgsByReg.has(m.registration_id)) msgsByReg.set(m.registration_id, []);
     msgsByReg.get(m.registration_id).push(m);
+  }
+
+  // Support-profile status per person. Registration ends by promising a fuller
+  // form for each attendee; this is how the family finds it, and how they can
+  // tell at a glance which ones are still outstanding.
+  //
+  // "Started" is deliberately generous — any of the four things staff most
+  // need. A profile is not a checklist to complete, it is information a family
+  // gives when they have it, and showing "incomplete" against someone whose
+  // answer is genuinely "none of this applies" would be nagging them for a
+  // blank we already have.
+  const attendingPeople = [];
+  const seenPerson = new Set();
+  for (const r of regs) {
+    for (const p of r.registration_participants ?? []) {
+      const id = p.people?.id;
+      if (!id || p.status === 'cancelled' || seenPerson.has(id)) continue;
+      seenPerson.add(id);
+      attendingPeople.push({
+        id,
+        name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
+      });
+    }
+  }
+
+  const supportStatus = new Map(); // personId -> 'started' | 'empty'
+  if (attendingPeople.length) {
+    const { data: supportRows } = await supabase
+      .from('person_support')
+      .select(
+        'person_id, emergency_contact_name, emergency_contact_phone, medications, disabilities, communication, has_allergies, has_seizures'
+      )
+      .in('person_id', attendingPeople.map((p) => p.id));
+    for (const s of supportRows ?? []) {
+      const started =
+        Boolean(s.emergency_contact_name) ||
+        Boolean(s.emergency_contact_phone) ||
+        Boolean(s.medications) ||
+        Boolean(s.communication) ||
+        Boolean(s.disabilities) ||
+        s.has_allergies === true ||
+        s.has_seizures === true;
+      supportStatus.set(s.person_id, started ? 'started' : 'empty');
+    }
   }
 
   // Registered volunteers who haven't filed their volunteer application yet —
@@ -281,6 +325,47 @@ export default async function DashboardPage() {
             <Link href="/register/volunteer" className="btn-primary !py-2">
               Complete it now
             </Link>
+          </div>
+        )}
+
+        {/* The support profiles registration promises. One card, one row per
+            person attending, so the promise made at the end of the wizard has
+            somewhere to land. */}
+        {attendingPeople.length > 0 && (
+          <div className="mb-8 rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+            <h2 className="text-xl font-bold">Support details</h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              A short form for each person attending — allergies, medications, what helps on
+              a hard day, and an emergency contact. Nothing is required, and you can add to
+              it any time before camp.
+            </p>
+            <ul className="mt-4 divide-y divide-neutral-100">
+              {attendingPeople.map((p) => {
+                const started = supportStatus.get(p.id) === 'started';
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span className="flex items-center gap-3">
+                      <span className="font-semibold">{p.name}</span>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          started
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {started ? 'Details on file' : 'Not started'}
+                      </span>
+                    </span>
+                    <Link
+                      href={`/account/details/${p.id}/`}
+                      className={started ? 'btn-outline !py-1.5 text-sm' : 'btn-primary !py-1.5 text-sm'}
+                    >
+                      {started ? 'Review or update' : 'Fill it in'}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
 

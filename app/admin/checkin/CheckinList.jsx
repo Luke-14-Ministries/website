@@ -77,6 +77,18 @@ export default function CheckinList({ rows }) {
               <p className="font-semibold">
                 {r.name}
                 <span className="font-normal text-neutral-500"> · {ROLE_LABEL[r.role] ?? r.role}</span>
+                {/* Deliberately beside the NAME rather than among the red
+                    medical flags below: it is a rule to follow, not an alert,
+                    and it must stay visible to door staff who don't hold the
+                    sensitive grant and therefore see no medical flags at all. */}
+                {r.noPhoto && (
+                  <span
+                    className="ml-2 rounded-full bg-neutral-800 text-white px-2 py-0.5 text-xs font-semibold align-middle"
+                    title="This family asked us not to feature them in published photos or video. Not a promise they never appear in a wide group shot."
+                  >
+                    no photos
+                  </span>
+                )}
               </p>
               <p className="text-sm text-neutral-500">
                 {r.household}

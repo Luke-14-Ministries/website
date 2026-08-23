@@ -18,7 +18,21 @@ import {
   setAdjustments,
   addFamilyMessage,
   deleteFamilyMessage,
+  setParticipantEnrollment,
+  setPersonConsent,
 } from './actions';
+
+const TSHIRT_SIZES = [
+  'Youth S', 'Youth M', 'Youth L',
+  'Adult S', 'Adult M', 'Adult L', 'Adult XL', 'Adult 2XL', 'Adult 3XL',
+];
+
+const SIGNER_ROLE_LABEL = {
+  self: 'for themselves',
+  parent: 'as a parent',
+  guardian: 'as a legal guardian',
+  account_holder: 'as the account holder',
+};
 
 const STATUS_OPTIONS = [
   ['draft', 'Draft'],
@@ -276,6 +290,7 @@ function ParticipantRow({ registrationId, participant }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
   const p = participant.person ?? {};
@@ -342,7 +357,32 @@ function ParticipantRow({ registrationId, participant }) {
               <span className="text-green-700"> − {money(participant.discount_cents)} discount</span>
             )}
             {p.date_of_birth ? ` · b. ${p.date_of_birth}` : ' · no DOB on file'}
+            {participant.tshirt_size ? ` · ${participant.tshirt_size}` : ''}
           </p>
+          {/* Surfaced on the summary line, not hidden behind the editor: a
+              registrar looking at a family should not have to open a panel to
+              discover the family asked us not to photograph someone. */}
+          {(participant.media?.granted === false ||
+            participant.directory?.granted === false ||
+            participant.first_time_attending === true) && (
+            <p className="mt-1 flex flex-wrap gap-1">
+              {participant.media?.granted === false && (
+                <span className="rounded-full bg-neutral-800 text-white px-2 py-0.5 text-[11px] font-semibold">
+                  no photos
+                </span>
+              )}
+              {participant.directory?.granted === false && (
+                <span className="rounded-full bg-neutral-200 text-neutral-700 px-2 py-0.5 text-[11px] font-semibold">
+                  not in directory
+                </span>
+              )}
+              {participant.first_time_attending === true && (
+                <span className="rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-[11px] font-semibold">
+                  first time
+                </span>
+              )}
+            </p>
+          )}
         </div>
         <StatusControl registrationId={registrationId} participant={participant} />
       </div>
@@ -353,6 +393,9 @@ function ParticipantRow({ registrationId, participant }) {
         </button>
         <button onClick={() => setAdjusting((v) => !v)} className="text-brand underline">
           {adjusting ? 'Close adjustments' : 'Scholarship / discount'}
+        </button>
+        <button onClick={() => setEnrolling((v) => !v)} className="text-brand underline">
+          {enrolling ? 'Close' : 'T-shirt & permissions'}
         </button>
         {isCancelled ? (
           <>
@@ -385,6 +428,220 @@ function ParticipantRow({ registrationId, participant }) {
           onDone={() => setAdjusting(false)}
         />
       )}
+      {enrolling && (
+        <EnrollmentEditor
+          registrationId={registrationId}
+          participant={participant}
+          onDone={() => setEnrolling(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- enrolment answers and permissions, per person ---------------------------
+//
+// T-shirt size and "first time?" are ordinary edits. The two permissions are
+// not: person_consents is append-only, so saving one INSERTS a new dated row
+// rather than overwriting the old answer. A withdrawn permission must not
+// erase the fact that an earlier one was in force when something was
+// published, which is why staff can record a change here but nothing on this
+// screen can rewrite history.
+function EnrollmentEditor({ registrationId, participant, onDone }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState('');
+  const [tshirt, setTshirt] = useState(participant.tshirt_size ?? '');
+  const [firstTime, setFirstTime] = useState(
+    participant.first_time_attending === true
+      ? 'true'
+      : participant.first_time_attending === false
+        ? 'false'
+        : ''
+  );
+  const personId = participant.person?.id;
+  const who = participant.person?.first_name || 'this person';
+
+  function saveEnrollment() {
+    setError('');
+    start(async () => {
+      const res = await setParticipantEnrollment(registrationId, participant.id, {
+        tshirt,
+        firstTime,
+      });
+      if (!res.ok) setError(res.error);
+      else {
+        onDone?.();
+        router.refresh();
+      }
+    });
+  }
+
+  function saveConsent(kind, granted) {
+    setError('');
+    start(async () => {
+      const res = await setPersonConsent(registrationId, personId, kind, granted);
+      if (!res.ok) setError(res.error);
+      else router.refresh();
+    });
+  }
+
+  return (
+    <div className="mt-3 rounded border border-neutral-200 bg-neutral-50 p-4 text-sm">
+      <p className="font-semibold text-neutral-700 mb-3">Enrolment answers &amp; permissions</p>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block">
+          <span className="block text-xs font-semibold text-neutral-500 mb-0.5">T-shirt size</span>
+          <select
+            value={tshirt}
+            onChange={(e) => setTshirt(e.target.value)}
+            className="rounded border border-neutral-300 px-2 py-1 bg-white"
+          >
+            <option value="">— not answered —</option>
+            {TSHIRT_SIZES.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-xs font-semibold text-neutral-500 mb-0.5">First time?</span>
+          <select
+            value={firstTime}
+            onChange={(e) => setFirstTime(e.target.value)}
+            className="rounded border border-neutral-300 px-2 py-1 bg-white"
+          >
+            <option value="">— not answered —</option>
+            <option value="true">Yes</option>
+            <option value="false">No — been before</option>
+          </select>
+        </label>
+        <button onClick={saveEnrollment} disabled={pending} className="btn-primary !py-1.5 text-sm">
+          {pending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-2 border-t border-neutral-200 pt-3">
+        <ConsentRow
+          label="Photos & video"
+          help={`We may feature ${who} in published material. Recording "no" does not promise they never appear in a wide group shot.`}
+          record={participant.media}
+          disabled={pending || !personId}
+          onSet={(v) => saveConsent('media', v)}
+        />
+        <ConsentRow
+          label="Participant directory"
+          help={`Include ${who} in the list shared with other attending families.`}
+          record={participant.directory}
+          disabled={pending || !personId}
+          onSet={(v) => saveConsent('directory', v)}
+        />
+        <p className="text-xs text-neutral-500">
+          Changing one of these records a new dated entry — the previous answer is kept, not
+          replaced.
+        </p>
+      </div>
+
+      <ErrorNote>{error}</ErrorNote>
+    </div>
+  );
+}
+
+function ConsentRow({ label, help, record, disabled, onSet }) {
+  const value = record?.granted;
+  const state =
+    value === true ? ['Yes', 'bg-green-100 text-green-800'] :
+    value === false ? ['No', 'bg-red-100 text-red-800'] :
+    ['Never asked', 'bg-neutral-200 text-neutral-600'];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-semibold w-40 shrink-0">{label}</span>
+      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${state[1]}`}>
+        {state[0]}
+      </span>
+      {record?.recorded_at && (
+        <span className="text-xs text-neutral-500">
+          {record.recorded_at.slice(0, 10)}
+          {record.recorded_as === 'staff' ? ' · entered by staff' : ' · from the family'}
+        </span>
+      )}
+      <span className="ml-auto flex gap-2">
+        <button
+          type="button"
+          onClick={() => onSet(true)}
+          disabled={disabled || value === true}
+          className="btn-outline !py-1 !px-3 text-xs disabled:opacity-40"
+        >
+          Set yes
+        </button>
+        <button
+          type="button"
+          onClick={() => onSet(false)}
+          disabled={disabled || value === false}
+          className="btn-outline !py-1 !px-3 text-xs disabled:opacity-40"
+        >
+          Set no
+        </button>
+      </span>
+      <p className="w-full text-xs text-neutral-500">{help}</p>
+    </div>
+  );
+}
+
+// --- what this household signed ----------------------------------------------
+function AgreementsCard({ signatures }) {
+  if (!signatures || signatures.length === 0) {
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <p className="font-semibold text-amber-900">No signed agreements on file</p>
+        <p className="mt-1 text-sm text-amber-800">
+          Nothing has been signed for this registration. Families sign during registration;
+          a registration created by staff by hand will not have them, and neither will one
+          submitted before agreements were introduced (23 Aug 2026).
+        </p>
+      </div>
+    );
+  }
+
+  const first = signatures[0];
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white p-4">
+      <p className="font-semibold">Signed agreements</p>
+      <p className="mt-1 text-sm text-neutral-600">
+        Signed by <strong>{first.signerName}</strong>{' '}
+        {SIGNER_ROLE_LABEL[first.signerRole] ?? ''} on{' '}
+        {new Date(first.signedAt).toLocaleString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })}
+        .
+      </p>
+      <ul className="mt-3 space-y-1 text-sm">
+        {signatures.map((s) => (
+          <li key={s.id} className="flex flex-wrap items-baseline gap-2">
+            <span className="text-green-700" aria-hidden>
+              ✓
+            </span>
+            <span className="font-medium">{s.title}</span>
+            {s.version != null && (
+              <span className="text-xs text-neutral-400">version {s.version}</span>
+            )}
+            {s.status !== 'signed_here' && (
+              <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-semibold text-neutral-600">
+                {s.status.replace(/_/g, ' ')}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-neutral-500">
+        Signatures are never rewritten — the date on a release is part of the record. If the
+        board revises an agreement, the new version is signed alongside, not over the top.
+      </p>
     </div>
   );
 }
@@ -506,6 +763,9 @@ function HouseholdEditor({ registrationId, household }) {
     city: household.city ?? '',
     state: household.state ?? '',
     postal_code: household.postal_code ?? '',
+    home_church: household.home_church ?? '',
+    how_did_you_hear: household.how_did_you_hear ?? '',
+    how_did_you_hear_from: household.how_did_you_hear_from ?? '',
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -548,6 +808,18 @@ function HouseholdEditor({ registrationId, household }) {
                 {[household.address_line1, household.address_line2, household.city, household.state, household.postal_code]
                   .filter(Boolean)
                   .join(', ')}
+              </p>
+            )}
+            {(household.home_church || household.how_did_you_hear) && (
+              <p className="text-sm text-neutral-500 mt-1">
+                {household.home_church && <>Church: {household.home_church}</>}
+                {household.home_church && household.how_did_you_hear && ' · '}
+                {household.how_did_you_hear && (
+                  <>
+                    Heard about us: {household.how_did_you_hear}
+                    {household.how_did_you_hear_from ? ` (${household.how_did_you_hear_from})` : ''}
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -594,6 +866,29 @@ function HouseholdEditor({ registrationId, household }) {
         <div>
           <label className={labelCls}>Postal code</label>
           <input className={inputCls} value={f.postal_code} onChange={set('postal_code')} />
+        </div>
+        <div>
+          <label className={labelCls}>Home church</label>
+          <input className={inputCls} value={f.home_church} onChange={set('home_church')} />
+        </div>
+        <div>
+          {/* Asked once, at the family's first registration, and never again --
+              so this is the only place a wrong or missing answer can be
+              corrected. */}
+          <label className={labelCls}>How they heard about us</label>
+          <input
+            className={inputCls}
+            value={f.how_did_you_hear}
+            onChange={set('how_did_you_hear')}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Who from / detail</label>
+          <input
+            className={inputCls}
+            value={f.how_did_you_hear_from}
+            onChange={set('how_did_you_hear_from')}
+          />
         </div>
       </div>
       <ErrorNote>{error}</ErrorNote>
@@ -678,7 +973,13 @@ function FamilyMessages({ registrationId, messages }) {
   );
 }
 
-export default function RegistrationManager({ registration, options, adjustmentRecords = [], familyMessages = [] }) {
+export default function RegistrationManager({
+  registration,
+  options,
+  adjustmentRecords = [],
+  familyMessages = [],
+  signatures = [],
+}) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
   const adjustments = parts.reduce(
@@ -715,6 +1016,8 @@ export default function RegistrationManager({ registration, options, adjustmentR
 
       <div className="space-y-6">
         <HouseholdEditor registrationId={registration.id} household={registration.household} />
+
+        <AgreementsCard signatures={signatures} />
 
         <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
           <h2 className="text-lg font-bold mb-1">People on this week</h2>

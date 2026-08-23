@@ -23,10 +23,12 @@ export default async function RegistrationDetailPage({ params }) {
     .select(
       `id, family_notes, created_at,
        households ( id, display_name, email, phone,
-                    address_line1, address_line2, city, state, postal_code ),
+                    address_line1, address_line2, city, state, postal_code,
+                    home_church, how_did_you_hear, how_did_you_hear_from ),
        events ( id, name, starts_on, ends_on ),
        registration_participants (
          id, camp_role, status, fee_cents, scholarship_cents, discount_cents,
+         tshirt_size, first_time_attending,
          people ( id, first_name, last_name, preferred_name, date_of_birth,
                   gender, email, phone )
        )`
@@ -97,6 +99,41 @@ export default async function RegistrationDetailPage({ params }) {
     at: (m.created_at ?? '').slice(0, 10),
   }));
 
+  // Current media / directory answers for these people, and the agreements
+  // this household signed for this registration. Both are new surfaces: until
+  // now a registrar could not see either, so a family could tell us something
+  // at registration and nobody in the ministry would ever read it.
+  const peopleIds = (reg.registration_participants ?? [])
+    .map((p) => p.people?.id)
+    .filter(Boolean);
+
+  const [{ data: consentRows }, { data: sigRows }] = await Promise.all([
+    peopleIds.length
+      ? supabase
+          .from('person_current_consents')
+          .select('person_id, kind, granted, recorded_at, recorded_as')
+          .in('person_id', peopleIds)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from('agreement_signatures')
+      .select('id, signed_at, signer_name, signer_role, status, agreements ( key, title, version )')
+      .eq('registration_id', id)
+      .order('signed_at', { ascending: true }),
+  ]);
+
+  const consentOf = new Map();
+  for (const c of consentRows ?? []) consentOf.set(`${c.person_id}:${c.kind}`, c);
+
+  const signatures = (sigRows ?? []).map((s) => ({
+    id: s.id,
+    title: s.agreements?.title ?? s.agreements?.key ?? 'Agreement',
+    version: s.agreements?.version ?? null,
+    signedAt: s.signed_at,
+    signerName: s.signer_name,
+    signerRole: s.signer_role,
+    status: s.status,
+  }));
+
   // Reshape the PostgREST nesting into the names the client component expects.
   const registration = {
     id: reg.id,
@@ -111,6 +148,12 @@ export default async function RegistrationDetailPage({ params }) {
         fee_cents: p.fee_cents,
         scholarship_cents: p.scholarship_cents,
         discount_cents: p.discount_cents,
+        tshirt_size: p.tshirt_size,
+        first_time_attending: p.first_time_attending,
+        // null here means never asked. Kept distinct from false all the way
+        // to the screen so staff never read silence as a refusal.
+        media: consentOf.get(`${p.people?.id}:media`) ?? null,
+        directory: consentOf.get(`${p.people?.id}:directory`) ?? null,
         person: p.people,
       }))
       .sort((a, b) =>
@@ -120,5 +163,13 @@ export default async function RegistrationDetailPage({ params }) {
       ),
   };
 
-  return <RegistrationManager registration={registration} options={options ?? []} adjustmentRecords={adjustmentRecords} familyMessages={familyMessages} />;
+  return (
+    <RegistrationManager
+      registration={registration}
+      options={options ?? []}
+      adjustmentRecords={adjustmentRecords}
+      familyMessages={familyMessages}
+      signatures={signatures}
+    />
+  );
 }

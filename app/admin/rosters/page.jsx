@@ -15,7 +15,7 @@ export default async function RostersPage() {
 
   const supabase = await createClient();
 
-  const [{ data: events }, { data: regs }] = await Promise.all([
+  const [{ data: events }, { data: regs }, { data: consents }, { data: sigs }] = await Promise.all([
     supabase.from('events').select('id, name, starts_on, ends_on').order('starts_on'),
     supabase
       .from('registrations')
@@ -23,14 +23,27 @@ export default async function RostersPage() {
         `id, event_id, created_at,
          households ( display_name, email, phone ),
          registration_participants ( camp_role, status, fee_cents, submitted_at, created_at,
-           people ( first_name, last_name, gender ) )`
+           tshirt_size, first_time_attending,
+           people ( id, first_name, last_name, gender ) )`
       )
       .order('created_at'),
+    // person_consents is append-only, so "the current answer" is the newest
+    // row. The view (migration 0030) resolves that once; every consumer used
+    // to re-derive it by hand.
+    supabase.from('person_current_consents').select('person_id, kind, granted'),
+    // We only need to know WHETHER a registration has been signed for; the
+    // detail page shows which agreements and when.
+    supabase.from('agreement_signatures').select('registration_id'),
   ]);
+
+  const consentOf = new Map();
+  for (const c of consents ?? []) consentOf.set(`${c.person_id}:${c.kind}`, c.granted);
+  const signedRegs = new Set((sigs ?? []).map((s) => s.registration_id).filter(Boolean));
 
   const rows = [];
   for (const r of regs ?? []) {
     for (const p of r.registration_participants ?? []) {
+      const pid = p.people?.id;
       rows.push({
         eventId: r.event_id,
         registrationId: r.id,
@@ -42,6 +55,14 @@ export default async function RostersPage() {
         status: p.status,
         fee: p.fee_cents ?? 0,
         submitted: p.submitted_at ?? p.created_at ?? '',
+        tshirt: p.tshirt_size ?? '',
+        firstTime: p.first_time_attending,
+        // null means never asked, which is NOT a refusal and must never be
+        // displayed as one -- the photographers' list has to distinguish
+        // "they said no" from "we don't know".
+        media: pid ? consentOf.get(`${pid}:media`) ?? null : null,
+        directory: pid ? consentOf.get(`${pid}:directory`) ?? null : null,
+        agreementsSigned: signedRegs.has(r.id),
       });
     }
   }

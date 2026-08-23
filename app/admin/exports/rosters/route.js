@@ -23,18 +23,40 @@ export async function GET(request) {
   const fStatus = url.searchParams.get('status') || '';
 
   const supabase = await createClient();
-  const { data: regs } = await supabase
-    .from('registrations')
-    .select(
-      `id, event_id, events ( name ),
-       households ( display_name, email, phone ),
-       registration_participants ( camp_role, status, fee_cents, submitted_at, created_at, checked_in_at,
-         people ( first_name, last_name, date_of_birth, gender ) )`
-    );
+  const [{ data: regs }, { data: consents }, { data: sigs }] = await Promise.all([
+    supabase
+      .from('registrations')
+      .select(
+        `id, event_id, events ( name ),
+         households ( display_name, email, phone, how_did_you_hear ),
+         registration_participants ( camp_role, status, fee_cents, submitted_at, created_at, checked_in_at,
+           tshirt_size, first_time_attending,
+           people ( id, first_name, last_name, date_of_birth, gender ) )`
+      ),
+    supabase.from('person_current_consents').select('person_id, kind, granted'),
+    supabase.from('agreement_signatures').select('registration_id, signed_at'),
+  ]);
+
+  const consentOf = new Map();
+  for (const c of consents ?? []) consentOf.set(`${c.person_id}:${c.kind}`, c.granted);
+
+  // Earliest signature on a registration is the date the family signed.
+  const signedOn = new Map();
+  for (const s of sigs ?? []) {
+    if (!s.registration_id) continue;
+    const prev = signedOn.get(s.registration_id);
+    if (!prev || s.signed_at < prev) signedOn.set(s.registration_id, s.signed_at);
+  }
+
+  // Blank vs "no" matters here as much as on screen: an empty cell means we
+  // never asked. A spreadsheet that rendered both as "no" would be worse than
+  // not exporting the column at all.
+  const yn = (v) => (v === true ? 'yes' : v === false ? 'no' : '');
 
   const rows = [
     ['Event', 'Household', 'Email', 'Phone', 'First name', 'Last name', 'Date of birth',
-     'Sex', 'Role', 'Status', 'Fee', 'Submitted', 'Checked in'],
+     'Sex', 'Role', 'Status', 'T-shirt', 'First time', 'Photos OK', 'In directory',
+     'Agreements signed', 'How they heard', 'Fee', 'Submitted', 'Checked in'],
   ];
   for (const r of regs ?? []) {
     if (fEvent && r.event_id !== fEvent) continue;
@@ -52,6 +74,12 @@ export async function GET(request) {
         p.people?.gender ?? '',
         p.camp_role ?? '',
         p.status ?? '',
+        p.tshirt_size ?? '',
+        yn(p.first_time_attending),
+        yn(p.people?.id ? consentOf.get(`${p.people.id}:media`) : undefined),
+        yn(p.people?.id ? consentOf.get(`${p.people.id}:directory`) : undefined),
+        (signedOn.get(r.id) ?? '').slice(0, 10),
+        r.households?.how_did_you_hear ?? '',
         ((p.fee_cents ?? 0) / 100).toFixed(2),
         (p.submitted_at ?? p.created_at ?? '').slice(0, 10),
         p.checked_in_at

@@ -48,6 +48,18 @@ const HOUSEHOLD_FIELDS = [
   'city',
   'state',
   'postal_code',
+  'home_church',
+  // Asked once at registration and never again, so when it is wrong or blank
+  // this page is the only way to correct it.
+  'how_did_you_hear',
+  'how_did_you_hear_from',
+];
+
+// The nine sizes the registration form offers. A staff member correcting a
+// size over the phone must not be able to invent a tenth.
+const TSHIRT_SIZES = [
+  'Youth S', 'Youth M', 'Youth L',
+  'Adult S', 'Adult M', 'Adult L', 'Adult XL', 'Adult 2XL', 'Adult 3XL',
 ];
 
 // Empty strings from a form become NULL in the database, so a cleared field
@@ -78,6 +90,10 @@ function revalidateAll(registrationId) {
   revalidatePath(`/admin/registrations/${registrationId}`);
   revalidatePath('/admin');
   revalidatePath('/admin/rosters');
+  // Check-In now carries the photo preference, so a permission recorded here
+  // has to reach the door immediately -- a stale cache is the one way this
+  // change could be made and still not honoured.
+  revalidatePath('/admin/checkin');
 }
 
 // #14 -- move a participant off "submitted / pending review" (or anywhere else).
@@ -130,6 +146,74 @@ export async function updateHousehold(registrationId, householdId, fields) {
   const patch = clean(fields || {}, HOUSEHOLD_FIELDS);
   const supabase = await createClient();
   const { error } = await supabase.from('households').update(patch).eq('id', householdId);
+  if (error) return { ok: false, error: error.message };
+  revalidateAll(registrationId);
+  return { ok: true };
+}
+
+// The two enrolment answers the family gives per person, per event. Staff need
+// them because these arrive by phone as often as by form ("actually make that
+// an Adult L"), and until now there was nowhere to put that.
+export async function setParticipantEnrollment(registrationId, participantId, input) {
+  const { error: authError } = await requireRegistrar();
+  if (authError) return { ok: false, error: authError };
+
+  const patch = {};
+  if ('tshirt' in (input || {})) {
+    const v = (input.tshirt || '').trim();
+    if (v && !TSHIRT_SIZES.includes(v)) return { ok: false, error: 'Unknown t-shirt size.' };
+    patch.tshirt_size = v || null;
+  }
+  if ('firstTime' in (input || {})) {
+    const v = input.firstTime;
+    // '' means "not answered", which must stay null rather than becoming "no".
+    patch.first_time_attending = v === '' || v == null ? null : v === true || v === 'true';
+  }
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('registration_participants')
+    .update(patch)
+    .eq('id', participantId);
+  if (error) return { ok: false, error: error.message };
+  revalidateAll(registrationId);
+  return { ok: true };
+}
+
+// Record a media or directory permission on the family's behalf -- the phone
+// call that says "actually, please don't use photos of Tommy after all".
+//
+// This INSERTS rather than updates: person_consents is append-only, because a
+// withdrawn permission does not erase the fact that the earlier one was in
+// force when a photo was published. recorded_as marks it as staff-entered so
+// the trail shows a person typed it, not the family.
+export async function setPersonConsent(registrationId, personId, kind, granted) {
+  const { error: authError } = await requireRegistrar();
+  if (authError) return { ok: false, error: authError };
+  if (!['media', 'directory'].includes(kind)) return { ok: false, error: 'Unknown permission.' };
+  if (typeof granted !== 'boolean') return { ok: false, error: 'Answer must be yes or no.' };
+
+  const supabase = await createClient();
+  const staff = await getStaff();
+
+  // Don't stack identical rows: if the current answer already says this,
+  // there is nothing to record.
+  const { data: current } = await supabase
+    .from('person_current_consents')
+    .select('granted')
+    .eq('person_id', personId)
+    .eq('kind', kind)
+    .maybeSingle();
+  if (current?.granted === granted) return { ok: true };
+
+  const { error } = await supabase.from('person_consents').insert({
+    person_id: personId,
+    kind,
+    granted,
+    recorded_by: staff?.userId ?? null,
+    recorded_as: 'staff',
+  });
   if (error) return { ok: false, error: error.message };
   revalidateAll(registrationId);
   return { ok: true };

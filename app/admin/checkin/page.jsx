@@ -31,16 +31,28 @@ export default async function CheckinPage({ searchParams }) {
 
   let rows = [];
   if (eventId) {
-    const { data: regs } = await supabase
-      .from('registrations')
-      .select(
-        `id, event_id,
-         households ( display_name ),
-         registration_participants ( id, camp_role, status, checked_in_at,
-           people ( first_name, last_name,
-             person_support ( buddy_required, has_allergies, has_seizures, has_rescue_medication ) ) )`
-      )
-      .eq('event_id', eventId);
+    // Photo preference is read alongside the medical flags but kept SEPARATE
+    // from them on purpose: the medical flags come back empty for staff
+    // without the sensitive grant, whereas anyone working the door needs to
+    // know who not to photograph. Bundling the two would hide it from most of
+    // the people who need it.
+    const [{ data: regs }, { data: consents }] = await Promise.all([
+      supabase
+        .from('registrations')
+        .select(
+          `id, event_id,
+           households ( display_name ),
+           registration_participants ( id, camp_role, status, checked_in_at,
+             people ( id, first_name, last_name,
+               person_support ( buddy_required, has_allergies, has_seizures, has_rescue_medication ) ) )`
+        )
+        .eq('event_id', eventId),
+      supabase.from('person_current_consents').select('person_id, granted').eq('kind', 'media'),
+    ]);
+
+    const noPhotoIds = new Set(
+      (consents ?? []).filter((c) => c.granted === false).map((c) => c.person_id)
+    );
 
     for (const r of regs ?? []) {
       for (const p of r.registration_participants ?? []) {
@@ -59,6 +71,7 @@ export default async function CheckinPage({ searchParams }) {
           household: r.households?.display_name ?? '',
           checkedInAt: p.checked_in_at,
           flags,
+          noPhoto: p.people?.id ? noPhotoIds.has(p.people.id) : false,
         });
       }
     }

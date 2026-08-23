@@ -28,17 +28,21 @@ export default async function PrintRostersPage({ searchParams }) {
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();
-  const [{ data: events }, { data: regs }] = await Promise.all([
+  const [{ data: events }, { data: regs }, { data: consents }] = await Promise.all([
     supabase.from('events').select('id, name, starts_on, ends_on').order('starts_on'),
     supabase
       .from('registrations')
       .select(
         `id, event_id,
          households ( display_name, phone ),
-         registration_participants ( camp_role, status,
-           people ( first_name, last_name ) )`
+         registration_participants ( camp_role, status, tshirt_size,
+           people ( id, first_name, last_name ) )`
       ),
+    supabase.from('person_current_consents').select('person_id, kind, granted'),
   ]);
+
+  const consentOf = new Map();
+  for (const c of consents ?? []) consentOf.set(`${c.person_id}:${c.kind}`, c.granted);
 
   const byEvent = new Map();
   for (const r of regs ?? []) {
@@ -54,6 +58,11 @@ export default async function PrintRostersPage({ searchParams }) {
         status: p.status,
         household: r.households?.display_name ?? '',
         phone: r.households?.phone ?? '',
+        tshirt: p.tshirt_size ?? '',
+        // This is the copy that ends up in a pocket at camp. The photo
+        // preference has to be ON it, or the person carrying it cannot honour
+        // something the family was told we would honour.
+        noPhoto: p.people?.id ? consentOf.get(`${p.people.id}:media`) === false : false,
       });
     }
   }
@@ -81,6 +90,7 @@ export default async function PrintRostersPage({ searchParams }) {
                 <tr className="text-left border-b border-neutral-400">
                   <th className="py-1 pr-3">Name</th>
                   <th className="py-1 pr-3">Role</th>
+                  <th className="py-1 pr-3">Shirt</th>
                   <th className="py-1 pr-3">Status</th>
                   <th className="py-1 pr-3">Household</th>
                   <th className="py-1">Phone</th>
@@ -89,8 +99,19 @@ export default async function PrintRostersPage({ searchParams }) {
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-b border-neutral-200">
-                    <td className="py-1 pr-3 font-medium">{r.person}</td>
+                    <td className="py-1 pr-3 font-medium">
+                      {r.person}
+                      {r.noPhoto && (
+                        <span
+                          className="ml-1 rounded border border-neutral-800 px-1 text-[10px] font-bold uppercase"
+                          title="Family asked us not to feature them in published photos"
+                        >
+                          no photo
+                        </span>
+                      )}
+                    </td>
                     <td className="py-1 pr-3">{r.role}</td>
+                    <td className="py-1 pr-3">{r.tshirt}</td>
                     <td className="py-1 pr-3">{r.status}</td>
                     <td className="py-1 pr-3">{r.household}</td>
                     <td className="py-1">{r.phone}</td>

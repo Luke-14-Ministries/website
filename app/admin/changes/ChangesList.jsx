@@ -13,6 +13,7 @@ const SOURCE_LABEL = {
   person_support: 'Support & medical',
   registration_participants: 'Registration',
   person_caregivers: 'Caregivers',
+  person_consents: 'Permissions',
 };
 
 const FIELD_LABEL = {
@@ -38,6 +39,16 @@ const FIELD_LABEL = {
   medications: 'Medications',
   dietary_needs: 'Dietary needs',
   allergy_detail: 'Allergies',
+  tshirt_size: 'T-shirt size',
+  first_time_attending: 'First time attending',
+  how_did_you_hear: 'How they heard about us',
+  how_did_you_hear_from: 'Who they heard it from',
+  // person_consents logs its `kind` as the field, so these two are the whole
+  // vocabulary of that source table. A withdrawn photo permission is the one
+  // change on this page with a deadline attached: material may already be
+  // scheduled to publish.
+  media: 'Photo & video permission',
+  directory: 'Participant directory',
 };
 
 function Value({ v }) {

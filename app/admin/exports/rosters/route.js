@@ -27,8 +27,9 @@ export async function GET(request) {
     supabase
       .from('registrations')
       .select(
-        `id, event_id, events ( name ),
-         households ( display_name, email, phone, how_did_you_hear ),
+        `id, event_id, family_notes, events ( name ),
+         households ( display_name, email, phone, how_did_you_hear,
+                      address_line1, city, state, postal_code ),
          registration_participants ( camp_role, status, fee_cents, submitted_at, created_at, checked_in_at,
            tshirt_size, first_time_attending,
            people ( id, first_name, last_name, date_of_birth, gender ) )`
@@ -54,9 +55,13 @@ export async function GET(request) {
   const yn = (v) => (v === true ? 'yes' : v === false ? 'no' : '');
 
   const rows = [
-    ['Event', 'Household', 'Email', 'Phone', 'First name', 'Last name', 'Date of birth',
+    // Address columns are here because the household now stores the parts
+    // separately (0036). One CSV is a mailing list, a roster, and a permissions
+    // audit -- which is the point of exporting at all.
+    ['Event', 'Household', 'Email', 'Phone', 'Street', 'City', 'State', 'ZIP',
+     'First name', 'Last name', 'Date of birth',
      'Sex', 'Role', 'Status', 'T-shirt', 'First time', 'Photos OK', 'In directory',
-     'Agreements signed', 'How they heard', 'Fee', 'Submitted', 'Checked in'],
+     'Agreements signed', 'How they heard', 'Note from family', 'Fee', 'Submitted', 'Checked in'],
   ];
   for (const r of regs ?? []) {
     if (fEvent && r.event_id !== fEvent) continue;
@@ -68,6 +73,10 @@ export async function GET(request) {
         r.households?.display_name ?? '',
         r.households?.email ?? '',
         r.households?.phone ?? '',
+        r.households?.address_line1 ?? '',
+        r.households?.city ?? '',
+        r.households?.state ?? '',
+        r.households?.postal_code ?? '',
         p.people?.first_name ?? '',
         p.people?.last_name ?? '',
         p.people?.date_of_birth ?? '',
@@ -80,6 +89,7 @@ export async function GET(request) {
         yn(p.people?.id ? consentOf.get(`${p.people.id}:directory`) : undefined),
         (signedOn.get(r.id) ?? '').slice(0, 10),
         r.households?.how_did_you_hear ?? '',
+        r.family_notes ?? '',
         ((p.fee_cents ?? 0) / 100).toFixed(2),
         (p.submitted_at ?? p.created_at ?? '').slice(0, 10),
         p.checked_in_at

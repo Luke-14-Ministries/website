@@ -16,18 +16,34 @@ const clean = (v) => {
 
 export async function updateHouseholdInfo(householdId, form) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from('households')
-    .update({
-      display_name: clean(form.display_name) ?? undefined,
-      phone: clean(form.phone),
-      email: clean(form.email),
-      address_line1: clean(form.address_line1),
-      city: clean(form.city),
-      state: clean(form.state),
-      postal_code: clean(form.postal_code),
-    })
-    .eq('id', householdId);
+  const patch = {
+    display_name: clean(form.display_name) ?? undefined,
+    phone: clean(form.phone),
+    email: clean(form.email),
+    address_line1: clean(form.address_line1),
+    city: clean(form.city),
+    state: clean(form.state),
+    postal_code: clean(form.postal_code),
+  };
+  // The primary contact is a PERSON in this household (migration 0037),
+  // chosen from a dropdown of people we actually hold -- not a name typed
+  // into a box. '' means "not set" and stores as null. RLS already scopes the
+  // household; the check below additionally proves the chosen person belongs
+  // to it, so a tampered form cannot point a household at a stranger.
+  if ('primary_contact_person_id' in form) {
+    const chosen = clean(form.primary_contact_person_id);
+    if (chosen) {
+      const { data: inHousehold } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', chosen)
+        .eq('household_id', householdId)
+        .maybeSingle();
+      if (!inHousehold) return { ok: false, error: 'That person is not in this household.' };
+    }
+    patch.primary_contact_person_id = chosen;
+  }
+  const { error } = await supabase.from('households').update(patch).eq('id', householdId);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/account/household');
   revalidatePath('/account/dashboard');

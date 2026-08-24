@@ -246,6 +246,22 @@ export default function RosterTable({ events, rows }) {
       {sorted.length === 0 ? (
         <p className="text-neutral-500">No one matches these filters.</p>
       ) : (
+        <>
+        {/* Testing asked, fairly: is sideways scrolling really the right
+            answer, or does every staff member need a mouse with a tilt
+            wheel? Neither. The roster has more columns than any laptop is
+            wide, and the alternatives are worse -- hiding columns behind a
+            chooser means the one you need is always hidden, and shrinking
+            text to fit makes a check-in table unreadable at arm's length.
+            So the table scrolls, the NAME column is pinned so you never
+            lose your place, and the hint below names the keyboard gesture
+            that works in every browser on every machine. Printing and the
+            CSV are the other two ways out, and both are one click away. */}
+        <p className="mb-2 text-xs text-neutral-500">
+          More columns than fit? Hold <kbd className="rounded border border-neutral-300 bg-neutral-50 px-1">Shift</kbd>{' '}
+          and scroll to move sideways — the name column stays put. Print view and the CSV
+          both include every column.
+        </p>
         <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="bg-neutral-50 text-neutral-500">
@@ -322,6 +338,15 @@ export default function RosterTable({ events, rows }) {
                           unsigned
                         </Flag>
                       )}
+                      {/* Amber = operational note, the site-wide meaning.
+                          The whole note is in the tooltip, so a scan of the
+                          roster shows both that a family wrote something and
+                          what they wrote, without opening anything. */}
+                      {r.familyNote && (
+                        <Flag tone="amber" title={`Note from the family: ${r.familyNote}`}>
+                          note
+                        </Flag>
+                      )}
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right">{money(r.fee)}</td>
@@ -332,6 +357,7 @@ export default function RosterTable({ events, rows }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

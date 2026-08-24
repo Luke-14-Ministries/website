@@ -109,7 +109,7 @@ export default async function DashboardPage({ searchParams }) {
   const { data: households } = householdIds.length
     ? await supabase
         .from('households')
-        .select('id, display_name, people ( id, first_name, last_name, date_of_birth )')
+        .select('id, display_name, primary_contact_person_id, people ( id, first_name, last_name, date_of_birth )')
         .in('id', householdIds)
     : { data: [] };
   const household = households?.[0] ?? null;
@@ -622,7 +622,8 @@ export default async function DashboardPage({ searchParams }) {
                             <p className="mt-1">
                               The deposit is your family&rsquo;s commitment to come — and it lets
                               the ministry book vendors and reserve locations with real numbers.
-                              The rest of the balance can follow any time before the event.
+                              The rest of the balance can be paid in one go or in parts; camp
+                              staff will be in touch about the due date.
                             </p>
                           </div>
                         );
@@ -716,6 +717,17 @@ export default async function DashboardPage({ searchParams }) {
                         <span className="text-neutral-500">
                           {age != null ? ` (age ${age})` : ' (no DOB provided)'}
                         </span>
+                        {/* Named here so "who do staff call?" is answerable
+                            from the dashboard, and so changing the contact
+                            visibly changes something (0037). */}
+                        {household?.primary_contact_person_id === m.id && (
+                          <span
+                            className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-600"
+                            title="Camp staff contact this person about your household"
+                          >
+                            primary contact
+                          </span>
+                        )}
                       </span>
                     </li>
                   );

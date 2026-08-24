@@ -19,7 +19,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { formatPhone } from '@/lib/format';
+import {
+  formatPhone,
+  formatZip,
+  zipLooksValid,
+  tidyCity,
+  US_STATES,
+} from '@/lib/format';
 import { submitFamilyRegistration } from './actions';
 
 const emptyMember = {
@@ -148,7 +154,15 @@ export default function FamilyWizard({
       contactLast: '',
       email: defaultEmail,
       phone: '',
+      // The address is four fields, not one (24 Aug). It used to be a single
+      // free-text box, which meant the whole thing landed in address_line1 and
+      // the household's city/state/ZIP columns stayed empty -- unusable for a
+      // mailing label and impossible to check for typos. Separate fields make
+      // both possible.
       address: '',
+      city: '',
+      state: '',
+      postalCode: '',
       church: '',
       heardAbout: '',
       heardAboutFrom: '',
@@ -348,19 +362,32 @@ export default function FamilyWizard({
         {!isUpdate && (
           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
             <p className="font-semibold">Next step: the deposit holds your spots.</p>
+            {/* Careful with the second sentence: the site does NOT know the
+                ministry's balance-due date, and "any time before the event"
+                was a promise nobody had authorised (flagged 24 Aug). Until
+                staff set a due date -- Staff Questions §4 -- this says only
+                what is certainly true. */}
             <p className="mt-1 text-sm">
               The deposit is your family&rsquo;s commitment to come — and it lets the
               ministry book vendors and reserve locations with real numbers. You can pay
-              it from your dashboard in about a minute; the rest of the balance can
-              follow any time before the event.
+              it from your dashboard in about a minute, and the rest of the balance can
+              be paid in one go or in parts. Camp staff will be in touch about the
+              balance due date.
             </p>
           </div>
         )}
+        {/* "Whenever suits" was too generous (flagged 24 Aug): camp staff
+            need these to plan, and a form that arrives the week of camp is
+            most of the way to useless. Whether they should GATE confirmation
+            is a staff decision (Staff Questions §1); this wording is honest
+            either way. */}
         <p className="mt-3 text-neutral-700">
           <strong>Also before camp:</strong> each person attending has a short
           details form — allergies, medications, support needs and an emergency
-          contact. You&rsquo;ll find a link for each of them on your dashboard, and you
-          can fill them in whenever suits.
+          contact. You&rsquo;ll find a link for each of them on your dashboard.{' '}
+          <strong>Please fill them in soon</strong> — camp staff use them to plan
+          support, meals and medical cover, and a registration isn&rsquo;t complete
+          without them.
         </p>
         {result.signed > 0 && (
           <p className="mt-3 text-neutral-700">
@@ -371,9 +398,15 @@ export default function FamilyWizard({
             any time.
           </p>
         )}
-        <Link href="/account/dashboard/" className="btn-primary mt-6">
+        {/* A plain anchor, deliberately, NOT a <Link>. The action above
+            revalidates the dashboard so a client navigation would now be
+            correct -- but this is the one click in the whole site where a
+            stale page is guaranteed to look like lost data ("you haven't
+            registered anyone yet", seconds after registering). A full page
+            load cannot be stale. One extra fetch is a fair price. */}
+        <a href="/account/dashboard/" className="btn-primary mt-6 inline-block">
           Go to My Dashboard
-        </Link>
+        </a>
       </div>
     );
   }
@@ -438,6 +471,15 @@ export default function FamilyWizard({
             <input className={input} value={family.contactLast} onChange={setF('contactLast')} />
           </div>
         </div>
+        {/* Said out loud because it is now true: naming a contact adds them to
+            the household (0037). Before, the name went into the household's
+            own name field and no such person existed anywhere -- which is how
+            a household ended up called "Victoria" with only Lawrence in it. */}
+        <p className="mt-1.5 text-sm text-neutral-500">
+          This is who camp staff will call or email. They&rsquo;re added to your household
+          as the contact — whether or not they&rsquo;re attending — and you can change who
+          it is later from Manage Household.
+        </p>
         <label className={label}>Email</label>
         <input type="email" className={input} value={family.email} onChange={setF('email')} />
         <label className={label}>Phone</label>
@@ -448,8 +490,58 @@ export default function FamilyWizard({
           onChange={setF('phone')}
           onBlur={() => setFamily((f) => ({ ...f, phone: formatPhone(f.phone) }))}
         />
-        <label className={label}>Home address</label>
-        <input className={input} value={family.address} onChange={setF('address')} />
+        {/* Street / city / state / ZIP as four fields. The checks are all
+            free and local: a state DROPDOWN (the commonest bad value becomes
+            impossible), a ZIP tidied to 5 or ZIP+4 with a gentle hint if it
+            is neither, and city case repaired only when it is all-caps or
+            all-lower (so "McMinnville" is never "corrected"). No address
+            lookup service is called -- see the Staff Questions log for why
+            that is a deliberate choice and what it would take to add one. */}
+        <label className={label}>Street address</label>
+        <input
+          className={input}
+          value={family.address}
+          onChange={setF('address')}
+          placeholder="123 Main St, Apt 4"
+        />
+        <div className="grid sm:grid-cols-[2fr_1fr_1fr] gap-4">
+          <div>
+            <label className={label}>City</label>
+            <input
+              className={input}
+              value={family.city}
+              onChange={setF('city')}
+              onBlur={() => setFamily((f) => ({ ...f, city: tidyCity(f.city) }))}
+            />
+          </div>
+          <div>
+            <label className={label}>State</label>
+            <select className={input} value={family.state} onChange={setF('state')}>
+              <option value="">—</option>
+              {US_STATES.map(([code, name]) => (
+                <option key={code} value={code} title={name}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={label}>ZIP</label>
+            <input
+              className={input}
+              value={family.postalCode}
+              onChange={setF('postalCode')}
+              onBlur={() => setFamily((f) => ({ ...f, postalCode: formatZip(f.postalCode) }))}
+              inputMode="numeric"
+              placeholder="37814"
+            />
+            {!zipLooksValid(family.postalCode) && (
+              <p className="mt-1 text-xs text-amber-700">
+                A ZIP is five digits (or nine, as 37814-1234).
+              </p>
+            )}
+          </div>
+        </div>
         <label className={label}>Home church (optional)</label>
         <input className={input} value={family.church} onChange={setF('church')} />
 

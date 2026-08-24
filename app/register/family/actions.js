@@ -11,6 +11,7 @@
 // by name + date of birth and updates them rather than creating duplicates.
 
 import { headers } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { sendEmail, registrationConfirmationEmail } from '@/lib/email';
 
@@ -119,6 +120,34 @@ export async function submitFamilyRegistration(payload) {
       return { ok: false, error: 'Your session has expired. Please log in and try again.' };
     }
     return { ok: false, error: `Could not save your registration: ${msg}` };
+  }
+
+  // THE SAVE SUCCEEDED -- now throw away every cached copy of a page that
+  // just became wrong.
+  //
+  // Reported 24 Aug: a family finished registering, clicked "Go to My
+  // Dashboard", and landed on "You haven't registered anyone yet" with an
+  // empty household. A refresh fixed it. That is Next's CLIENT router cache:
+  // the dashboard had been visited before the registration, its payload was
+  // held for reuse, and a <Link> navigation is entitled to serve that copy
+  // rather than ask the server again. Nothing was lost -- the page was simply
+  // a minute out of date, which is exactly what it is designed to do and
+  // exactly wrong here.
+  //
+  // revalidatePath inside a server action clears BOTH the server cache and
+  // the client's router cache for the path, so the next navigation fetches
+  // fresh. The registration action never called it (the details form did,
+  // which is why that one always looked right).
+  for (const p of [
+    '/account/dashboard',
+    '/account/household',
+    '/register/family',
+    '/admin/rosters',
+    '/admin/registrations',
+    '/admin/changes',
+    '/admin/checkin',
+  ]) {
+    revalidatePath(p);
   }
 
   // Confirmation email -- a courtesy attached to a save that already

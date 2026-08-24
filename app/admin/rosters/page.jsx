@@ -20,7 +20,7 @@ export default async function RostersPage() {
     supabase
       .from('registrations')
       .select(
-        `id, event_id, created_at,
+        `id, event_id, created_at, family_notes,
          households ( display_name, email, phone ),
          registration_participants ( camp_role, status, fee_cents, submitted_at, created_at,
            tshirt_size, first_time_attending,
@@ -63,6 +63,11 @@ export default async function RostersPage() {
         media: pid ? consentOf.get(`${pid}:media`) ?? null : null,
         directory: pid ? consentOf.get(`${pid}:directory`) ?? null : null,
         agreementsSigned: signedRegs.has(r.id),
+        // A note the family typed on the last card of the registration form.
+        // Carried onto the roster (24 Aug) because until now nothing told
+        // staff a note EXISTED without opening each registration -- which is
+        // the same as not collecting it.
+        familyNote: r.family_notes ?? '',
       });
     }
   }

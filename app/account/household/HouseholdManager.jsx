@@ -15,7 +15,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import SaveButton from '@/components/SaveButton';
-import { formatPhone } from '@/lib/format';
+import { formatPhone, formatZip, tidyCity, US_STATES } from '@/lib/format';
 import { updateHouseholdInfo, updatePersonInfo, setCaregivers } from './actions';
 
 function Field({ label, children }) {
@@ -51,9 +51,16 @@ export default function HouseholdManager({ household, members, caregiversByPerso
   // event inside the card means it no longer matches what was saved.
   const markDirty = (key) => () => patch(key, { saved: false });
 
-  // Phone fields tidy themselves on blur, exactly like the wizard's.
+  // Fields tidy themselves on blur, exactly like the wizard's -- same helpers,
+  // same rule (only reformat what is unambiguously the expected shape).
   const tidyPhone = (e) => {
     e.target.value = formatPhone(e.target.value);
+  };
+  const tidyZip = (e) => {
+    e.target.value = formatZip(e.target.value);
+  };
+  const tidyTown = (e) => {
+    e.target.value = tidyCity(e.target.value);
   };
 
   // Suggested caregivers: household members who have served as parent/guardian,
@@ -74,10 +81,41 @@ export default function HouseholdManager({ household, members, caregiversByPerso
           run('hh', () => updateHouseholdInfo(household.id, f));
         }}
       >
-        <h2 className="text-lg font-bold mb-4">Household contact info</h2>
+        <h2 className="text-lg font-bold mb-1">Household contact info</h2>
+        {/* Three different things used to blur into one another here, and
+            testing caught it: naming a new primary contact renamed the whole
+            HOUSEHOLD, while My Household still listed the old person. They
+            are now separate fields with separate meanings, labelled so the
+            difference is visible rather than implied. */}
+        <p className="text-sm text-neutral-600 mb-4">
+          The <strong>family name</strong> is what staff see on a roster. The{' '}
+          <strong>primary contact</strong> is the person they call. They don&rsquo;t have to
+          match.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Family / household name">
             <input name="display_name" defaultValue={household?.display_name ?? ''} className={inputCls} />
+            <span className="mt-1 block text-xs text-neutral-500">
+              e.g. &ldquo;{(members[0]?.last_name || 'Smith')} family&rdquo;
+            </span>
+          </Field>
+          <Field label="Primary contact">
+            <select
+              name="primary_contact_person_id"
+              defaultValue={household?.primary_contact_person_id ?? ''}
+              className={inputCls}
+            >
+              <option value="">— not set —</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.first_name} {m.last_name}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-neutral-500">
+              Whoever camp staff should call first. Only people in your household appear
+              here — add someone through a registration.
+            </span>
           </Field>
           <Field label="Main phone">
             <input
@@ -95,14 +133,39 @@ export default function HouseholdManager({ household, members, caregiversByPerso
             <input name="address_line1" defaultValue={household?.address_line1 ?? ''} className={inputCls} />
           </Field>
           <Field label="City">
-            <input name="city" defaultValue={household?.city ?? ''} className={inputCls} />
+            <input
+              name="city"
+              defaultValue={household?.city ?? ''}
+              onBlur={tidyTown}
+              className={inputCls}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-4">
+            {/* A dropdown, not a text box (24 Aug): it makes the single most
+                common bad address value -- a missing or invented state --
+                impossible to enter, at no cost and with no third-party
+                lookup service involved. */}
             <Field label="State">
-              <input name="state" defaultValue={household?.state ?? ''} className={inputCls} />
+              <select name="state" defaultValue={household?.state ?? ''} className={inputCls}>
+                <option value="">—</option>
+                {US_STATES.map(([code, name]) => (
+                  <option key={code} value={code} title={name}>
+                    {code}
+                  </option>
+                ))}
+                {household?.state && !US_STATES.some(([c]) => c === household.state) && (
+                  <option value={household.state}>{household.state}</option>
+                )}
+              </select>
             </Field>
             <Field label="ZIP">
-              <input name="postal_code" defaultValue={household?.postal_code ?? ''} className={inputCls} />
+              <input
+                name="postal_code"
+                defaultValue={household?.postal_code ?? ''}
+                onBlur={tidyZip}
+                inputMode="numeric"
+                className={inputCls}
+              />
             </Field>
           </div>
         </div>

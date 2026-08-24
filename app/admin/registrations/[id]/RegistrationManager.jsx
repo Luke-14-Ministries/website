@@ -501,7 +501,19 @@ function EnrollmentEditor({ registrationId, participant, onDone }) {
 
   return (
     <div className="mt-3 rounded border border-neutral-200 bg-neutral-50 p-4 text-sm">
-      <p className="font-semibold text-neutral-700 mb-3">Enrolment answers &amp; permissions</p>
+      {/* Two separate things in one panel, and testing asked the fair question
+          -- why are they grouped at all? Because they share one trait that
+          matters more than their subject: both are answers the FAMILY gave on
+          the registration form, and this is the one screen where staff can
+          correct them for a family who phoned in. They are not, however, the
+          same KIND of record, so each half now says what it is:
+          enrolment answers overwrite; permissions never do (see below). */}
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
+        Enrollment answers
+      </p>
+      <p className="text-xs text-neutral-500 mb-2">
+        Ordinary edits — saving replaces the previous answer.
+      </p>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="block">
@@ -535,6 +547,13 @@ function EnrollmentEditor({ registrationId, participant, onDone }) {
       </div>
 
       <div className="mt-4 space-y-2 border-t border-neutral-200 pt-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          Permissions
+        </p>
+        <p className="text-xs text-neutral-500">
+          A different kind of record: these are kept as a dated history, never
+          overwritten.
+        </p>
         <ConsentRow
           label="Photos & video"
           help={`We may feature ${who} in published material. Recording "no" does not promise they never appear in a wide group shot.`}

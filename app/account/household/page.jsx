@@ -53,7 +53,7 @@ export default async function ManageHouseholdPage() {
     await Promise.all([
       supabase
         .from('households')
-        .select('id, display_name, email, phone, address_line1, city, state, postal_code')
+        .select('id, display_name, email, phone, address_line1, city, state, postal_code, primary_contact_person_id')
         .eq('id', householdId)
         .maybeSingle(),
       supabase

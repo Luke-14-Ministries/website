@@ -155,7 +155,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
     const [{ data: household }, { data: regs }] = await Promise.all([
       supabase
         .from('households')
-        .select('email, phone, address_line1, home_church, how_did_you_hear')
+        .select('email, phone, address_line1, city, state, postal_code, home_church, how_did_you_hear')
         .eq('id', householdId)
         .maybeSingle(),
       supabase
@@ -263,6 +263,9 @@ export default async function FamilyRegisterPage({ searchParams }) {
         email: household?.email ?? user.email ?? '',
         phone: household?.phone ?? profile?.phone ?? '',
         address: household?.address_line1 ?? '',
+        city: household?.city ?? '',
+        state: household?.state ?? '',
+        postalCode: household?.postal_code ?? '',
         church: household?.home_church ?? '',
         heardAbout: '',
         heardAboutFrom: '',
@@ -284,6 +287,9 @@ export default async function FamilyRegisterPage({ searchParams }) {
         email: user.email ?? '',
         phone: profile?.phone ?? '',
         address: '',
+        city: '',
+        state: '',
+        postalCode: '',
         church: '',
         heardAbout: '',
         heardAboutFrom: '',

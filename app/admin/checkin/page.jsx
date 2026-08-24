@@ -75,11 +75,22 @@ export default async function CheckinPage({ searchParams }) {
       for (const p of r.registration_participants ?? []) {
         if (p.status === 'cancelled' || p.status === 'draft') continue;
         const s = p.people?.person_support ?? null;
+        // Colour semantics, applied portal-wide (24 Aug): RED is a medical
+        // alert -- something staff may need to act on in the moment. AMBER is
+        // an operational note. "Needs buddy" is planning, not an emergency,
+        // and the same pill was amber on Medical & Support -- one meaning,
+        // one colour, everywhere.
         const flags = [];
-        if (s?.has_allergies) flags.push('allergies');
-        if (s?.has_seizures) flags.push('seizures');
-        if (s?.has_rescue_medication) flags.push('rescue med');
-        if (s?.buddy_required) flags.push('buddy');
+        if (s?.has_allergies) flags.push({ t: 'allergies', tone: 'red' });
+        if (s?.has_seizures) flags.push({ t: 'seizures', tone: 'red' });
+        if (s?.has_rescue_medication) flags.push({ t: 'rescue med', tone: 'red' });
+        if (s?.buddy_required)
+          flags.push({
+            t: 'needs buddy',
+            tone: 'amber',
+            title:
+              'This person needs a one-to-one buddy. Buddy assignments are made by staff before the event; when that tool is built, the buddy’s name will show here.',
+          });
         rows.push({
           id: p.id,
           name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),

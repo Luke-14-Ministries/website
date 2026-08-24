@@ -19,6 +19,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { formatPhone } from '@/lib/format';
 import { submitFamilyRegistration } from './actions';
 
 const emptyMember = {
@@ -34,8 +35,6 @@ const emptyMember = {
   role: '',
   tshirt: '',
   firstTime: '',
-  needs: '',
-  diet: '',
   // Permissions, not agreements: a family may say no to either of these and
   // still register. They start CHECKED, which is how the ministry has always
   // run them -- the CEO's account is that chasing individual permissions for a
@@ -62,12 +61,15 @@ const RECONSIDER = {
     `Photos are how the ministry shows people what camp is actually like — most of what you see on the website and in print came from a week like this one.\n\n` +
     `Unchecking tells us you'd rather we didn't feature ${who}, and we'll do our best to honour that. Some families have good reasons, and we'd much rather you tell us than not.\n\n` +
     `You can change your mind at any time, and if a particular photo ever concerns you, email info@luke14ministries.net and we'll work to sort it out promptly.\n\n` +
-    `Would you like to leave photo permission on for ${who}?\n\n` +
+    // "Would you be willing" rather than "would you like" -- they have just
+    // told us what they'd like by unchecking; the question being asked is
+    // whether they are willing to reconsider (wording flagged 24 Aug).
+    `Would you be willing to leave photo permission on for ${who}?\n\n` +
     `OK = leave it on.  Cancel = tell us you'd rather we didn't.`,
   directoryConsent: (who) =>
     `The directory is how attending families find each other — it is the main way people connect before and after, and a lot of friendships have started there.\n\n` +
-    `Leaving ${who} out means other families can't reach you.\n\n` +
-    `Some families prefer to keep their details private, and that is entirely fine. Would you like to stay listed?\n\n` +
+    `Households appear as one combined entry with the adults' contact details — children are never listed individually.\n\n` +
+    `Leaving ${who} out means other families can't reach you. Some families prefer to keep their details private, and that is entirely fine. Would you be willing to stay listed?\n\n` +
     `OK = stay listed.  Cancel = leave us out.`,
 };
 
@@ -180,6 +182,51 @@ export default function FamilyWizard({
 
   // Permission checkboxes. Turning one ON is instant; turning one OFF asks
   // once, and takes no for an answer.
+  // "I'm coming too": one tick adds the primary contact as an attendee.
+  // Matching is by name against the contact fields, so the box reads as
+  // checked when they are already listed (however that happened), and
+  // unticking removes their row only while it is still otherwise empty --
+  // once a t-shirt size or role has been chosen, removing quietly would
+  // throw away real answers, so the row stays and the Remove button governs.
+  const norm = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const selfIncluded = members.some(
+    (m) =>
+      norm(m.firstName) === norm(family.contactFirst) &&
+      norm(m.lastName) === norm(family.contactLast) &&
+      norm(m.firstName) !== ''
+  );
+
+  function toggleSelf(e) {
+    if (e.target.checked) {
+      const self = {
+        ...emptyMember,
+        firstName: family.contactFirst.trim(),
+        lastName: family.contactLast.trim(),
+      };
+      // Fill the first still-blank row rather than stacking a new card under
+      // an untouched "Person 1".
+      const blankIdx = members.findIndex((m) => !m.firstName.trim() && !m.lastName.trim());
+      if (blankIdx >= 0) {
+        setMembers(members.map((m, j) => (j === blankIdx ? { ...m, ...self } : m)));
+      } else {
+        setMembers([self, ...members]);
+      }
+    } else {
+      const idx = members.findIndex(
+        (m) =>
+          norm(m.firstName) === norm(family.contactFirst) &&
+          norm(m.lastName) === norm(family.contactLast)
+      );
+      if (idx === -1) return;
+      const m = members[idx];
+      const untouched = !m.role && !m.tshirt && !m.firstTime && !m.dob && !m.sex;
+      if (untouched) {
+        const next = members.filter((_, j) => j !== idx);
+        setMembers(next.length ? next : [{ ...emptyMember }]);
+      }
+    }
+  }
+
   const setConsent = (i, k) => (e) => {
     const on = e.target.checked;
     if (!on) {
@@ -230,12 +277,25 @@ export default function FamilyWizard({
       const unchecked = agreements.filter((a) => !agreed.has(a.key));
       if (unchecked.length > 0) {
         setError(
-          `Please read and agree to: ${unchecked.map((a) => a.title).join(', ')} — in “Agreements & permissions” below.`
+          `Please read and agree to: ${unchecked.map((a) => a.title).join(', ')} — in the “Agreements” card below.`
         );
         return;
       }
       if (!signerName.trim()) {
-        setError('Please type your full name as your signature at the bottom of “Agreements & permissions”.');
+        setError('Please type your full name as your signature at the bottom of the “Agreements” card.');
+        return;
+      }
+      // The signature must name the accountable adult filling in this form --
+      // the primary contact from "Your family" above. Testing proved the need:
+      // "Alberto Gonzales" signed for a family containing no such person. A
+      // guardian with a different name corrects the contact fields, which sit
+      // one card up and are theirs to edit.
+      const norm2 = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const contactFull = norm2(`${family.contactFirst} ${family.contactLast}`);
+      if (norm2(signerName) !== contactFull) {
+        setError(
+          `The signature must match the primary contact's name — "${family.contactFirst} ${family.contactLast}". If someone else is completing this form, update the primary contact in "Your family" first, so the signature names the person actually responsible.`
+        );
         return;
       }
     }
@@ -248,6 +308,7 @@ export default function FamilyWizard({
         eventId: week.eventId,
         optionId: week.optionId,
         notes,
+        isUpdate,
         agreements: alreadySigned
           ? null
           : {
@@ -305,6 +366,15 @@ export default function FamilyWizard({
 
   return (
     <div className="space-y-6">
+      {/* The escape hatch lives here, inside the wizard, so it vanishes with
+          the form when the success card (which has its own dashboard button)
+          takes over. */}
+      <p className="text-center text-sm">
+        <Link href="/account/dashboard/" className="text-brand underline font-semibold">
+          &larr; Back to my dashboard
+        </Link>
+      </p>
+
       {/* 1 — what they're registering for. First, because it sets the price. */}
       <Card
         n={1}
@@ -357,7 +427,13 @@ export default function FamilyWizard({
         <label className={label}>Email</label>
         <input type="email" className={input} value={family.email} onChange={setF('email')} />
         <label className={label}>Phone</label>
-        <input type="tel" className={input} value={family.phone} onChange={setF('phone')} />
+        <input
+          type="tel"
+          className={input}
+          value={family.phone}
+          onChange={setF('phone')}
+          onBlur={() => setFamily((f) => ({ ...f, phone: formatPhone(f.phone) }))}
+        />
         <label className={label}>Home address</label>
         <input className={input} value={family.address} onChange={setF('address')} />
         <label className={label}>Home church (optional)</label>
@@ -398,6 +474,23 @@ export default function FamilyWizard({
         subtitle="Everyone attending — including yourself if you're coming. Each person gets their own place and fee."
       >
         <div className="space-y-6">
+          {/* One tick instead of retyping the name from the card above.
+              Requested in testing (24 Aug): the primary contact is usually
+              attending, and typing your own name twice on one form is the
+              kind of small silliness people notice. */}
+          <label className="flex items-center gap-3 rounded border border-dashed border-neutral-300 bg-neutral-50 px-4 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={selfIncluded}
+              onChange={toggleSelf}
+            />
+            <span className="text-sm">
+              <span className="font-semibold">I&rsquo;m coming too</span> — add{' '}
+              {family.contactFirst.trim() || 'the primary contact'} as one of the people
+              attending.
+            </span>
+          </label>
           {members.map((m, i) => (
             <div key={i} className="rounded border border-neutral-200 p-4">
               <div className="flex justify-between items-center">
@@ -472,12 +565,13 @@ export default function FamilyWizard({
                   </select>
                 </div>
               </div>
-              <label className={label}>
-                Disability / support needs — the short version
-              </label>
-              <textarea className={input} rows={2} value={m.needs} onChange={setM(i, 'needs')} />
-              <label className={label}>Dietary needs / allergies — the short version</label>
-              <input className={input} value={m.diet} onChange={setM(i, 'diet')} />
+              {/* NO medical questions here -- removed 24 Aug, by decision.
+                  The two "short version" free-text boxes that used to sit here
+                  collected unstructured text that duplicated the details form
+                  and broke its completion status. Registration secures the
+                  place; the details form (linked from the dashboard, and
+                  named in the note below) is the one collector of support,
+                  medical and dietary information. */}
 
               {/* Permissions live with the PERSON they are about, and each is
                   free to be "no" without affecting the registration. */}
@@ -535,8 +629,10 @@ export default function FamilyWizard({
                     {m.firstName.trim() || 'this person'} in the list shared with the other
                     families attending.
                     <span className="block mt-1 text-xs text-neutral-500">
-                      It&rsquo;s how families connect before and after. Uncheck to be left
-                      out — nothing else about your registration changes.
+                      It&rsquo;s how families connect before and after. Your household
+                      appears as one combined entry with the adults&rsquo; contact details
+                      — children are never listed individually. Uncheck to be left out;
+                      nothing else about your registration changes.
                     </span>
                     {m.directoryWasNo && m.directoryConsent === 'true' && (
                       <span className="mt-1 block rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
@@ -652,15 +748,21 @@ export default function FamilyWizard({
                     />
                   </div>
                   <div>
-                    <label className={label}>I am signing</label>
+                    {/* Two options, not three -- "parent" and "guardian" were
+                        confusing side by side (flagged 24 Aug). The record
+                        needs to know in what CAPACITY the signature is given:
+                        an adult signing for themselves, or an adult signing
+                        on behalf of people in their care. */}
+                    <label className={label}>This signature covers</label>
                     <select
                       className={input}
                       value={signerRole}
                       onChange={(e) => setSignerRole(e.target.value)}
                     >
-                      <option value="self">for myself</option>
-                      <option value="parent">as a parent</option>
-                      <option value="guardian">as a legal guardian</option>
+                      <option value="self">myself and my household</option>
+                      <option value="guardian">
+                        people I am parent or legal guardian for
+                      </option>
                     </select>
                   </div>
                 </div>

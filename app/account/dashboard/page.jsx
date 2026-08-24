@@ -64,7 +64,12 @@ function SoonButton({ children }) {
 // Server component: the queries run on the server as the logged-in family, and
 // row-level security guarantees these can only ever return this household's own
 // rows -- so what renders here is real data, scoped to them.
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }) {
+  const params = await searchParams;
+  // Set by Stripe's cancel_url when someone backs out of (or fails) a
+  // checkout. Landing here with a plain notice replaces being stranded deep
+  // in Stripe's back-history (reported 24 Aug).
+  const payCancelled = params?.pay === 'cancelled';
   const supabase = await createClient();
 
   const {
@@ -110,6 +115,34 @@ export default async function DashboardPage() {
   const household = households?.[0] ?? null;
   const members = household?.people ?? [];
 
+  // Faces beside names (requested 24 Aug). Signed URLs, because the bucket is
+  // private; an hour's expiry outlives any dashboard visit. The logged-in
+  // person's own avatar is found by matching their profile name against the
+  // household -- there is no direct profile->person link, and a name match is
+  // exactly as good as the data it is drawn from, which is fine for a
+  // greeting and would not be fine for anything with consequences.
+  const photoUrlByPerson = new Map();
+  if (members.length) {
+    const { data: photoRows } = await supabase
+      .from('person_photos')
+      .select('person_id, storage_path')
+      .in('person_id', members.map((m) => m.id));
+    for (const row of photoRows ?? []) {
+      if (!row.storage_path) continue;
+      const { data: signed } = await supabase.storage
+        .from('person-photos')
+        .createSignedUrl(row.storage_path, 3600);
+      if (signed?.signedUrl) photoUrlByPerson.set(row.person_id, signed.signedUrl);
+    }
+  }
+  const normName = (s) => (s || '').trim().toLowerCase();
+  const selfPerson = members.find(
+    (m) =>
+      normName(m.first_name) === normName(profile?.first_name) &&
+      normName(m.last_name) === normName(profile?.last_name)
+  );
+  const myAvatarUrl = selfPerson ? photoUrlByPerson.get(selfPerson.id) ?? null : null;
+
   // Registrations for this household, newest first, with the event and each
   // participant.
   const { data: registrations } = householdIds.length
@@ -146,12 +179,6 @@ export default async function DashboardPage() {
   // Support-profile status per person. Registration ends by promising a fuller
   // form for each attendee; this is how the family finds it, and how they can
   // tell at a glance which ones are still outstanding.
-  //
-  // "Started" is deliberately generous — any of the four things staff most
-  // need. A profile is not a checklist to complete, it is information a family
-  // gives when they have it, and showing "incomplete" against someone whose
-  // answer is genuinely "none of this applies" would be nagging them for a
-  // blank we already have.
   const attendingPeople = [];
   const seenPerson = new Set();
   for (const r of regs) {
@@ -166,24 +193,19 @@ export default async function DashboardPage() {
     }
   }
 
+  // "Details on file" means exactly one thing: the details form itself was
+  // saved for this person, evidenced by the stamp only that form writes.
+  // The previous version inferred it from content and marked BOTH of a
+  // family's people done when one form was filled (found in testing, 24 Aug)
+  // -- because the registration wizard wrote to some of the same columns.
   const supportStatus = new Map(); // personId -> 'started' | 'empty'
   if (attendingPeople.length) {
     const { data: supportRows } = await supabase
       .from('person_support')
-      .select(
-        'person_id, emergency_contact_name, emergency_contact_phone, medications, disabilities, communication, has_allergies, has_seizures'
-      )
+      .select('person_id, details_saved_at')
       .in('person_id', attendingPeople.map((p) => p.id));
     for (const s of supportRows ?? []) {
-      const started =
-        Boolean(s.emergency_contact_name) ||
-        Boolean(s.emergency_contact_phone) ||
-        Boolean(s.medications) ||
-        Boolean(s.communication) ||
-        Boolean(s.disabilities) ||
-        s.has_allergies === true ||
-        s.has_seizures === true;
-      supportStatus.set(s.person_id, started ? 'started' : 'empty');
+      supportStatus.set(s.person_id, s.details_saved_at ? 'started' : 'empty');
     }
   }
 
@@ -297,7 +319,17 @@ export default async function DashboardPage() {
       <div className="container-site">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Welcome back, {greeting}!</h1>
+            <h1 className="flex items-center gap-3 text-3xl font-bold">
+              {myAvatarUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={myAvatarUrl}
+                  alt=""
+                  className="h-11 w-11 rounded-full object-cover border border-neutral-200"
+                />
+              )}
+              Welcome back, {greeting}!
+            </h1>
             <p className="text-neutral-500">Signed in as {user.email}</p>
           </div>
           {/* A form, not a link. See app/auth/signout/route.js for why. */}
@@ -307,6 +339,18 @@ export default async function DashboardPage() {
             </button>
           </form>
         </div>
+
+        {payCancelled && (
+          <div className="mb-8 rounded-lg border border-neutral-300 bg-white p-5">
+            <p className="font-semibold">That payment wasn&rsquo;t completed.</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              Nothing was charged. Your balance is unchanged below — you can try again
+              whenever you&rsquo;re ready, and choosing bank transfer sends more of your
+              payment to the ministry. If a card was declined, your bank can usually say
+              why.
+            </p>
+          </div>
+        )}
 
         {volunteersNeedingApp.length > 0 && (
           <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 p-5 flex flex-wrap items-center justify-between gap-3">
@@ -586,6 +630,16 @@ export default async function DashboardPage() {
                         >
                           Help with the fee
                         </Link>
+                        {/* Agreements are event things, so the primary route
+                            to them lives with the event (flagged 24 Aug); the
+                            account-settings link remains as a second door. */}
+                        <Link
+                          href="/account/agreements/"
+                          title="The agreements you signed for this registration, with the exact wording."
+                          className="btn-outline !py-2"
+                        >
+                          Signed agreements
+                        </Link>
                       </div>
                     </div>
                   );
@@ -608,11 +662,29 @@ export default async function DashboardPage() {
               <ul className="space-y-2 text-neutral-700">
                 {members.map((m) => {
                   const age = ageFrom(m.date_of_birth);
+                  const photo = photoUrlByPerson.get(m.id);
                   return (
-                    <li key={m.id}>
-                      {m.first_name} {m.last_name}
-                      <span className="text-neutral-500">
-                        {age != null ? ` (age ${age})` : ' (no DOB provided)'}
+                    <li key={m.id} className="flex items-center gap-3">
+                      {photo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={photo}
+                          alt=""
+                          className="h-9 w-9 shrink-0 rounded-full object-cover border border-neutral-200"
+                        />
+                      ) : (
+                        <span
+                          aria-hidden
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-bold text-neutral-400"
+                        >
+                          {(m.first_name?.[0] ?? '') + (m.last_name?.[0] ?? '')}
+                        </span>
+                      )}
+                      <span>
+                        {m.first_name} {m.last_name}
+                        <span className="text-neutral-500">
+                          {age != null ? ` (age ${age})` : ' (no DOB provided)'}
+                        </span>
                       </span>
                     </li>
                   );

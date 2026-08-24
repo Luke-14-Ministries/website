@@ -10,7 +10,9 @@
 // applies to every row. It is also idempotent: resubmitting matches existing people
 // by name + date of birth and updates them rather than creating duplicates.
 
+import { headers } from 'next/headers';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
+import { sendEmail, registrationConfirmationEmail } from '@/lib/email';
 
 // Wizard's human-readable roles -> the camp_role enum in 0001_core_schema.sql.
 const ROLE_MAP = {
@@ -58,8 +60,9 @@ export async function submitFamilyRegistration(payload) {
       mediaConsent: m.mediaConsent === '' || m.mediaConsent == null ? null : m.mediaConsent,
       directoryConsent:
         m.directoryConsent === '' || m.directoryConsent == null ? null : m.directoryConsent,
-      needs: m.needs || '',
-      diet: m.diet || '',
+      // No needs/diet here any more (removed 24 Aug): the wizard asks no
+      // medical questions, and the RPC's coalesce guards mean absent keys
+      // never touch what the details form has saved.
     }));
   if (mapped.length === 0) {
     return {
@@ -72,6 +75,20 @@ export async function submitFamilyRegistration(payload) {
   // signed for this registration; the RPC also refuses to overwrite an
   // existing signature, so a tampered payload cannot rewrite the date on a
   // release either.
+  // The same signer-name rule the form enforces, re-checked here because the
+  // form is not a boundary: the signature must name the primary contact.
+  const norm = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (
+    agreements &&
+    (agreements.signerName || '').trim() &&
+    norm(agreements.signerName) !== norm(`${family.contactFirst} ${family.contactLast}`)
+  ) {
+    return {
+      ok: false,
+      error: "The signature must match the primary contact's name.",
+    };
+  }
+
   const signature =
     agreements && (agreements.signerName || '').trim() && Array.isArray(agreements.keys)
       ? {
@@ -102,6 +119,36 @@ export async function submitFamilyRegistration(payload) {
       return { ok: false, error: 'Your session has expired. Please log in and try again.' };
     }
     return { ok: false, error: `Could not save your registration: ${msg}` };
+  }
+
+  // Confirmation email -- a courtesy attached to a save that already
+  // succeeded, so any failure here is logged inside sendEmail and swallowed.
+  // The site sent NOTHING on submit until 24 Aug; the CampSite system
+  // families are used to always confirmed, and silence after a submit reads
+  // as doubt. Recipient preference: the email typed on the form (it may
+  // deliberately differ from the login), falling back to the login.
+  try {
+    const hdrs = await headers();
+    const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host');
+    const proto = hdrs.get('x-forwarded-proto') ?? 'https';
+    const origin = host ? `${proto}://${host}` : '';
+    const { data: ev } = await supabase
+      .from('events')
+      .select('name')
+      .eq('id', eventId)
+      .maybeSingle();
+    const to = (family.email || '').trim() || user.email;
+    if (origin && to && ev?.name) {
+      const { subject, html } = registrationConfirmationEmail({
+        origin,
+        eventName: ev.name,
+        saved: data?.saved ?? mapped.length,
+        isUpdate: Boolean(payload?.isUpdate),
+      });
+      await sendEmail({ to, subject, html });
+    }
+  } catch (e) {
+    console.error('registration confirmation email:', e?.message);
   }
 
   return {

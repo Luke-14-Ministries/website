@@ -107,6 +107,14 @@ export default async function RegistrationDetailPage({ params }) {
     .map((p) => p.people?.id)
     .filter(Boolean);
 
+  // The header number a registrar actually wants when opening a family:
+  // what is still owed. Full payment history stays on Event Payments.
+  const { data: balanceRow } = await supabase
+    .from('registration_balances')
+    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents')
+    .eq('registration_id', id)
+    .maybeSingle();
+
   const [{ data: consentRows }, { data: sigRows }] = await Promise.all([
     peopleIds.length
       ? supabase
@@ -170,6 +178,7 @@ export default async function RegistrationDetailPage({ params }) {
       adjustmentRecords={adjustmentRecords}
       familyMessages={familyMessages}
       signatures={signatures}
+      balance={balanceRow}
     />
   );
 }

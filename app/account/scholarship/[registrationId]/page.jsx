@@ -22,7 +22,7 @@ export default async function ScholarshipPage({ params }) {
   const { data: reg } = await supabase
     .from('registrations')
     .select(
-      `id,
+      `id, household_id,
        events ( name, starts_on ),
        registration_participants ( id, status, fee_cents,
          people ( first_name, last_name ) )`
@@ -30,6 +30,28 @@ export default async function ScholarshipPage({ params }) {
     .eq('id', registrationId)
     .maybeSingle();
   if (!reg) notFound();
+
+  // The scholarship agreement moved here from the registration form (24 Aug):
+  // it is signed at the moment it starts to apply, by the family it binds,
+  // instead of by everyone. Load the current version's text, and whether this
+  // household has already signed it for this registration.
+  const [{ data: agreement }, { data: schAgSig }] = await Promise.all([
+    supabase
+      .from('agreements')
+      .select('key, title, body, version')
+      .eq('key', 'scholarship_agreement')
+      .eq('active', true)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('agreement_signatures')
+      .select('id, signed_at, signer_name, agreements!inner ( key )')
+      .eq('registration_id', registrationId)
+      .eq('agreements.key', 'scholarship_agreement')
+      .limit(1),
+  ]);
+  const agreementSigned = Boolean(schAgSig?.[0]);
 
   const parts = (reg.registration_participants ?? []).filter((p) => p.status !== 'cancelled');
 
@@ -69,7 +91,12 @@ export default async function ScholarshipPage({ params }) {
           </Link>
         </p>
 
-        <ScholarshipForm registrationId={reg.id} rows={rows} />
+        <ScholarshipForm
+          registrationId={reg.id}
+          rows={rows}
+          agreement={agreement}
+          agreementSigned={agreementSigned}
+        />
 
         <p className="text-center text-sm text-neutral-500 mt-8">
           Questions about paying? Email camp@luke14ministries.net or call the office.

@@ -115,7 +115,10 @@ export async function createCheckout({ registrationId, kind, method, coverFee, c
       ],
       customer_email: user.email,
       success_url: `${origin}/account/pay/success/?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/account/dashboard/`,
+      // ?pay=cancelled lets the dashboard say what happened. Stripe's own
+      // failure path buried people in back-history during testing (24 Aug);
+      // landing home with a plain notice is the fix.
+      cancel_url: `${origin}/account/dashboard/?pay=cancelled`,
       metadata,
       payment_intent_data: { metadata },
     });

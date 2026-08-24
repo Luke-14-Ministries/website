@@ -18,7 +18,7 @@ const STATUS = {
   withdrawn: ['Withdrawn', 'bg-neutral-200 text-neutral-600'],
 };
 
-function PersonCard({ registrationId, row }) {
+function PersonCard({ registrationId, row, agreementReady = true, agreementKey = null }) {
   const router = useRouter();
   const granted = (row.grantedCents ?? 0) > 0;
   const [open, setOpen] = useState(Boolean(row.status) && row.status !== 'withdrawn' && !granted);
@@ -31,11 +31,16 @@ function PersonCard({ registrationId, row }) {
   const [saved, setSaved] = useState(false);
 
   async function save() {
+    if (!agreementReady) {
+      setError('Please tick the scholarship agreement above first — it covers every request on this registration.');
+      return;
+    }
     setBusy(true);
     setError('');
     const res = await requestScholarship(registrationId, row.participantId, {
       amount: amount === '' ? 0 : amount,
       statement,
+      agreementKey,
     });
     setBusy(false);
     if (!res.ok) setError(res.error);
@@ -153,14 +158,60 @@ function PersonCard({ registrationId, row }) {
   );
 }
 
-export default function ScholarshipForm({ registrationId, rows }) {
+export default function ScholarshipForm({
+  registrationId,
+  rows,
+  agreement = null,
+  agreementSigned = false,
+}) {
+  // The scholarship agreement moved here from the registration form (24 Aug):
+  // signed by the families it binds, at the moment it starts to apply, rather
+  // than by every family whether or not it means anything to them. One tick
+  // covers all requests on this registration; once signed (here or in a past
+  // request) it is shown, not re-asked -- signatures are never re-taken.
+  const [agreed, setAgreed] = useState(agreementSigned);
+  const needsAgreement = Boolean(agreement) && !agreementSigned;
+
   if (rows.length === 0) {
     return <p className="text-neutral-600">Nobody is on this registration yet.</p>;
   }
   return (
     <div className="space-y-4">
+      {agreement && (
+        <div
+          className={`rounded-lg border p-5 ${
+            agreementSigned ? 'border-green-300 bg-green-50' : 'border-neutral-200 bg-white shadow-sm'
+          }`}
+        >
+          <p className="font-bold">{agreement.title}</p>
+          <p className="mt-1 text-sm text-neutral-700">{agreement.body}</p>
+          {agreementSigned ? (
+            <p className="mt-2 text-sm font-semibold text-green-800">
+              Already signed for this registration.
+            </p>
+          ) : (
+            <label className="mt-3 flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 shrink-0"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+              />
+              <span className="text-sm font-semibold">
+                I agree — this is signed with my request below.
+              </span>
+            </label>
+          )}
+        </div>
+      )}
       {rows.map((r) => (
-        <PersonCard key={r.participantId} registrationId={registrationId} row={r} />
+        <PersonCard
+          key={r.participantId}
+          registrationId={registrationId}
+          row={r}
+          agreementReady={!needsAgreement || agreed}
+          agreementKey={needsAgreement && agreed ? agreement.key : null}
+        />
       ))}
     </div>
   );

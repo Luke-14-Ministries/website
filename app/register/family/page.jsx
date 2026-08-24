@@ -163,8 +163,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
         .select(
           `id, event_id, family_notes, created_at,
            registration_participants ( camp_role, status, tshirt_size, first_time_attending,
-             people ( id, first_name, last_name, date_of_birth, gender,
-               person_support ( disabilities, dietary_needs ) ) )`
+             people ( id, first_name, last_name, date_of_birth, gender ) )`
         )
         .eq('household_id', householdId)
         .order('created_at', { ascending: false }),
@@ -250,8 +249,6 @@ export default async function FamilyRegisterPage({ searchParams }) {
         directoryConsent: 'true',
         mediaWasNo: latestConsent.get(`${p.people?.id}:media`) === 'false',
         directoryWasNo: latestConsent.get(`${p.people?.id}:directory`) === 'false',
-        needs: p.people?.person_support?.disabilities ?? '',
-        diet: p.people?.person_support?.dietary_needs ?? '',
       }));
 
     askHeardAbout = !household?.how_did_you_hear;
@@ -314,14 +311,10 @@ export default async function FamilyRegisterPage({ searchParams }) {
             ? 'Your saved registration is loaded below — make changes and update.'
             : 'Your answers save to your account.'}
         </p>
-        {/* A visible escape hatch. The wizard's own "Cancel" also leads to the
-            dashboard, but as a quiet word between Back and Continue it reads
-            as "discard", not "leave" -- people reported not finding a way out. */}
-        <p className="text-center text-sm mb-8">
-          <Link href="/account/dashboard/" className="text-brand underline font-semibold">
-            &larr; Back to my dashboard
-          </Link>
-        </p>
+        {/* The back-to-dashboard escape link is rendered INSIDE the wizard,
+            not here -- so it can disappear when the success card (which has
+            its own dashboard button) is showing. Two dashboard links on the
+            confirmation screen read as clutter (flagged 24 Aug). */}
         {weeks.length === 0 ? (
           <p className="text-center text-neutral-600">
             Registration isn&rsquo;t open just yet. Please check back soon.

@@ -13,7 +13,21 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState('balance'); // 'balance' | 'deposit' | 'custom'
   const [customAmount, setCustomAmount] = useState(''); // dollars, as typed
-  const [method, setMethod] = useState('card'); // 'card' | 'bank'
+  // Bank transfer is the DEFAULT (24 Aug): its processing fee is a fraction
+  // of a card's, so every family who doesn't actively prefer card leaves more
+  // of their payment with the ministry.
+  const [method, setMethodRaw] = useState('bank'); // 'card' | 'bank'
+  // Switching TO card gets one explicit nudge -- not a block, a speed bump
+  // the family steps over deliberately. Asked for in exactly these terms.
+  const setMethod = (v) => {
+    if (v === 'card' && method === 'bank') {
+      const ok = window.confirm(
+        'Cards cost the ministry more in processing fees than bank transfers do.\n\nUse a card anyway?'
+      );
+      if (!ok) return;
+    }
+    setMethodRaw(v);
+  };
   const [coverFee, setCoverFee] = useState(false);
   const [error, setError] = useState('');
   const [pending, start] = useTransition();
@@ -46,7 +60,7 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
   // dollars; invalid input shows as $0 until it parses.
   const customCents = Math.round((parseFloat(customAmount) || 0) * 100);
   const base = kind === 'deposit' ? deposit : kind === 'custom' ? customCents : balance;
-  const fee = coverFee && base > 0 ? coverFeeCents(base, method) : 0;
+  const fee = method === 'card' && coverFee && base > 0 ? coverFeeCents(base, 'card') : 0;
   const total = base + fee;
 
   function go() {
@@ -141,31 +155,36 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
 
       <p className="text-xs font-semibold text-neutral-500 mb-1">Method</p>
       <div className="flex gap-2 mb-3">
-        <Radio name="method" value="card" cur={method} set={setMethod}>
-          <span className="block">Card</span>
-          <span className="block text-xs text-neutral-500 mt-0.5">Instant confirmation</span>
-        </Radio>
         <Radio name="method" value="bank" cur={method} set={setMethod}>
           <span className="block">Bank transfer</span>
           <span className="block text-xs text-neutral-500 mt-0.5">
             Lower processing fee — more of your payment reaches the ministry
           </span>
         </Radio>
+        <Radio name="method" value="card" cur={method} set={setMethod}>
+          <span className="block">Card</span>
+          <span className="block text-xs text-neutral-500 mt-0.5">Instant confirmation</span>
+        </Radio>
       </div>
 
-      <label className="flex items-start gap-2 text-sm mb-3">
-        <input
-          type="checkbox"
-          checked={coverFee}
-          onChange={(e) => setCoverFee(e.target.checked)}
-          className="mt-0.5"
-        />
-        <span>
-          Add {dollars(base > 0 ? coverFeeCents(base, method) : 0)} to cover the processing fee,
-          so the full amount reaches the ministry.{' '}
-          <span className="text-neutral-500">(optional)</span>
-        </span>
-      </label>
+      {/* Offered for CARD only (24 Aug): choosing bank transfer already is
+          the saving, and stacking a second ask on top of the better choice
+          read as nickel-and-diming. */}
+      {method === 'card' && (
+        <label className="flex items-start gap-2 text-sm mb-3">
+          <input
+            type="checkbox"
+            checked={coverFee}
+            onChange={(e) => setCoverFee(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Add {dollars(base > 0 ? coverFeeCents(base, 'card') : 0)} to cover the processing
+            fee, so the full amount reaches the ministry.{' '}
+            <span className="text-neutral-500">(optional)</span>
+          </span>
+        </label>
+      )}
 
       {method === 'bank' && (
         <p className="text-xs text-neutral-500 mb-3">
@@ -192,6 +211,32 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
           Cancel
         </button>
       </div>
+      {/* The payment-by-check terms used to be one of the agreements every
+          family signed at registration. They are instructions, not
+          obligations, so they live here now (24 Aug) -- shown to the people
+          who need them, at the moment they need them, signed by nobody. */}
+      <details className="mt-3 text-sm">
+        <summary className="cursor-pointer text-brand underline">
+          Prefer to mail a check?
+        </summary>
+        <div className="mt-2 rounded border border-neutral-200 bg-white p-3 text-neutral-700">
+          <p>
+            Make it payable to <strong>Luke 14 Ministries</strong> and mail it to:
+          </p>
+          <p className="mt-1 font-semibold">
+            Luke 14 Ministries
+            <br />
+            2348 W. Andrew Johnson Hwy, #140
+            <br />
+            Morristown, TN 37814
+          </p>
+          <p className="mt-2 text-xs text-neutral-500">
+            Please put the family name and event in the memo line. Staff record the
+            check when it arrives, and your balance here updates then.
+          </p>
+        </div>
+      </details>
+
       <p className="mt-3 text-xs text-neutral-400">
         Payments are handled securely by Stripe. Card details never touch this site.
       </p>

@@ -111,12 +111,18 @@ export default async function AgreementsPage() {
           <p className="text-center text-neutral-600 mt-3">
             Everything you have signed, with the exact wording you agreed to.
           </p>
-          <div className="mt-6 mb-8 flex flex-wrap justify-center gap-4">
-            <Link href="/account/dashboard/" className="btn-outline !py-2">
+          {/* Site rule (24 Aug): the top-of-page escape is a TEXT link;
+              buttons are for actions on this page. Print is the action here. */}
+          <p className="text-center text-sm mt-4">
+            <Link href="/account/dashboard/" className="text-brand underline font-semibold">
               &larr; Back to my dashboard
             </Link>
-            {signatures.length > 0 && <PrintButton />}
-          </div>
+          </p>
+          {signatures.length > 0 && (
+            <div className="mt-4 mb-8 flex justify-center">
+              <PrintButton />
+            </div>
+          )}
         </div>
 
         {/* Only visible on paper / in the PDF. The logo matters here in a way

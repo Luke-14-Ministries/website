@@ -56,7 +56,11 @@ export async function savePersonSupport(personId, fields) {
   }
   if (!personId) return { ok: false, error: 'Missing person.' };
 
-  const patch = { person_id: personId };
+  // The dashboard's "Details on file" status reads this stamp and nothing
+  // else. It is set here, by the details form, and nowhere else -- the
+  // registration wizard used to share columns with this form, and inferring
+  // completion from content marked people "done" who had never seen the form.
+  const patch = { person_id: personId, details_saved_at: new Date().toISOString() };
   for (const k of TEXT_FIELDS) {
     if (k in (fields || {})) {
       const v = fields[k];

@@ -32,7 +32,12 @@ export default function AdminNav({ top, events, rest, badges = {}, badgeTitles =
   }
 
   const isActive = (href) =>
-    pathname === href || pathname === `${href}/` || (href !== '/admin' && pathname?.startsWith(`${href}/`));
+    pathname === href ||
+    pathname === `${href}/` ||
+    (href !== '/admin' && pathname?.startsWith(`${href}/`)) ||
+    // A registration detail page is reached FROM the roster, so Rosters stays
+    // lit while inside one -- the trail back stays visible (24 Aug).
+    (href === '/admin/rosters' && pathname?.startsWith('/admin/registrations'));
 
   const Item = ({ n, indent = false }) =>
     n.ready ? (

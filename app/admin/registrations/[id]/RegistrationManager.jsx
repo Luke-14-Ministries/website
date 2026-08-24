@@ -395,7 +395,7 @@ function ParticipantRow({ registrationId, participant }) {
           {adjusting ? 'Close adjustments' : 'Scholarship / discount'}
         </button>
         <button onClick={() => setEnrolling((v) => !v)} className="text-brand underline">
-          {enrolling ? 'Close' : 'T-shirt & permissions'}
+          {enrolling ? 'Close' : 'Enrollment details'}
         </button>
         {isCancelled ? (
           <>
@@ -451,14 +451,26 @@ function EnrollmentEditor({ registrationId, participant, onDone }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
-  const [tshirt, setTshirt] = useState(participant.tshirt_size ?? '');
-  const [firstTime, setFirstTime] = useState(
+  const [saved, setSaved] = useState(false);
+  const [tshirt, setTshirtRaw] = useState(participant.tshirt_size ?? '');
+  const [firstTime, setFirstTimeRaw] = useState(
     participant.first_time_attending === true
       ? 'true'
       : participant.first_time_attending === false
         ? 'false'
         : ''
   );
+  // Any edit flips the button back from "Saved" to "Save" (site-wide pattern,
+  // 24 Aug -- the old behavior here closed the panel a beat after saving,
+  // which read as the option disappearing).
+  const setTshirt = (v) => {
+    setSaved(false);
+    setTshirtRaw(v);
+  };
+  const setFirstTime = (v) => {
+    setSaved(false);
+    setFirstTimeRaw(v);
+  };
   const personId = participant.person?.id;
   const who = participant.person?.first_name || 'this person';
 
@@ -471,7 +483,8 @@ function EnrollmentEditor({ registrationId, participant, onDone }) {
       });
       if (!res.ok) setError(res.error);
       else {
-        onDone?.();
+        // The panel STAYS OPEN and the button says Saved -- no auto-close.
+        setSaved(true);
         router.refresh();
       }
     });
@@ -517,7 +530,7 @@ function EnrollmentEditor({ registrationId, participant, onDone }) {
           </select>
         </label>
         <button onClick={saveEnrollment} disabled={pending} className="btn-primary !py-1.5 text-sm">
-          {pending ? 'Saving…' : 'Save'}
+          {pending ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
         </button>
       </div>
 
@@ -979,6 +992,7 @@ export default function RegistrationManager({
   adjustmentRecords = [],
   familyMessages = [],
   signatures = [],
+  balance = null,
 }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
@@ -1001,6 +1015,28 @@ export default function RegistrationManager({
           {parts.length} {parts.length === 1 ? 'person' : 'people'} · Fees {money(total)}
           {adjustments > 0 && (
             <span className="text-green-700"> − {money(adjustments)} scholarships/discounts</span>
+          )}
+          {/* The number a registrar opening a family actually wants (24 Aug):
+              what is still OWED — paid and balance from the same view the
+              dashboard and Event Payments read, so the three never disagree. */}
+          {balance && (
+            <>
+              {' '}
+              · Paid {money(balance.paid_cents)} ·{' '}
+              <span
+                className={`font-bold ${
+                  (balance.balance_cents ?? 0) > 0
+                    ? 'text-amber-700'
+                    : (balance.balance_cents ?? 0) < 0
+                      ? 'text-green-700'
+                      : 'text-neutral-700'
+                }`}
+              >
+                {(balance.balance_cents ?? 0) < 0
+                  ? `Credit ${money(-balance.balance_cents)}`
+                  : `Balance ${money(balance.balance_cents)}`}
+              </span>
+            </>
           )}{' '}
         </span>
         <a

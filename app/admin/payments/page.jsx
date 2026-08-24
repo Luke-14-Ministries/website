@@ -186,6 +186,34 @@ export default async function AdminPaymentsPage({ searchParams }) {
         and cash are entered below. Donations live on the separate Giving page.
       </p>
 
+      {/* One-tap event pills (requested 24 Aug, matching Check-In) for the
+          handful of events staff work day to day; the dropdown below remains
+          the route to time scopes and full history. Both drive the same
+          ?event= parameter. */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <a
+          href="/admin/payments"
+          className={`rounded-full px-3 py-1 text-sm font-semibold ${
+            !eventFilter ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+          }`}
+        >
+          Current events
+        </a>
+        {eventOptions.slice(0, 6).map((ev) => (
+          <a
+            key={ev.id}
+            href={`/admin/payments?event=${ev.id}`}
+            className={`rounded-full px-3 py-1 text-sm font-semibold ${
+              eventFilter === ev.id
+                ? 'bg-brand text-white'
+                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+            }`}
+          >
+            {ev.name}
+          </a>
+        ))}
+      </div>
+
       {/* Event scope: governs the cards, fee covers, the balances table,
           and both CSV downloads. Default keeps this a quick view of what's
           coming up; full history is one selection away. */}

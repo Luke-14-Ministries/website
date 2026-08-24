@@ -36,6 +36,59 @@ export async function requestScholarship(registrationId, participantId, input) {
 
   const supabase = await createClient();
 
+  // The scholarship agreement is signed HERE, with the first request on a
+  // registration -- it moved out of the everyone-signs block on the
+  // registration form (24 Aug) because terms should be signed by the people
+  // they bind, when they start to bind them. The insert-once guard mirrors
+  // the registration RPC: an existing signature stands and is never
+  // rewritten. The signer is the logged-in account holder, named from their
+  // profile so the record carries a person, not a checkbox.
+  if (input?.agreementKey === 'scholarship_agreement') {
+    const { data: agreementRow } = await supabase
+      .from('agreements')
+      .select('id')
+      .eq('key', 'scholarship_agreement')
+      .eq('active', true)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: regRow } = await supabase
+      .from('registrations')
+      .select('household_id')
+      .eq('id', registrationId)
+      .maybeSingle();
+
+    if (agreementRow && regRow) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      const signerName =
+        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
+        user.email;
+
+      const { data: existingSig } = await supabase
+        .from('agreement_signatures')
+        .select('id')
+        .eq('agreement_id', agreementRow.id)
+        .eq('registration_id', registrationId)
+        .limit(1);
+
+      if (!existingSig?.length) {
+        await supabase.from('agreement_signatures').insert({
+          agreement_id: agreementRow.id,
+          household_id: regRow.household_id,
+          registration_id: registrationId,
+          status: 'signed_here',
+          signer_name: signerName,
+          signer_role: 'account_holder',
+        });
+      }
+    }
+  }
+
   // One request per participant. An existing one is updated rather than
   // duplicated; RLS refuses the update if staff have already granted against
   // it, which surfaces as the message below rather than a silent no-op.

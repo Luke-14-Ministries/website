@@ -110,14 +110,21 @@ export default async function AdminLayout({ children }) {
 
   return (
     <section className="bg-neutral-50 min-h-[70vh] print:bg-white">
-      <div className="container-site py-8 print:p-0 print:max-w-none">
+      {/* Wider than the public site's container on purpose (24 Aug). The
+          admin was living inside the marketing pages' reading-width column,
+          which is why the roster needed sideways scrolling on an ordinary
+          laptop. Data tables get the screen they're on. */}
+      <div className="mx-auto max-w-[1500px] px-4 sm:px-6 py-8 print:p-0 print:max-w-none">
         {/* Header, tidied 23 Aug. It previously said the person's name twice,
             repeated a "My Account" link the site nav already carries, and led
             with the ACCESS LEVEL as the headline. The dashboard leads with the
             person; this now matches -- name first, what they can do second,
             spelled out once each. */}
+        {/* min-w-0 flex-1 on the text block is what keeps the buttons ON this
+            row: without it the blurb's natural width pushed them to wrap
+            underneath (seen in testing screenshots, 24 Aug). */}
         <div className="mb-6 print:hidden flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
             Staff Admin
           </p>

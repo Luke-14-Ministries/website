@@ -7,14 +7,15 @@ export const metadata = { title: 'Dietary & Allergies — Staff Admin' };
 // The kitchen view: who needs what at mealtimes, per event. Gated by the
 // sensitive permission; can_view_person_support RLS is the real gate, so
 // support rows simply don't come back for staff without it.
-export default async function DietaryPage() {
+export default async function DietaryPage({ searchParams }) {
+  const params = await searchParams;
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/dietary/');
   if (!can(staff, 'sensitive')) redirect('/admin');
 
   const supabase = await createClient();
   const [{ data: events }, { data: regs }] = await Promise.all([
-    supabase.from('events').select('id, name, starts_on').order('starts_on'),
+    supabase.from('events').select('id, name, starts_on, ends_on').order('starts_on'),
     supabase
       .from('registrations')
       .select(
@@ -46,6 +47,26 @@ export default async function DietaryPage() {
     }
   }
 
+
+  // ---- D4 (24 Aug): the page defaults to CURRENT AND UPCOMING events. Past
+  // events stay one click away rather than accumulating on screen year after
+  // year -- this is the portal-wide archiving convention: nothing is archived
+  // in the database, display just defaults to what staff are working on.
+  // A 30-day grace keeps a just-finished event visible while follow-up work
+  // is still live.
+  const eventFilter = typeof params?.event === 'string' ? params.event : '';
+  const showPast = params?.past === '1';
+  const q = typeof params?.q === 'string' ? params.q.trim().toLowerCase() : '';
+  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const isCurrent = (ev) => (ev.ends_on ?? ev.starts_on ?? '') >= cutoff;
+  const visibleEvents = (events ?? []).filter((ev) => {
+    if (eventFilter) return ev.id === eventFilter;
+    return showPast || isCurrent(ev);
+  });
+  const pastCount = (events ?? []).filter((ev) => !isCurrent(ev)).length;
+  const matchesQ = (row) =>
+    !q || row.name.toLowerCase().includes(q) || (row.household ?? '').toLowerCase().includes(q);
+
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
@@ -59,8 +80,60 @@ export default async function DietaryPage() {
         separate permission; treat printouts with the same care as the screen.
       </p>
 
-      {(events ?? []).map((ev) => {
-        const rows = (byEvent.get(ev.id) ?? []).sort((a, b) => a.sortName.localeCompare(b.sortName));
+
+      {/* Event pills + search (24 Aug). The pills mirror Check-In; search
+          matches person or household name. */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <a
+          href="/admin/dietary"
+          className={`rounded-full px-3 py-1 text-sm font-semibold ${
+            !eventFilter && !showPast ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+          }`}
+        >
+          Current events
+        </a>
+        {(events ?? []).filter(isCurrent).map((ev) => (
+          <a
+            key={ev.id}
+            href={`/admin/dietary?event=${ev.id}`}
+            className={`rounded-full px-3 py-1 text-sm font-semibold ${
+              eventFilter === ev.id ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+            }`}
+          >
+            {ev.name}
+          </a>
+        ))}
+        {pastCount > 0 && (
+          <a
+            href="/admin/dietary?past=1"
+            className={`rounded-full px-3 py-1 text-sm font-semibold ${
+              showPast ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+            }`}
+          >
+            Show past events ({pastCount})
+          </a>
+        )}
+      </div>
+      <form method="get" action="/admin/dietary" className="mb-6 flex flex-wrap items-center gap-2">
+        {eventFilter && <input type="hidden" name="event" value={eventFilter} />}
+        {showPast && <input type="hidden" name="past" value="1" />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Find a person or household…"
+          className="w-64 rounded border border-neutral-300 px-3 py-1.5 text-sm"
+        />
+        <button type="submit" className="btn-outline !py-1.5 text-sm">Search</button>
+        {q && (
+          <a href="/admin/dietary" className="text-sm text-brand underline">
+            Clear
+          </a>
+        )}
+      </form>
+
+      {visibleEvents.map((ev) => {
+        const rows = (byEvent.get(ev.id) ?? []).filter(matchesQ).sort((a, b) => a.sortName.localeCompare(b.sortName));
         return (
           <div key={ev.id} className="mb-10">
             <h3 className="text-lg font-bold mb-3">

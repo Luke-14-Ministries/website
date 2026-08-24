@@ -78,48 +78,51 @@ export default function AdultAdventureRetreatPage() {
               </div>
             </div>
 
-            {/* Decorative: everything it says is also said in text above, so it
-                carries an empty alt rather than repeating the page to someone
-                using a screen reader. */}
+            {/* Decorative: everything it says is also said in text beside it,
+                so it carries an empty alt rather than repeating the page to
+                someone using a screen reader. Sized up and centre-aligned
+                with the text block (24 Aug feedback) so the two read as one
+                composition rather than a picture stapled to a paragraph. */}
             <img
               src={asset('/images/adult_adventure_screen_snip.jpeg')}
               alt=""
-              className="w-full h-auto rounded-lg shadow-xl"
+              className="w-full h-auto self-center rounded-lg shadow-xl lg:scale-105 lg:origin-left"
             />
           </div>
         </div>
       </section>
 
+      {/* One prose section, and it deliberately does NOT repeat the hero.
+          Dates, price, capacity and the buddy promise are already above;
+          repeating them here was the redundancy testing flagged. This section
+          answers the next questions instead: what the weekend is actually
+          like, and what happens after registering. */}
       <section className="py-14">
         <div className="container-site max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold mb-6">What is the Adult Adventure Retreat?</h2>
+          <h2 className="text-3xl font-bold mb-6">What the weekend looks like</h2>
           <div className="prose-site">
             <p>
-              The Adult Adventure Retreat is a weekend getaway in the beautiful mountains
-              near Gatlinburg, Tennessee, designed for independent young adults with
-              disabilities. Hosted by Luke 14 Ministries, it is a chance to connect with
-              peers, engage in worship, and enjoy real adventure in a supportive
-              environment.
+              Days are built around real adventure in the Smokies &mdash; time outdoors,
+              activities chosen for the group, and space to try things with support close
+              by. Evenings are worship, food, and the kind of unhurried time together
+              that turns a retreat into friendships that last past the weekend.
             </p>
             <p>
-              Every participant is paired with a trained buddy for the weekend, so the
-              adventure is genuinely theirs. Places are limited to 30, and they go
-              &mdash; early registration is encouraged.
+              It is designed for adults who manage their day-to-day with a degree of
+              independence &mdash; and the trained buddy each participant is paired with
+              is there to make the adventure bigger, not smaller.
+            </p>
+            <p>
+              Registering takes a few minutes and holds your place; the medical and
+              support details form can be filled in afterwards from your dashboard,
+              whenever suits.
             </p>
           </div>
-        </div>
-      </section>
-
-      <section className="bg-brand-light py-12">
-        <div className="container-site max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl font-bold">Ready to come?</h2>
-          <p className="mt-2 text-neutral-700">
-            Registration takes a few minutes. You can save your place now and add medical
-            and support details later.
-          </p>
-          <Link href={`/account/signup/?next=${REG}`} className="btn-primary !px-8 mt-6">
-            Register for the Retreat
-          </Link>
+          <div className="mt-8">
+            <Link href={`/account/signup/?next=${REG}`} className="btn-primary !px-8">
+              Register for the Retreat
+            </Link>
+          </div>
         </div>
       </section>
     </>

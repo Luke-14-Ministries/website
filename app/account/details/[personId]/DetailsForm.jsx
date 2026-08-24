@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import PhotoUpload from '@/components/PhotoUpload';
+import SaveButton from '@/components/SaveButton';
 import { savePersonSupport } from './actions';
 
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
@@ -116,6 +117,16 @@ export default function DetailsForm({
   const name = person?.first_name || 'this person';
 
   async function save() {
+    // Soft-required, not required: an emergency contact is the one thing this
+    // form asks of everyone, but a family mid-thought should still be able to
+    // save and come back. One confirm, then their call. (Whether more fields
+    // should be hard-required is with camp staff -- Staff Questions log.)
+    if (!f.emergency_contact_name.trim() && !f.emergency_contact_phone.trim()) {
+      const ok = window.confirm(
+        `Save without an emergency contact?\n\nThis is the one thing we ask for everyone — someone we can reach during the event who is not attending it. You can add it later, but please don't forget.`
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -202,7 +213,7 @@ export default function DetailsForm({
       <Card
         n={2}
         title="Health"
-        subtitle="Camp has a nurse on site. What matters most is what we should DO, not the medical name for it."
+        subtitle="Camp has medical staff on site. What matters most is what we should DO, not the medical name for it."
       >
         <YesNo
           id="allergies"
@@ -216,8 +227,13 @@ export default function DetailsForm({
             rows={2}
             value={f.allergy_detail}
             onChange={set('allergy_detail')}
-            placeholder="Peanuts — hives and swelling. Carries an EpiPen."
+            placeholder="Peanuts — hives and swelling within minutes"
           />
+          <p className="mt-1 text-xs text-neutral-500">
+            If {name} carries emergency medication for a reaction — an EpiPen, for
+            example — record it under <strong>rescue medication</strong> below, so it is
+            written down once, in the place staff will look for it.
+          </p>
         </YesNo>
 
         <YesNo
@@ -248,6 +264,7 @@ export default function DetailsForm({
             rows={2}
             value={f.rescue_medication_detail}
             onChange={set('rescue_medication_detail')}
+            placeholder="EpiPen in her backpack — use for any reaction with facial swelling"
           />
         </YesNo>
 
@@ -257,7 +274,7 @@ export default function DetailsForm({
           rows={3}
           value={f.medications}
           onChange={set('medications')}
-          placeholder="Name, dose and when it's taken. You'll hand the actual medication to the nurse at check-in."
+          placeholder="Name, dose and when it's taken. Families keep and give their own medications at camp — staff never take them into custody."
         />
 
         <label className={label}>Dietary needs</label>
@@ -373,12 +390,11 @@ export default function DetailsForm({
 
       <div className="sticky bottom-0 z-20 -mx-4 sm:mx-0 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] sm:rounded-lg sm:border">
         <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Wording matters here: "almost" nothing, because the emergency
+              contact IS asked of everyone (soft-required in save()). */}
           <p className="text-sm text-neutral-600">
-            {saved ? (
-              <span className="font-semibold text-green-700">Saved.</span>
-            ) : (
-              <>Nothing here is required, and you can come back to it any time.</>
-            )}
+            Almost nothing here is required — we do ask everyone for an emergency
+            contact. Come back and add to it any time.
           </p>
           <div className="flex items-center gap-4">
             <Link
@@ -387,14 +403,18 @@ export default function DetailsForm({
             >
               {saved ? 'Back to dashboard' : 'Cancel'}
             </Link>
-            <button
-              type="button"
-              className="btn-gold !py-2 disabled:opacity-50"
-              disabled={busy}
+            {/* The button carries the state -- Save -> Saving... -> Saved,
+                flipping back to Save when anything changes (set()/setFlag()
+                clear `saved`). Testing found the old pattern -- a green
+                "Saved" popping in beside a button that said "Save" again --
+                read as ambiguous. */}
+            <SaveButton
+              busy={busy}
+              saved={saved}
               onClick={save}
-            >
-              {busy ? 'Saving…' : 'Save details'}
-            </button>
+              label="Save details"
+              className="!py-2"
+            />
           </div>
         </div>
       </div>

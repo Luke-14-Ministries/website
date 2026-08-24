@@ -102,15 +102,22 @@ export default function CheckinList({ rows }) {
                 )}
               </p>
               <p className="text-sm text-neutral-500">
-                {r.household}
+                {/* The gray line is the household -- worth saying, because in
+                    testing it read as a mystery second name. */}
+                <span title="Household">{r.household}</span>
                 {r.flags.length > 0 && (
                   <span className="ml-2">
                     {r.flags.map((f) => (
                       <span
-                        key={f}
-                        className="mr-1 rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs font-semibold"
+                        key={f.t}
+                        title={f.title}
+                        className={`mr-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          f.tone === 'amber'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
                       >
-                        {f}
+                        {f.t}
                       </span>
                     ))}
                   </span>

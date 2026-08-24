@@ -39,6 +39,7 @@ const FIELD_LABEL = {
   medications: 'Medications',
   dietary_needs: 'Dietary needs',
   allergy_detail: 'Allergies',
+  seizure_detail: 'Seizure plan',
   tshirt_size: 'T-shirt size',
   first_time_attending: 'First time attending',
   how_did_you_hear: 'How they heard about us',
@@ -63,6 +64,17 @@ export default function ChangesList({ groups }) {
   const [, start] = useTransition();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
+  // Collapsed household groups (24 Aug): a busy review day makes this page
+  // long, and a header you can fold away lets staff work family by family.
+  // Groups start OPEN -- unreviewed changes are exactly what the page is for.
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  const toggleGroup = (id) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   function review(key, ids) {
     setError('');
@@ -93,12 +105,24 @@ export default function ChangesList({ groups }) {
       {groups.map((g) => (
         <div key={g.householdId ?? 'unknown'} className="rounded-lg bg-white border border-neutral-200 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-5 py-3">
-            <h3 className="font-bold">
+            <button
+              type="button"
+              onClick={() => toggleGroup(g.householdId)}
+              aria-expanded={!collapsed.has(g.householdId)}
+              className="flex items-center gap-2 text-left font-bold hover:text-brand"
+              title={collapsed.has(g.householdId) ? 'Show changes' : 'Hide changes'}
+            >
+              <span
+                aria-hidden
+                className={`text-xs transition-transform ${collapsed.has(g.householdId) ? '' : 'rotate-90'}`}
+              >
+                ▶
+              </span>
               {g.household}
-              <span className="ml-2 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
+              <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
                 {g.changes.length} unreviewed
               </span>
-            </h3>
+            </button>
             <button
               onClick={() => review(g.householdId, g.changes.map((c) => c.id))}
               disabled={busy === g.householdId}
@@ -107,6 +131,7 @@ export default function ChangesList({ groups }) {
               {busy === g.householdId ? '…' : 'Mark all reviewed'}
             </button>
           </div>
+          {!collapsed.has(g.householdId) && (
           <ul className="divide-y divide-neutral-100">
             {g.changes.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
@@ -141,6 +166,7 @@ export default function ChangesList({ groups }) {
               </li>
             ))}
           </ul>
+          )}
         </div>
       ))}
     </div>

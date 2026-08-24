@@ -205,7 +205,9 @@ export default function RosterTable({ events, rows }) {
                     key={size}
                     className="rounded border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-sm"
                   >
-                    {size} <span className="font-bold">{n}</span>
+                    {/* "× n", because a bare number beside a size read as part
+                        of the size ("Youth M 1") in testing. */}
+                    {size} <span className="font-bold">× {n}</span>
                   </span>
                 ))}
               </div>
@@ -248,8 +250,13 @@ export default function RosterTable({ events, rows }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-neutral-50 text-neutral-500">
               <tr>
-                {COLS.map((c) => (
-                  <th key={c.key} className={`px-4 py-2 font-semibold ${c.right ? 'text-right' : ''}`}>
+                {COLS.map((c, ci) => (
+                  <th
+                    key={c.key}
+                    className={`px-4 py-2 font-semibold ${c.right ? 'text-right' : ''} ${
+                      ci === 0 ? 'sticky left-0 z-10 bg-neutral-50' : ''
+                    }`}
+                  >
                     {c.noSort ? (
                       c.label
                     ) : (
@@ -270,7 +277,9 @@ export default function RosterTable({ events, rows }) {
             <tbody>
               {sorted.map((r, i) => (
                 <tr key={i} className="border-t border-neutral-100 align-top">
-                  <td className="px-4 py-2">
+                  {/* Sticky: the household stays put while the rest scrolls,
+                      so a wide roster never loses its row labels (24 Aug). */}
+                  <td className="sticky left-0 z-10 bg-white px-4 py-2">
                     <a href={`/admin/registrations/${r.registrationId}`} className="font-medium text-brand underline">
                       {r.household}
                     </a>

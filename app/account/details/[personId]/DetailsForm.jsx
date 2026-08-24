@@ -104,6 +104,9 @@ export default function DetailsForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  // Whether a photo exists for this person -- seeded from the server, flipped
+  // by PhotoUpload's onUploaded. Drives the strong urging in save().
+  const [hasPhoto, setHasPhoto] = useState(Boolean(photoUrl));
 
   const set = (k) => (e) => {
     setSaved(false);
@@ -117,6 +120,23 @@ export default function DetailsForm({
   const name = person?.first_name || 'this person';
 
   async function save() {
+    // The photo is REQUIRED policy (Larry, 24 Aug) -- enforced as a strong,
+    // explained urging rather than a hard block, the same shape as the media
+    // release nudge. Reasoning from that decision: a determined person can
+    // upload any nonsense picture, so a hard wall buys no real verification
+    // and costs the family that genuinely has no good photo to hand tonight.
+    // The ask, with its reasons, does the actual work.
+    if (!hasPhoto) {
+      const ok = window.confirm(
+        `Save without a photo of ${name}?\n\n` +
+          `A photo is required for camp: staff use it to greet ${name} by name at ` +
+          `check-in and to confirm the right person is with the right family. ` +
+          `Any clear photo of their face works, straight from your phone.\n\n` +
+          `Press Cancel to add one now (it takes about a minute), or OK to save ` +
+          `and add it another day.`
+      );
+      if (!ok) return;
+    }
     // Soft-required, not required: an emergency contact is the one thing this
     // form asks of everyone, but a family mid-thought should still be able to
     // save and come back. One confirm, then their call. (Whether more fields
@@ -161,12 +181,26 @@ export default function DetailsForm({
         title={`About ${name}`}
         subtitle="Answer what you can. Every box is optional — a blank tells us as much as a guess, and you can come back and add to this at any time."
       >
-        {/* CampSite blocks registration until a photo is uploaded. We ask here
-            instead, and do not block: a family without a good photo to hand
-            should still be able to secure a place. Staff can see who is
-            missing one. */}
+        {/* CampSite blocks registration until a photo is uploaded. Our photo
+            is also required (Larry, 24 Aug) but enforced as a strong urging
+            at save time rather than a wall: a family without a good photo to
+            hand can still secure a place tonight, and staff can see who is
+            missing one. The label here says "required" so the confirm in
+            save() is never the first time a family hears it. */}
         <div className="mb-6 rounded border border-neutral-200 bg-neutral-50 p-4">
-          <PhotoUpload personId={person.id} personName={name} initialUrl={photoUrl} />
+          <p className="mb-3 text-sm">
+            <span className="font-semibold">A photo is required for camp.</span>{' '}
+            <span className="text-neutral-600">
+              Staff use it to greet {name} by name at check-in and to confirm the right
+              person is with the right family.
+            </span>
+          </p>
+          <PhotoUpload
+            personId={person.id}
+            personName={name}
+            initialUrl={photoUrl}
+            onUploaded={() => setHasPhoto(true)}
+          />
         </div>
 
         <label className={label}>

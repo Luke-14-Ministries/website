@@ -22,10 +22,13 @@ export default function SaveButton({
   disabled = false,
   label = 'Save',
   className = '',
+  // 'submit' for forms that save via onSubmit (household manager);
+  // 'button' + onClick everywhere else.
+  type = 'button',
 }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={busy || disabled}
       className={`btn-primary disabled:opacity-50 ${className}`}

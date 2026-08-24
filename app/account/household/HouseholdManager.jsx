@@ -4,9 +4,18 @@
 // two caregiver links per person. Saves are per-card so a family can fix one
 // thing quickly. Suggested caregivers default to the household's
 // parents/guardians but stay fully editable.
+//
+// Save buttons follow the ONE platform pattern (SaveButton: Save -> Saving…
+// -> Saved ✓, flipping back to Save when the card changes). This page kept
+// its own older style for a day; the 24 Aug review asked the obvious
+// question -- why not be as consistent as possible across the platform? --
+// and there was no good answer. Now it matches the details form and the
+// staff editors. Errors still print beside the button in red.
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import SaveButton from '@/components/SaveButton';
+import { formatPhone } from '@/lib/format';
 import { updateHouseholdInfo, updatePersonInfo, setCaregivers } from './actions';
 
 function Field({ label, children }) {
@@ -23,25 +32,29 @@ const inputCls = 'w-full rounded border border-neutral-300 px-3 py-2';
 export default function HouseholdManager({ household, members, caregiversByPerson }) {
   const router = useRouter();
   const [, start] = useTransition();
-  const [msg, setMsg] = useState({});
+  // Per-card save state, keyed by card ('hh' or a person id):
+  // { busy, saved, error }. Typing in a card clears its `saved`, which flips
+  // the button back to plain "Save" -- same behavior as the details form.
+  const [state, setState] = useState({});
+  const patch = (key, s) => setState((m) => ({ ...m, [key]: { ...m[key], ...s } }));
 
   function run(key, fn) {
-    setMsg((m) => ({ ...m, [key]: 'saving' }));
+    patch(key, { busy: true, saved: false, error: '' });
     start(async () => {
       const res = await fn();
-      setMsg((m) => ({ ...m, [key]: res.ok ? 'saved' : res.error }));
+      patch(key, { busy: false, saved: !!res.ok, error: res.ok ? '' : res.error });
       router.refresh();
     });
   }
 
-  const Status = ({ k }) =>
-    msg[k] && msg[k] !== 'saving' ? (
-      <span className={`text-sm ${msg[k] === 'saved' ? 'text-green-700' : 'text-red-700'}`}>
-        {msg[k] === 'saved' ? 'Saved ✓' : msg[k]}
-      </span>
-    ) : msg[k] === 'saving' ? (
-      <span className="text-sm text-neutral-500">Saving…</span>
-    ) : null;
+  // Uncontrolled inputs, so dirty-tracking listens at the form: any input
+  // event inside the card means it no longer matches what was saved.
+  const markDirty = (key) => () => patch(key, { saved: false });
+
+  // Phone fields tidy themselves on blur, exactly like the wizard's.
+  const tidyPhone = (e) => {
+    e.target.value = formatPhone(e.target.value);
+  };
 
   // Suggested caregivers: household members who have served as parent/guardian,
   // else adults (18+). Used only when a person has no saved caregivers yet.
@@ -54,6 +67,7 @@ export default function HouseholdManager({ household, members, caregiversByPerso
       {/* Household contact card */}
       <form
         className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6"
+        onInput={markDirty('hh')}
         onSubmit={(e) => {
           e.preventDefault();
           const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -66,7 +80,13 @@ export default function HouseholdManager({ household, members, caregiversByPerso
             <input name="display_name" defaultValue={household?.display_name ?? ''} className={inputCls} />
           </Field>
           <Field label="Main phone">
-            <input name="phone" type="tel" defaultValue={household?.phone ?? ''} className={inputCls} />
+            <input
+              name="phone"
+              type="tel"
+              defaultValue={household?.phone ?? ''}
+              onBlur={tidyPhone}
+              className={inputCls}
+            />
           </Field>
           <Field label="Email">
             <input name="email" type="email" defaultValue={household?.email ?? ''} className={inputCls} />
@@ -87,8 +107,14 @@ export default function HouseholdManager({ household, members, caregiversByPerso
           </div>
         </div>
         <div className="mt-4 flex items-center gap-3">
-          <button type="submit" className="btn-primary !py-2">Save household info</button>
-          <Status k="hh" />
+          <SaveButton
+            type="submit"
+            busy={state.hh?.busy}
+            saved={state.hh?.saved}
+            label="Save household info"
+            className="!py-2"
+          />
+          {state.hh?.error && <span className="text-sm text-red-700">{state.hh.error}</span>}
         </div>
       </form>
 
@@ -104,6 +130,7 @@ export default function HouseholdManager({ household, members, caregiversByPerso
           <form
             key={m.id}
             className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6"
+            onInput={markDirty(m.id)}
             onSubmit={(e) => {
               e.preventDefault();
               const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -139,7 +166,13 @@ export default function HouseholdManager({ household, members, caregiversByPerso
                 </select>
               </Field>
               <Field label={isAdult ? 'Phone' : 'Phone (if they carry one)'}>
-                <input name="phone" type="tel" defaultValue={m.phone ?? ''} className={inputCls} />
+                <input
+                  name="phone"
+                  type="tel"
+                  defaultValue={m.phone ?? ''}
+                  onBlur={tidyPhone}
+                  className={inputCls}
+                />
               </Field>
               <Field label="Email (optional)">
                 <input name="email" type="email" defaultValue={m.email ?? ''} className={inputCls} />
@@ -178,8 +211,15 @@ export default function HouseholdManager({ household, members, caregiversByPerso
             </div>
 
             <div className="mt-4 flex items-center gap-3">
-              <button type="submit" className="btn-primary !py-2">Save</button>
-              <Status k={m.id} />
+              <SaveButton
+                type="submit"
+                busy={state[m.id]?.busy}
+                saved={state[m.id]?.saved}
+                className="!py-2"
+              />
+              {state[m.id]?.error && (
+                <span className="text-sm text-red-700">{state[m.id].error}</span>
+              )}
             </div>
           </form>
         );

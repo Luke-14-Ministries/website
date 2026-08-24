@@ -598,12 +598,43 @@ export default async function DashboardPage({ searchParams }) {
                         );
                       })()}
 
+                      {/* Deposit-due banner (Larry, 24 Aug: the $50 deposit is
+                          REQUIRED). Implemented as a strong, explained ask
+                          rather than a hard gate -- the registration is
+                          already saved by the time anyone reads this, and a
+                          family stuck at a payment wall abandons; a family
+                          told plainly why the deposit matters pays it. Shown
+                          only while NOTHING has been paid or is clearing. */}
+                      {(() => {
+                        const b = balByReg.get(r.id);
+                        const dep = Math.min(
+                          r.events?.deposit_cents ?? 0,
+                          b?.balance_cents ?? 0
+                        );
+                        const nothingPaid =
+                          b && (b.paid_cents ?? 0) === 0 && (pendingByReg.get(r.id) ?? 0) === 0;
+                        if (!(dep > 0 && nothingPaid && (b?.balance_cents ?? 0) > 0)) return null;
+                        return (
+                          <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            <p className="font-semibold">
+                              A {money(dep)} deposit is required to hold your spots.
+                            </p>
+                            <p className="mt-1">
+                              The deposit is your family&rsquo;s commitment to come — and it lets
+                              the ministry book vendors and reserve locations with real numbers.
+                              The rest of the balance can follow any time before the event.
+                            </p>
+                          </div>
+                        );
+                      })()}
+
                       <div className="mt-4 flex flex-wrap items-center gap-3">
                         <PayPanel
                           registrationId={r.id}
                           balanceCents={balanceByReg.get(r.id)}
                           depositCents={r.events?.deposit_cents}
                           pendingCents={pendingByReg.get(r.id)}
+                          paidCents={balByReg.get(r.id)?.paid_cents}
                         />
                         <Link
                           href={`/register/family/?event=${r.events?.id ?? ''}`}
@@ -628,7 +659,7 @@ export default async function DashboardPage({ searchParams }) {
                           title="Ask for help with the fee. It will not affect anyone's place."
                           className="btn-outline !py-2"
                         >
-                          Help with the fee
+                          Request help with the fee
                         </Link>
                         {/* Agreements are event things, so the primary route
                             to them lives with the event (flagged 24 Aug); the

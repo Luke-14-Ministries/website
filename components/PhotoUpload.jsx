@@ -55,7 +55,7 @@ function drawFramed(ctx, bitmap, out, zoom, fx, fy) {
   ctx.drawImage(bitmap, dx, dy, w, h);
 }
 
-export default function PhotoUpload({ personId, personName, initialUrl = null }) {
+export default function PhotoUpload({ personId, personName, initialUrl = null, onUploaded }) {
   const supabase = createClient();
   const fileRef = useRef(null);
   const previewCanvasRef = useRef(null);
@@ -170,6 +170,9 @@ export default function PhotoUpload({ personId, personName, initialUrl = null })
       setPreview(objectUrl.current);
       setNote(`Saved — ${Math.round(blob.size / 1024)}KB.`);
       cancelFraming();
+      // Tell the parent (the details form uses this to stop urging for a
+      // photo once one exists).
+      onUploaded?.();
     } catch (err) {
       setError(err.message || 'Could not upload that photo.');
     } finally {

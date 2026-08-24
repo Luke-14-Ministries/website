@@ -342,8 +342,22 @@ export default function FamilyWizard({
             ? 'Camp staff can see what changed and will follow up if anything needs attention.'
             : 'Camp staff will review your registration and follow up.'}
         </p>
+        {/* The required deposit (Larry, 24 Aug), asked for at the moment the
+            family is most ready to hear it -- right after "you're in". Not a
+            gate: the registration above is already saved either way. */}
+        {!isUpdate && (
+          <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
+            <p className="font-semibold">Next step: the deposit holds your spots.</p>
+            <p className="mt-1 text-sm">
+              The deposit is your family&rsquo;s commitment to come — and it lets the
+              ministry book vendors and reserve locations with real numbers. You can pay
+              it from your dashboard in about a minute; the rest of the balance can
+              follow any time before the event.
+            </p>
+          </div>
+        )}
         <p className="mt-3 text-neutral-700">
-          <strong>One more thing before camp:</strong> each person attending has a short
+          <strong>Also before camp:</strong> each person attending has a short
           details form — allergies, medications, support needs and an emergency
           contact. You&rsquo;ll find a link for each of them on your dashboard, and you
           can fill them in whenever suits.

@@ -9,9 +9,24 @@ import { useState, useTransition } from 'react';
 import { createCheckout } from './pay/actions';
 import { coverFeeCents, dollars } from '@/lib/payments';
 
-export default function PayPanel({ registrationId, balanceCents, depositCents, pendingCents }) {
+export default function PayPanel({
+  registrationId,
+  balanceCents,
+  depositCents,
+  pendingCents,
+  paidCents,
+}) {
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState('balance'); // 'balance' | 'deposit' | 'custom'
+  // The $50 deposit is REQUIRED (Larry, 24 Aug), so until a family has paid
+  // anything at all, the deposit is the pre-selected amount -- the panel opens
+  // on the ask the ministry is actually making. Once any payment exists (or
+  // is clearing), full balance is the natural default again. Everything stays
+  // choosable; this only picks the starting point.
+  const [kind, setKind] = useState(() =>
+    (depositCents ?? 0) > 0 && (paidCents ?? 0) === 0 && (pendingCents ?? 0) === 0
+      ? 'deposit'
+      : 'balance'
+  ); // 'balance' | 'deposit' | 'custom'
   const [customAmount, setCustomAmount] = useState(''); // dollars, as typed
   // Bank transfer is the DEFAULT (24 Aug): its processing fee is a fraction
   // of a card's, so every family who doesn't actively prefer card leaves more
@@ -82,11 +97,16 @@ export default function PayPanel({ registrationId, balanceCents, depositCents, p
     });
   }
 
+  // Nothing paid yet + a deposit exists: the button leads with the deposit,
+  // because that is the required first step -- the full balance is one click
+  // away inside the panel.
+  const depositFirst = hasDeposit && (paidCents ?? 0) === 0 && clearing === 0;
+
   if (!open) {
     return (
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => setOpen(true)} className="btn-primary !py-2">
-          Pay {dollars(balance)}
+          {depositFirst ? `Pay deposit — ${dollars(deposit)}` : `Pay ${dollars(balance)}`}
         </button>
         {clearing > 0 && (
           <span className="text-sm text-amber-700">{dollars(clearing)} clearing the bank ⏳</span>

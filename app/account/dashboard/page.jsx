@@ -25,7 +25,7 @@ const money = (cents) =>
 const ROLE_LABEL = {
   camper: 'Camper',
   parent_guardian: 'Parent/Guardian',
-  sibling: 'Sibling',
+  sibling: 'Sibling / Child',
   caregiver: 'Caregiver',
   volunteer: 'Volunteer',
   childcare: 'Childcare',
@@ -204,6 +204,11 @@ export default async function DashboardPage({ searchParams }) {
       attendingPeople.push({
         id,
         name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
+        // Role and event travel with the person. Without them the card is a
+        // bare list of names asking for medical detail, and a family with two
+        // registrations cannot tell which is which.
+        role: p.camp_role,
+        eventName: r.events?.name ?? '',
       });
     }
   }
@@ -457,24 +462,30 @@ export default async function DashboardPage({ searchParams }) {
             <h2 className="text-xl font-bold">Support details</h2>
             <p className="mt-1 text-sm text-neutral-600">
               A short form for each person attending — allergies, medications, what helps on
-              a hard day, and an emergency contact. Nothing is required, and you can add to
-              it any time before camp.
+              a hard day, and an emergency contact. Most of it is optional, but please fill
+              in what applies: staff use these to plan support, meals and medical cover.
             </p>
             <ul className="mt-4 divide-y divide-neutral-100">
               {attendingPeople.map((p) => {
                 const started = supportStatus.get(p.id) === 'started';
                 return (
                   <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <span className="flex items-center gap-3">
-                      <span className="font-semibold">{p.name}</span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          started
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {started ? 'Details on file' : 'Not started'}
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{p.name}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            started
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {started ? 'Details on file' : 'Not started'}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        {ROLE_LABEL[p.role] ?? p.role}
+                        {p.eventName ? ` · ${p.eventName}` : ''}
                       </span>
                     </span>
                     <Link

@@ -157,7 +157,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
     const [{ data: household }, { data: regs }] = await Promise.all([
       supabase
         .from('households')
-        .select('email, phone, address_line1, city, state, postal_code, home_church, how_did_you_hear')
+        .select('email, phone, address_line1, city, state, postal_code, home_church, how_did_you_hear, primary_contact_person_id')
         .eq('id', householdId)
         .maybeSingle(),
       supabase
@@ -185,7 +185,13 @@ export default async function FamilyRegisterPage({ searchParams }) {
         .order('signed_at', { ascending: true })
         .limit(1);
       if (sigs?.[0]) {
-        signedAlready = { signerName: sigs[0].signer_name, signedAt: sigs[0].signed_at };
+        // eventId travels with it: a signature is given for one event, and the
+        // wizard uses this to stop showing it once a different week is picked.
+        signedAlready = {
+          signerName: sigs[0].signer_name,
+          signedAt: sigs[0].signed_at,
+          eventId: reg.event_id ?? null,
+        };
       }
     }
 
@@ -278,13 +284,28 @@ export default async function FamilyRegisterPage({ searchParams }) {
 
     askHeardAbout = !household?.how_did_you_hear;
 
+    // Who the household says its primary contact IS, which is not necessarily
+    // whoever happens to be logged in. Reading the profile unconditionally is
+    // what made a saved change to the contact look like it had reverted: the
+    // save worked, the read threw it away. The profile stays as the fallback
+    // for a household that has never named one.
+    let contactPerson = null;
+    if (household?.primary_contact_person_id) {
+      const { data: pc } = await supabase
+        .from('people')
+        .select('first_name, last_name')
+        .eq('id', household.primary_contact_person_id)
+        .maybeSingle();
+      contactPerson = pc ?? null;
+    }
+
     existing = {
       isUpdate: !!reg,
       eventId: reg?.event_id ?? wanted ?? null,
       notes: reg?.family_notes ?? '',
       family: {
-        contactFirst: profile?.first_name ?? '',
-        contactLast: profile?.last_name ?? '',
+        contactFirst: contactPerson?.first_name ?? profile?.first_name ?? '',
+        contactLast: contactPerson?.last_name ?? profile?.last_name ?? '',
         email: household?.email ?? user.email ?? '',
         phone: household?.phone ?? profile?.phone ?? '',
         address: household?.address_line1 ?? '',

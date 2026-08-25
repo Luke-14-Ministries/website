@@ -9,6 +9,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { requestScholarship, withdrawScholarship } from './actions';
 
+const ROLE_LABEL = {
+  camper: 'Camper',
+  parent_guardian: 'Parent/Guardian',
+  sibling: 'Sibling / Child',
+  caregiver: 'Caregiver',
+  volunteer: 'Volunteer',
+  childcare: 'Childcare',
+  support_team: 'Support team',
+};
+
 const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
 
 const STATUS = {
@@ -18,7 +28,7 @@ const STATUS = {
   withdrawn: ['Withdrawn', 'bg-neutral-200 text-neutral-600'],
 };
 
-function PersonCard({ registrationId, row, agreementReady = true, agreementKey = null }) {
+function PersonCard({ registrationId, row, agreementReady = true, agreementKey = null, signerName = '' }) {
   const router = useRouter();
   const granted = (row.grantedCents ?? 0) > 0;
   const [open, setOpen] = useState(Boolean(row.status) && row.status !== 'withdrawn' && !granted);
@@ -32,7 +42,9 @@ function PersonCard({ registrationId, row, agreementReady = true, agreementKey =
 
   async function save() {
     if (!agreementReady) {
-      setError('Please tick the scholarship agreement above first — it covers every request on this registration.');
+      setError(
+        'Please tick the scholarship agreement above and type your name to sign it — it covers every request on this registration.'
+      );
       return;
     }
     setBusy(true);
@@ -41,6 +53,9 @@ function PersonCard({ registrationId, row, agreementReady = true, agreementKey =
       amount: amount === '' ? 0 : amount,
       statement,
       agreementKey,
+      // Carried so the recorded signature names the person who typed it,
+      // rather than defaulting to whoever happened to be logged in.
+      signerName,
     });
     setBusy(false);
     if (!res.ok) setError(res.error);
@@ -69,7 +84,14 @@ function PersonCard({ registrationId, row, agreementReady = true, agreementKey =
     <div className="rounded-lg border border-neutral-200 bg-white shadow-sm p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold">{row.name}</h2>
+          <h2 className="text-lg font-bold">
+            {row.name}
+            {row.role && (
+              <span className="ml-2 text-sm font-normal text-neutral-500">
+                {ROLE_LABEL[row.role] ?? row.role}
+              </span>
+            )}
+          </h2>
           <p className="text-sm text-neutral-500">
             Fee {money(row.feeCents)}
             {granted && (
@@ -163,6 +185,8 @@ export default function ScholarshipForm({
   rows,
   agreement = null,
   agreementSigned = false,
+  contactName = '',
+  eventName = '',
 }) {
   // The scholarship agreement moved here from the registration form (24 Aug):
   // signed by the families it binds, at the moment it starts to apply, rather
@@ -170,6 +194,13 @@ export default function ScholarshipForm({
   // covers all requests on this registration; once signed (here or in a past
   // request) it is shown, not re-asked -- signatures are never re-taken.
   const [agreed, setAgreed] = useState(agreementSigned);
+  const [signerName, setSignerName] = useState('');
+  // Same rule as the registration form: the signature should name the person
+  // the household says is responsible. A mismatch warns rather than blocks --
+  // a spouse completing the form is a normal thing, and refusing it outright
+  // would strand a family asking for help with money.
+  const normName = (v) => (v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const nameMatches = normName(signerName) === normName(contactName);
   const needsAgreement = Boolean(agreement) && !agreementSigned;
 
   if (rows.length === 0) {
@@ -190,17 +221,52 @@ export default function ScholarshipForm({
               Already signed for this registration.
             </p>
           ) : (
-            <label className="mt-3 flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 shrink-0"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-              />
-              <span className="text-sm font-semibold">
-                I agree — this is signed with my request below.
-              </span>
-            </label>
+            <>
+              <label className="mt-3 flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                />
+                <span className="text-sm font-semibold">
+                  I agree — this is signed with my request below.
+                </span>
+              </label>
+              {/* The name, typed. A tick records that SOMEONE agreed; it does
+                  not record who, and this is the same legal act the
+                  registration form asks a name for. Testing asked for the
+                  signature box back (25 Aug), and it was right to. */}
+              {agreed && (
+                <div className="mt-3 max-w-sm">
+                  <label className="block text-sm font-semibold mb-1" htmlFor="schol-signer">
+                    Type your full name to sign
+                  </label>
+                  <input
+                    id="schol-signer"
+                    className="w-full rounded border border-neutral-300 px-3 py-2"
+                    value={signerName}
+                    onChange={(e) => setSignerName(e.target.value)}
+                    placeholder={contactName || 'Your full name'}
+                    autoComplete="name"
+                  />
+                  {contactName && !nameMatches && signerName.trim() !== '' && (
+                    <p className="mt-1 text-sm text-amber-800">
+                      This should be {contactName}, the primary contact for your family.
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Dated{' '}
+                    {new Date().toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                    . Typing your name here has the same effect as signing on paper.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -209,8 +275,9 @@ export default function ScholarshipForm({
           key={r.participantId}
           registrationId={registrationId}
           row={r}
-          agreementReady={!needsAgreement || agreed}
+          agreementReady={!needsAgreement || (agreed && signerName.trim().length > 1)}
           agreementKey={needsAgreement && agreed ? agreement.key : null}
+          signerName={signerName.trim()}
         />
       ))}
     </div>

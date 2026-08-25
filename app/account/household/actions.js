@@ -9,12 +9,20 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 
+// A deliberately loose check: something@something.tld. Anything stricter
+// starts rejecting addresses that genuinely work, and the cost of a false
+// refusal here (a family cannot save) is far worse than a typo we catch later.
+const emailLooksValid = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+
 const clean = (v) => {
   const s = String(v ?? '').trim();
   return s === '' ? null : s;
 };
 
 export async function updateHouseholdInfo(householdId, form) {
+  if (!emailLooksValid(form.email)) {
+    return { ok: false, error: 'That email address doesn’t look right — please check it.' };
+  }
   const supabase = await createClient();
   const patch = {
     display_name: clean(form.display_name) ?? undefined,
@@ -52,6 +60,22 @@ export async function updateHouseholdInfo(householdId, form) {
 
 export async function updatePersonInfo(personId, form) {
   const supabase = await createClient();
+
+  // A cleared name used to be dropped from the patch and the save then
+  // reported "Saved" -- so the form said yes, the name stayed, and the card
+  // header did not move (reported 25 Aug). Silently ignoring an edit is worse
+  // than refusing it: the person believes something happened. Refuse, and say
+  // why. Everything else on this form may legitimately be blanked.
+  if ('first_name' in form && !clean(form.first_name)) {
+    return { ok: false, error: 'A first name is needed — this is how staff will know who they are.' };
+  }
+  if ('last_name' in form && !clean(form.last_name)) {
+    return { ok: false, error: 'A last name is needed.' };
+  }
+  if (!emailLooksValid(form.email)) {
+    return { ok: false, error: 'That email address doesn’t look right — please check it.' };
+  }
+
   const patch = {
     first_name: clean(form.first_name) ?? undefined,
     last_name: clean(form.last_name) ?? undefined,
@@ -142,6 +166,39 @@ export async function removeHouseholdPerson(personId) {
       error:
         'This person is your primary contact. Choose a different primary contact first, then remove them.',
     };
+  }
+
+  // Someone who SIGNED for this household is not removable either (reported
+  // 25 Aug: a primary contact who had signed the releases was demoted and then
+  // deleted, and the system allowed it). The two guards above both missed it,
+  // because a named contact carries no participant row of their own.
+  //
+  // Deleting them would leave signatures naming a person the household no
+  // longer contains -- the roster and the signed record contradicting each
+  // other, which is exactly the state you cannot explain later. Matched by
+  // name because a household-level signature records the signer's name rather
+  // than a person id.
+  const { data: person } = await supabase
+    .from('people')
+    .select('first_name, last_name, household_id')
+    .eq('id', personId)
+    .maybeSingle();
+
+  if (person) {
+    const fullName = `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim();
+    if (fullName) {
+      const { data: sigs } = await supabase
+        .from('agreement_signatures')
+        .select('signed_at, signer_name')
+        .eq('household_id', person.household_id)
+        .ilike('signer_name', fullName);
+      if ((sigs ?? []).length > 0) {
+        return {
+          ok: false,
+          error: `${fullName} has signed agreements for your family, so their record has to stay. Contact the ministry if this needs sorting out.`,
+        };
+      }
+    }
   }
 
   const { error } = await supabase.from('people').delete().eq('id', personId);

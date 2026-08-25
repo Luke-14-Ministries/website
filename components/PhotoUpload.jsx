@@ -65,6 +65,19 @@ export default function PhotoUpload({ personId, personName, initialUrl = null, o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // Whether to offer a camera button at all. Decided after mount because
+  // matchMedia does not exist during server rendering, and a guess would
+  // flash the wrong control. `pointer: coarse` is the honest question here --
+  // "is this a touch device that plausibly has a camera in it" -- rather than
+  // sniffing the user agent, which ages badly.
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  useEffect(() => {
+    try {
+      setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+    } catch {
+      setIsTouchDevice(false);
+    }
+  }, []);
 
   // The framing session, null when not framing.
   const [framing, setFraming] = useState(null); // { bitmap }
@@ -241,17 +254,47 @@ export default function PhotoUpload({ personId, personName, initialUrl = null, o
         )}
       </div>
       <div className="min-w-0">
-        <label className="btn-outline !py-1.5 text-sm cursor-pointer inline-block">
-          {preview ? 'Replace photo' : 'Add a photo'}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            disabled={busy}
-            onChange={onPick}
-          />
-        </label>
+        {/* TWO inputs, not one -- and this is the second time this control has
+            been wrong in opposite directions.
+            
+            First it carried capture="user", which forced Android straight into
+            the camera with no way to reach the gallery. Removing it was
+            supposed to let the phone offer both; on a Samsung in Edge it
+            offers only files, so the camera became unreachable instead
+            (reported 25 Aug). Relying on the browser to present a choice is
+            evidently not portable.
+            
+            So the choice is ours to present: one input with `capture` for the
+            camera, one without it for the gallery. Both are plain <input
+            type="file"> and behave the same everywhere. On desktop the camera
+            button is simply not shown -- `capture` there opens a file dialog
+            anyway, which would be two buttons doing one thing. */}
+        <div className="flex flex-wrap gap-2">
+          <label className="btn-outline !py-1.5 text-sm cursor-pointer inline-block">
+            {preview ? 'Choose a different file' : 'Choose a file'}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={busy}
+              onChange={onPick}
+            />
+          </label>
+          {isTouchDevice && (
+            <label className="btn-outline !py-1.5 text-sm cursor-pointer inline-block">
+              Take a photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                className="sr-only"
+                disabled={busy}
+                onChange={onPick}
+              />
+            </label>
+          )}
+        </div>
         <p className="mt-2 text-xs text-neutral-500 max-w-sm">
           A clear photo of {personName || 'this person'}&rsquo;s face helps staff greet them by
           name at check-in. You&rsquo;ll get to frame it after choosing, and it is resized on

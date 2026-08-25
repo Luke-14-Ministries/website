@@ -142,8 +142,16 @@ export default function DetailsForm({
     // save and come back. One confirm, then their call. (Whether more fields
     // should be hard-required is with camp staff -- Staff Questions log.)
     if (!f.emergency_contact_name.trim() && !f.emergency_contact_phone.trim()) {
+      // Reworded 25 Aug. The old text claimed this was "the one thing we ask",
+      // which is not true -- the form asks plenty -- and closed with "please
+      // don't forget", which is a wish rather than a reason. Say what the
+      // contact is FOR and what happens without one; that is what makes
+      // someone stop and fill it in.
       const ok = window.confirm(
-        `Save without an emergency contact?\n\nThis is the one thing we ask for everyone — someone we can reach during the event who is not attending it. You can add it later, but please don't forget.`
+        `Save without an emergency contact?\n\n` +
+          `Camp staff need someone they can reach during the event who is NOT attending it — ` +
+          `if there is an accident or someone becomes unwell, this is who gets the call.\n\n` +
+          `Press Cancel to add it now; it takes about twenty seconds.`
       );
       if (!ok) return;
     }
@@ -427,8 +435,8 @@ export default function DetailsForm({
           {/* Wording matters here: "almost" nothing, because the emergency
               contact IS asked of everyone (soft-required in save()). */}
           <p className="text-sm text-neutral-600">
-            Almost nothing here is required — we do ask everyone for an emergency
-            contact. Come back and add to it any time.
+            Most of this is optional — fill in whatever applies. The emergency contact
+            is the one we ask of everyone. Come back and add to it any time.
           </p>
           <div className="flex items-center gap-4">
             <Link

@@ -65,7 +65,14 @@ export async function requestScholarship(registrationId, participantId, input) {
         .select('first_name, last_name')
         .eq('id', user.id)
         .maybeSingle();
+      // The name the person actually TYPED, when they typed one. Falling
+      // straight to the profile made every scholarship signature read as
+      // whoever was logged in, which is not the same claim -- and testing
+      // (25 Aug) rightly asked who was signing. The profile stays as the
+      // fallback for a request made before the box existed.
+      const typed = (input?.signerName || '').trim();
       const signerName =
+        typed ||
         [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
         user.email;
 

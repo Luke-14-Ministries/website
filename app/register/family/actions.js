@@ -180,10 +180,37 @@ export async function submitFamilyRegistration(payload) {
     console.error('registration confirmation email:', e?.message);
   }
 
+  // Whether the deposit is still outstanding, so the success card asks for it
+  // only when it is genuinely unpaid. The panel used to be hidden on any
+  // update, which meant editing an unpaid registration silently dropped the
+  // one thing we most need the family to do (reported 25 Aug). "Update" and
+  // "already paid" are different facts. A failure here leaves this undefined
+  // and the card errs toward asking, which is the safe direction.
+  let depositDue;
+  try {
+    const regId = data?.registrationId;
+    if (regId) {
+      const [{ data: bal }, { data: ev2 }] = await Promise.all([
+        supabase
+          .from('registration_balances')
+          .select('paid_cents, balance_cents')
+          .eq('registration_id', regId)
+          .maybeSingle(),
+        supabase.from('events').select('deposit_cents').eq('id', eventId).maybeSingle(),
+      ]);
+      const deposit = ev2?.deposit_cents ?? 0;
+      depositDue =
+        deposit > 0 && (bal?.paid_cents ?? 0) === 0 && (bal?.balance_cents ?? 0) > 0;
+    }
+  } catch (e) {
+    console.error('deposit-due check:', e?.message);
+  }
+
   return {
     ok: true,
     registrationId: data?.registrationId,
     saved: data?.saved ?? mapped.length,
     signed: data?.signed ?? 0,
+    depositDue,
   };
 }

@@ -24,7 +24,7 @@ export default async function ScholarshipPage({ params }) {
     .select(
       `id, household_id,
        events ( name, starts_on ),
-       registration_participants ( id, status, fee_cents,
+       registration_participants ( id, status, fee_cents, camp_role,
          people ( first_name, last_name ) )`
     )
     .eq('id', registrationId)
@@ -53,6 +53,25 @@ export default async function ScholarshipPage({ params }) {
   ]);
   const agreementSigned = Boolean(schAgSig?.[0]);
 
+  // Who the household says is responsible -- shown as the expected signer on
+  // the agreement, the same rule the registration form applies.
+  let contactName = '';
+  {
+    const { data: hh } = await supabase
+      .from('households')
+      .select('primary_contact_person_id')
+      .eq('id', reg.household_id)
+      .maybeSingle();
+    if (hh?.primary_contact_person_id) {
+      const { data: pc } = await supabase
+        .from('people')
+        .select('first_name, last_name')
+        .eq('id', hh.primary_contact_person_id)
+        .maybeSingle();
+      contactName = `${pc?.first_name ?? ''} ${pc?.last_name ?? ''}`.trim();
+    }
+  }
+
   const parts = (reg.registration_participants ?? []).filter((p) => p.status !== 'cancelled');
 
   const { data: schols } = parts.length
@@ -68,6 +87,10 @@ export default async function ScholarshipPage({ params }) {
     return {
       participantId: p.id,
       name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim() || 'Person',
+      // Asked for 25 Aug: a card showing only a name and a fee does not say
+      // who this person is on the registration, and a family with several
+      // people has to guess.
+      role: p.camp_role ?? null,
       feeCents: p.fee_cents ?? 0,
       requestedCents: s?.requested_cents ?? null,
       grantedCents: s?.granted_cents ?? 0,
@@ -96,6 +119,8 @@ export default async function ScholarshipPage({ params }) {
           rows={rows}
           agreement={agreement}
           agreementSigned={agreementSigned}
+          contactName={contactName}
+          eventName={reg.events?.name ?? ''}
         />
 
         <p className="text-center text-sm text-neutral-500 mt-8">

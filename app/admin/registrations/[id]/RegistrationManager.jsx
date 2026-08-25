@@ -167,15 +167,30 @@ function PersonEditor({ registrationId, person, onDone }) {
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
-  function save() {
+  function save(confirmIdentityChange = false) {
     setError('');
     start(async () => {
-      const res = await updatePerson(registrationId, person.id, f);
-      if (!res.ok) setError(res.error);
-      else {
-        router.refresh();
-        onDone();
+      const res = await updatePerson(registrationId, person.id, f, {
+        confirmIdentityChange,
+      });
+      if (!res.ok) {
+        // The server refuses an unconfirmed name or date-of-birth change on a
+        // live registration and explains why. Repeat that explanation here
+        // and let the registrar decide -- staff DO need to fix typos, they
+        // just should not do it without seeing what it touches. Saying yes
+        // re-submits with the flag set; the edit is logged either way
+        // (migration 0046).
+        if (res.needsConfirm) {
+          const ok = window.confirm(`${res.error}\n\nMake this change anyway?`);
+          if (ok) save(true);
+          else setError('');
+          return;
+        }
+        setError(res.error);
+        return;
       }
+      router.refresh();
+      onDone();
     });
   }
 
@@ -221,7 +236,7 @@ function PersonEditor({ registrationId, person, onDone }) {
       </div>
       <ErrorNote>{error}</ErrorNote>
       <div className="mt-3 flex gap-2">
-        <button onClick={save} disabled={pending} className="btn-primary !py-1.5 text-sm">
+        <button onClick={() => save()} disabled={pending} className="btn-primary !py-1.5 text-sm">
           {pending ? 'Saving…' : 'Save changes'}
         </button>
         <button onClick={onDone} disabled={pending} className="btn-outline !py-1.5 text-sm">
@@ -283,7 +298,7 @@ function AdjustmentsEditor({ registrationId, participant, onDone }) {
       </div>
       <ErrorNote>{error}</ErrorNote>
       <div className="mt-3 flex gap-2">
-        <button onClick={save} disabled={pending} className="btn-primary !py-1.5 text-sm">
+        <button onClick={() => save()} disabled={pending} className="btn-primary !py-1.5 text-sm">
           {pending ? 'Saving…' : 'Save'}
         </button>
         <button onClick={onDone} disabled={pending} className="btn-outline !py-1.5 text-sm">
@@ -934,7 +949,7 @@ function HouseholdEditor({ registrationId, household }) {
       </div>
       <ErrorNote>{error}</ErrorNote>
       <div className="mt-3 flex gap-2">
-        <button onClick={save} disabled={pending} className="btn-primary !py-1.5 text-sm">
+        <button onClick={() => save()} disabled={pending} className="btn-primary !py-1.5 text-sm">
           {pending ? 'Saving…' : 'Save changes'}
         </button>
         <button onClick={() => setEditing(false)} disabled={pending} className="btn-outline !py-1.5 text-sm">

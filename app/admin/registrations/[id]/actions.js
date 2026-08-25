@@ -123,7 +123,7 @@ export async function setParticipantStatus(registrationId, participantId, status
 }
 
 // #15 -- edit a camper's own details.
-export async function updatePerson(registrationId, personId, fields) {
+export async function updatePerson(registrationId, personId, fields, options = {}) {
   const { error: authError } = await requireRegistrar();
   if (authError) return { ok: false, error: authError };
 
@@ -133,6 +133,58 @@ export async function updatePerson(registrationId, personId, fields) {
   }
 
   const supabase = await createClient();
+
+  // ⭐ IDENTITY CHANGES ON A REGISTERED PERSON NEED A DELIBERATE YES.
+  //
+  // Families are blocked from this outright and told to ask staff (25 Aug).
+  // That advice was only honest if the staff path is safer than the family
+  // one, and it was not: this action had no check at all, and the change log
+  // deliberately skips staff, so a rename left no guard and no trace.
+  //
+  // Staff genuinely need to do it — correcting a typo is the common case, and
+  // blocking that would be worse than the problem. So it is allowed, but not
+  // by accident: the caller must pass confirmIdentityChange, and the reply
+  // below tells them exactly what is at stake so the confirmation is informed.
+  //
+  // Migration 0046 closed the other half: identity edits are now logged even
+  // when staff make them.
+  const identityKeys = ['first_name', 'last_name', 'date_of_birth'];
+  const touchingIdentity = identityKeys.some((k) => k in patch);
+
+  if (touchingIdentity && !options.confirmIdentityChange) {
+    const { data: before } = await supabase
+      .from('people')
+      .select('first_name, last_name, date_of_birth')
+      .eq('id', personId)
+      .maybeSingle();
+
+    const changed = identityKeys.filter(
+      (k) => k in patch && (patch[k] ?? '') !== (before?.[k] ?? '')
+    );
+
+    if (changed.length > 0) {
+      const { count } = await supabase
+        .from('registration_participants')
+        .select('id', { count: 'exact', head: true })
+        .eq('person_id', personId)
+        .neq('status', 'cancelled');
+
+      if ((count ?? 0) > 0) {
+        return {
+          ok: false,
+          needsConfirm: true,
+          error:
+            `${before?.first_name ?? 'This person'} ${before?.last_name ?? ''}`.trim() +
+            ' is on a live registration. Changing their name or date of birth also changes ' +
+            'what appears on rosters and check-in lists, and the agreements already signed ' +
+            'will still carry the old name. Returning families are matched by name and date ' +
+            'of birth, so an edit here can create a duplicate person at their next ' +
+            'registration. This will be recorded in Recent Changes.',
+        };
+      }
+    }
+  }
+
   const { error } = await supabase.from('people').update(patch).eq('id', personId);
   if (error) return { ok: false, error: error.message };
   revalidateAll(registrationId);

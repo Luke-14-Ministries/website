@@ -29,9 +29,13 @@ const fmtDateTime = (iso) =>
   });
 
 const SIGNER_ROLE_LABEL = {
-  self: 'for themselves',
+  // "for themselves" was a mis-caption, not just terse: the option it
+  // renders says "myself and my household", so a release covering a whole
+  // family read as though it covered one person (spotted 25 Aug on a
+  // registration containing a seven-year-old).
+  self: 'for themselves and their household',
   parent: 'as a parent',
-  guardian: 'as a legal guardian',
+  guardian: 'as parent or legal guardian',
   account_holder: 'as the account holder',
 };
 

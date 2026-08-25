@@ -251,8 +251,11 @@ export default function ScholarshipForm({
                     autoComplete="name"
                   />
                   {contactName && !nameMatches && signerName.trim() !== '' && (
-                    <p className="mt-1 text-sm text-amber-800">
-                      This should be {contactName}, the primary contact for your family.
+                    <p className="mt-1 text-sm font-semibold text-amber-800">
+                      This has to be {contactName}, the primary contact for your family. If
+                      someone else is signing, change the primary contact under Manage
+                      Household first, so the agreement names the person actually
+                      responsible.
                     </p>
                   )}
                   <p className="mt-1 text-xs text-neutral-500">
@@ -275,7 +278,14 @@ export default function ScholarshipForm({
           key={r.participantId}
           registrationId={registrationId}
           row={r}
-          agreementReady={!needsAgreement || (agreed && signerName.trim().length > 1)}
+          /* The same rule the registration form applies, and the same rule
+             0049 now enforces in Postgres: the name on an agreement must be
+             the primary contact's. This used to warn and let it through, so
+             the two signing surfaces disagreed with each other. */
+          agreementReady={
+            !needsAgreement ||
+            (agreed && signerName.trim().length > 1 && (!contactName || nameMatches))
+          }
           agreementKey={needsAgreement && agreed ? agreement.key : null}
           signerName={signerName.trim()}
         />

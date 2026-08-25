@@ -114,6 +114,26 @@ const fmtWeek = (w) => {
   return `${w.name} · ${d(w.startsOn)}–${d(w.endsOn)}`;
 };
 
+// Age on a given day, from two ISO date strings. Parsed by parts, like
+// fmtWeek above, because `new Date('2019-06-12')` is UTC midnight and can
+// read as the day before in a US timezone -- which would put a child born on
+// the 1st a day the wrong side of their eighteenth birthday.
+const ageOn = (dobISO, onISO) => {
+  if (!dobISO) return null;
+  const [by, bm, bd] = String(dobISO).split('-').map(Number);
+  if (!by || !bm || !bd) return null;
+  let y, m, d;
+  if (onISO && String(onISO).includes('-')) {
+    [y, m, d] = String(onISO).split('-').map(Number);
+  } else {
+    const t = new Date();
+    [y, m, d] = [t.getFullYear(), t.getMonth() + 1, t.getDate()];
+  }
+  let age = y - by;
+  if (m < bm || (m === bm && d < bd)) age -= 1;
+  return age;
+};
+
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
 const label = 'block font-semibold mb-1.5 mt-4 first:mt-0';
 
@@ -189,6 +209,33 @@ export default function FamilyWizard({
   const [result, setResult] = useState(null);
 
   const week = weeks[weekIdx] ?? weeks[0];
+
+  // The capacity a signature is given in is only a QUESTION when the answer
+  // is not already on the form. Testing, 25 Aug: a registration containing a
+  // seven-year-old recorded its release as signed "for themselves", because
+  // the capacity defaulted to 'self' and nobody had reason to change it.
+  //
+  // If anyone on this registration is under 18, the capacity is settled --
+  // an adult signing a release covering a child is signing as their parent
+  // or legal guardian, and the form should say so rather than offer a choice
+  // it already knows the answer to.
+  //
+  // When everyone is an adult the choice is real, and specific to this
+  // ministry: an adult signing for themselves, or an adult signing for other
+  // ADULTS in their legal guardianship, which is an ordinary situation here.
+  //
+  // Measured at the START OF CAMP, not today: a seventeen-year-old who turns
+  // eighteen in June is an adult at camp in July, and the release covers the
+  // week, not the day the form was filled in.
+  const minorsOnForm = members.filter((m) => {
+    const a = ageOn(m.dob, week?.startsOn);
+    return a !== null && a < 18;
+  });
+  const hasMinor = minorsOnForm.length > 0;
+  // Derived, never stored: storing it would need an effect to keep it honest
+  // as dates of birth are typed, and an effect that rewrites the user's answer
+  // is how a form starts arguing with the person filling it in.
+  const effectiveSignerRole = hasMinor ? 'guardian' : signerRole;
 
   // A signature belongs to the registration it was given for, and therefore
   // to that EVENT. Reported 25 Aug: switching the event selection left the
@@ -359,7 +406,7 @@ export default function FamilyWizard({
           ? null
           : {
               signerName: signerName.trim(),
-              signerRole,
+              signerRole: effectiveSignerRole,
               keys: agreements.map((a) => a.key),
             },
       });
@@ -957,42 +1004,68 @@ export default function FamilyWizard({
                     />
                   </div>
                   <div>
-                    {/* Two options, not three -- "parent" and "guardian" were
-                        confusing side by side (flagged 24 Aug). The record
-                        needs to know in what CAPACITY the signature is given:
-                        an adult signing for themselves, or an adult signing
-                        on behalf of people in their care. */}
-                    {/* Radio buttons, not a dropdown (24 Aug: "should it be a
-                        check box?"). It cannot be a checkbox -- these are two
-                        mutually exclusive capacities, and two checkboxes would
-                        let someone tick both. But with only two choices a
-                        dropdown hides half the question behind a click, so
-                        both are simply on screen. */}
+                    {/* The record needs to know in what CAPACITY the
+                        signature is given. "Parent" and "guardian" as separate
+                        options were confusing side by side (flagged 24 Aug),
+                        so there are two capacities, not three.
+
+                        But the choice only appears when it IS a choice. With
+                        anyone under 18 on the form the answer is already
+                        known, and asking invites the wrong one -- which is
+                        exactly what happened (25 Aug: a release covering a
+                        seven-year-old recorded as signed "for themselves").
+
+                        Where the radios do appear: not a dropdown (24 Aug:
+                        "should it be a check box?"). It cannot be a checkbox,
+                        because these are mutually exclusive capacities and two
+                        boxes would let someone tick both; and with only two
+                        choices a dropdown hides half the question behind a
+                        click. */}
                     <span className={label}>This signature covers</span>
-                    <div className="space-y-2">
-                      {[
-                        ['self', 'myself and my household'],
-                        ['guardian', 'people I am parent or legal guardian for'],
-                      ].map(([value, text]) => (
-                        <label
-                          key={value}
-                          className={`flex cursor-pointer items-start gap-2 rounded border px-3 py-2 text-sm ${
-                            signerRole === value
-                              ? 'border-brand bg-brand-light font-semibold'
-                              : 'border-neutral-300'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="signerRole"
-                            className="mt-0.5"
-                            checked={signerRole === value}
-                            onChange={() => setSignerRole(value)}
-                          />
-                          <span>{text}</span>
-                        </label>
-                      ))}
-                    </div>
+                    {hasMinor ? (
+                      /* Not a question. Stated, so the person signing knows
+                         exactly what they are attesting to, and so the record
+                         says something true about a release that covers a
+                         child. */
+                      <div className="rounded border border-brand bg-brand-light px-3 py-2 text-sm">
+                        <p className="font-semibold">
+                          As parent or legal guardian
+                        </p>
+                        <p className="mt-1 text-neutral-700">
+                          {minorsOnForm.length === 1
+                            ? `${minorsOnForm[0].firstName || 'One person'} is under 18 at camp, so you are signing on their behalf as well as your own.`
+                            : `${minorsOnForm.length} people on this registration are under 18 at camp, so you are signing on their behalf as well as your own.`}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {[
+                          ['self', 'myself and my household'],
+                          [
+                            'guardian',
+                            'adults I am the legal guardian for',
+                          ],
+                        ].map(([value, text]) => (
+                          <label
+                            key={value}
+                            className={`flex cursor-pointer items-start gap-2 rounded border px-3 py-2 text-sm ${
+                              signerRole === value
+                                ? 'border-brand bg-brand-light font-semibold'
+                                : 'border-neutral-300'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="signerRole"
+                              className="mt-0.5"
+                              checked={signerRole === value}
+                              onChange={() => setSignerRole(value)}
+                            />
+                            <span>{text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <p className="mt-3 text-xs text-neutral-600">

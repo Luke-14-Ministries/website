@@ -70,11 +70,34 @@ export async function requestScholarship(registrationId, participantId, input) {
       // whoever was logged in, which is not the same claim -- and testing
       // (25 Aug) rightly asked who was signing. The profile stays as the
       // fallback for a request made before the box existed.
+      //
+      // Whichever it ends up being, it must be the household's primary
+      // contact. The form refuses anything else and 0049 refuses it in
+      // Postgres; this check is here so the family gets a sentence rather
+      // than a database error.
       const typed = (input?.signerName || '').trim();
       const signerName =
         typed ||
         [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
         user.email;
+
+      const { data: contactPerson } = regRow.household_id
+        ? await supabase
+            .from('households')
+            .select('people!households_primary_contact_person_id_fkey ( first_name, last_name )')
+            .eq('id', regRow.household_id)
+            .maybeSingle()
+        : { data: null };
+      const contactFull = contactPerson?.people
+        ? `${contactPerson.people.first_name ?? ''} ${contactPerson.people.last_name ?? ''}`
+        : '';
+      const norm = (v) => (v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (contactFull.trim() && norm(signerName) !== norm(contactFull)) {
+        return {
+          ok: false,
+          error: `The agreement has to be signed by ${contactFull.trim()}, the primary contact for your family. Change the primary contact under Manage Household if someone else is signing.`,
+        };
+      }
 
       const { data: existingSig } = await supabase
         .from('agreement_signatures')

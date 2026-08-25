@@ -32,9 +32,13 @@ const TSHIRT_SIZES = [
 ];
 
 const SIGNER_ROLE_LABEL = {
-  self: 'for themselves',
+  // "for themselves" was a mis-caption, not just terse: the option it
+  // renders says "myself and my household", so a release covering a whole
+  // family read as though it covered one person (spotted 25 Aug on a
+  // registration containing a seven-year-old).
+  self: 'for themselves and their household',
   parent: 'as a parent',
-  guardian: 'as a legal guardian',
+  guardian: 'as parent or legal guardian',
   account_holder: 'as the account holder',
 };
 
@@ -428,14 +432,19 @@ function ParticipantRow({ registrationId, participant, awaitingScholarship = fal
       </div>
 
       <div className="mt-2 flex flex-wrap gap-3 text-sm">
+        {/* Each panel is named by what is IN it, and closes by name.
+            "Edit details" and "Enrollment details" sat side by side saying
+            almost the same thing (25 Aug), and all three closed to a bare
+            "Close" -- so with two panels open the page offered two identical
+            links that did different things. */}
         <button onClick={() => setEditing((v) => !v)} className="text-brand underline">
-          {editing ? 'Close' : 'Edit details'}
+          {editing ? 'Close personal details' : 'Personal details'}
         </button>
         <button onClick={() => setAdjusting((v) => !v)} className="text-brand underline">
-          {adjusting ? 'Close adjustments' : 'Scholarship / discount'}
+          {adjusting ? 'Close scholarship / discount' : 'Scholarship / discount'}
         </button>
         <button onClick={() => setEnrolling((v) => !v)} className="text-brand underline">
-          {enrolling ? 'Close' : 'Enrollment details'}
+          {enrolling ? 'Close enrollment details' : 'Enrollment details'}
         </button>
         {isCancelled ? (
           <>

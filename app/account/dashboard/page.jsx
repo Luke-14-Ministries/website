@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getStaff } from '@/lib/staff';
 import PayPanel from './PayPanel';
 import RegistrationCard from './RegistrationCard';
+import CancelRequest from './CancelRequest';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -342,6 +343,18 @@ export default async function DashboardPage({ searchParams }) {
         parent ? `${parent} — ${room}` : room
       );
     }
+  }
+
+  // Open cancellation requests, so a registration that has one shows its
+  // status instead of offering to raise another.
+  const cancelByReg = new Map();
+  if (regIds.length) {
+    const { data: cancelRows } = await supabase
+      .from('registration_cancellation_requests')
+      .select('id, registration_id, participant_ids, reason, requested_at')
+      .in('registration_id', regIds)
+      .eq('status', 'open');
+    for (const c of cancelRows ?? []) cancelByReg.set(c.registration_id, c);
   }
 
   const paymentsByReg = new Map();
@@ -852,6 +865,18 @@ export default async function DashboardPage({ searchParams }) {
                           Signed agreements
                         </Link>
                       </div>
+
+                      {/* Last, quiet, and behind a disclosure. Cancelling is
+                          rare and consequential; it does not belong beside
+                          Pay as an equal-weight button. */}
+                      <CancelRequest
+                        registrationId={r.id}
+                        people={parts.map((p) => ({
+                          participantId: p.id,
+                          name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
+                        }))}
+                        openRequest={cancelByReg.get(r.id) ?? null}
+                      />
                     </RegistrationCard>
                   );
                 })}

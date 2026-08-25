@@ -40,6 +40,7 @@ const NAV = [
   { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/lodging', label: 'Rooms & Cabins', need: 'coordinator', ready: true, group: 'events' },
+  { href: '/admin/cancellations', label: 'Cancellations', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/giving', label: 'Giving', need: 'giving', ready: true },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: true },
@@ -87,6 +88,7 @@ export default async function AdminLayout({ children }) {
   let volunteersAwaiting = 0;
   let recentAccounts = 0;
   let recentPayments = 0;
+  let openCancellations = 0;
   if (can(staff, 'admin')) {
     // Accounts created in the last 7 days -- the same amber treatment as the
     // review queues, so a burst of new signups is visible from any admin page.
@@ -95,7 +97,7 @@ export default async function AdminLayout({ children }) {
   }
   if (can(staff, 'registrar')) {
     const paymentsSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const [{ count: changesCount }, { count: volCount }, { count: payCount }] =
+    const [{ count: changesCount }, { count: volCount }, { count: payCount }, { count: cancelCount }] =
       await Promise.all([
         supabase
           .from('family_change_log')
@@ -116,10 +118,18 @@ export default async function AdminLayout({ children }) {
           .from('payments')
           .select('id', { count: 'exact', head: true })
           .gte('created_at', paymentsSince),
+        // Families waiting to hear back about cancelling. A queue that
+        // DRAINS when staff act, so it takes the amber treatment rather
+        // than the blue rolling-window one.
+        supabase
+          .from('registration_cancellation_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open'),
       ]);
     unreviewedChanges = changesCount ?? 0;
     volunteersAwaiting = volCount ?? 0;
     recentPayments = payCount ?? 0;
+    openCancellations = cancelCount ?? 0;
   }
 
   return (
@@ -192,10 +202,12 @@ export default async function AdminLayout({ children }) {
               '/admin/changes': unreviewedChanges,
               '/admin/volunteers': volunteersAwaiting,
               '/admin/accounts': recentAccounts,
+              '/admin/cancellations': openCancellations,
               '/admin/payments': recentPayments,
             }}
             badgeTitles={{
               '/admin/accounts': 'created in the last 7 days',
+              '/admin/cancellations': 'families waiting to hear back',
               '/admin/payments': 'payments in the last 7 days',
             }}
             />

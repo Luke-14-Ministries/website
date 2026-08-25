@@ -42,6 +42,9 @@ export default function HouseholdManager({ household, members, caregiversByPerso
   // { busy, saved, error }. Typing in a card clears its `saved`, which flips
   // the button back to plain "Save" -- same behavior as the details form.
   const [state, setState] = useState({});
+  // Per-person override for the caregiver section: undefined = use the
+  // default rule, true = the person asked to see it.
+  const [caregiversOpen, setCaregiversOpen] = useState({});
   const patch = (key, s) => setState((m) => ({ ...m, [key]: { ...m[key], ...s } }));
 
   function run(key, fn) {
@@ -97,6 +100,17 @@ export default function HouseholdManager({ household, members, caregiversByPerso
           The <strong>family name</strong> is what staff see on a roster. The{' '}
           <strong>primary contact</strong> is the person they call. They don&rsquo;t have to
           match.
+        </p>
+        {/* Said explicitly because the two cards look alike: a household phone
+            and a person phone are different things, and when the family name
+            happens to match a person's name (the usual case for a household of
+            one) they read as duplicates of each other. Testing hit exactly
+            this, 25 Aug. */}
+        <p className="mb-4 rounded border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+          This section is about the <strong>household</strong> — the phone and email camp
+          staff use to reach your family, and where post is sent. Each person&rsquo;s own
+          phone and email live on their card further down, and are only used if staff need
+          that person directly.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Family / household name">
@@ -210,6 +224,9 @@ export default function HouseholdManager({ household, members, caregiversByPerso
               });
             }}
           >
+            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              Person
+            </p>
             <h2 className="text-lg font-bold mb-1">
               {m.first_name} {m.last_name}
               <span className="font-normal text-neutral-500 text-base">
@@ -248,36 +265,68 @@ export default function HouseholdManager({ household, members, caregiversByPerso
               </Field>
             </div>
 
-            <div className="mt-4 rounded border border-neutral-200 bg-neutral-50 p-4">
-              <p className="text-sm font-semibold mb-2">
-                Linked caregivers
-                {!hasSaved && defaults.length > 0 && (
-                  <span className="font-normal text-neutral-500"> (suggested — save to confirm)</span>
-                )}
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[1, 2].map((slot) => (
-                  <select
-                    key={slot}
-                    name={`caregiver${slot}`}
-                    defaultValue={slot === 1 ? cg1 : cg2}
-                    className={inputCls}
-                  >
-                    <option value="">— none —</option>
-                    {others.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.first_name} {o.last_name}
-                        {o.phone ? ` (${o.phone})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                ))}
+            {/* WHO SEES THIS, AND WHY IT IS FOLDED AWAY.
+                Lawrence, 25 Aug: non-standard arrangements should stay
+                possible — so nothing here is restricted, and anyone in the
+                household can still be chosen. What struck him as odd was
+                merely being ASKED, on the card of the adult who is plainly
+                the head of the house.
+                
+                So the field is not removed, it is folded: an independent
+                adult with nothing saved sees a quiet link. A person who has
+                caregivers saved, or who is a minor, sees them open.
+                
+                The inputs are NOT RENDERED while folded, deliberately. They
+                are uncontrolled selects carrying suggested defaults, so
+                leaving them mounted-but-hidden would submit a suggestion
+                nobody confirmed — which is how DoubleFaci ended up looking
+                like a saved answer. Absent means absent. */}
+            {caregiversOpen[m.id] ?? (hasSaved || !isAdult) ? (
+              <div className="mt-4 rounded border border-neutral-200 bg-neutral-50 p-4">
+                <p className="text-sm font-semibold mb-2">
+                  Linked caregivers
+                  {!hasSaved && defaults.length > 0 && (
+                    <span className="font-normal text-neutral-500"> (suggested — save to confirm)</span>
+                  )}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[1, 2].map((slot) => (
+                    <select
+                      key={slot}
+                      name={`caregiver${slot}`}
+                      defaultValue={
+                        // Suggestions are for people who plausibly need one.
+                        // An adult opening this by choice starts blank rather
+                        // than being handed a guess to accept by accident.
+                        isAdult && !hasSaved ? '' : slot === 1 ? cg1 : cg2
+                      }
+                      className={inputCls}
+                    >
+                      <option value="">— none —</option>
+                      {others.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.first_name} {o.last_name}
+                          {o.phone ? ` (${o.phone})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+                <p className="text-xs text-neutral-500 mt-2">
+                  Who staff contact first about this person at camp. Make sure each
+                  caregiver&rsquo;s phone number is provided so staff have a way to reach them
+                  if needed during camp.
+                </p>
               </div>
-              <p className="text-xs text-neutral-500 mt-2">
-                Who staff contact first about this person at camp. Make sure each caregiver&rsquo;s
-                phone number is provided so staff have a way to reach them if needed during camp.
-              </p>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCaregiversOpen((o) => ({ ...o, [m.id]: true }))}
+                className="mt-4 text-sm text-brand underline"
+              >
+                Add a linked caregiver for {m.first_name}
+              </button>
+            )}
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <SaveButton

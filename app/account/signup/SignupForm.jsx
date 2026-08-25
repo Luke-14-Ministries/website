@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
+import { emailLooksValid } from '@/lib/format';
 
 export default function SignupForm() {
   const [form, setForm] = useState({
@@ -39,6 +40,13 @@ export default function SignupForm() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    // Caught before Supabase is asked, so the message names the field rather
+    // than surfacing as a provider error the person cannot act on.
+    if (!emailLooksValid(form.email)) {
+      setError('That email address doesn’t look right — please check it.');
+      return;
+    }
 
     if (turnstileEnabled && !captchaToken) {
       setError('Please complete the "I am human" check just above the button.');

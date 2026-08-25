@@ -25,6 +25,7 @@ import {
   zipLooksValid,
   tidyCity,
   US_STATES,
+  emailLooksValid,
 } from '@/lib/format';
 import { submitFamilyRegistration } from './actions';
 
@@ -150,6 +151,7 @@ export default function FamilyWizard({
   // A signature is evidence with a date on it. If this household already
   // signed for this registration, the original stands and we do not ask again
   // -- we show what was signed and when, and offer a copy.
+  const alreadySigned = Boolean(signedAlready?.signedAt);
 
   const [family, setFamily] = useState(
     existing?.family ?? {
@@ -187,18 +189,6 @@ export default function FamilyWizard({
   const [result, setResult] = useState(null);
 
   const week = weeks[weekIdx] ?? weeks[0];
-
-  // A signature belongs to the registration it was given for, and therefore
-  // to that EVENT. Reported 25 Aug: switching the event selection left the
-  // "already signed" panel in place, so a family could roll a signature given
-  // for Camp Celebrate onto the Adult Adventure Retreat without ever seeing
-  // the words again. signedAlready is a server prop computed from the
-  // registration being edited; the moment the chosen week differs from that
-  // registration's event, it no longer applies and the form must ask again.
-  const signedEventId = signedAlready?.eventId ?? existing?.eventId ?? null;
-  const alreadySigned =
-    Boolean(signedAlready?.signedAt) && signedEventId != null && week?.eventId === signedEventId;
-
   const named = members.filter((m) => m.firstName.trim() && m.lastName.trim());
   const namedCount = named.length;
   const total = (week?.feeCents ?? 0) * namedCount;
@@ -299,6 +289,16 @@ export default function FamilyWizard({
       );
       if (!ok) return;
     }
+    // A malformed email is worth catching here rather than after a
+    // confirmation silently fails to arrive (asked for 25 Aug). Loose on
+    // purpose -- see emailLooksValid.
+    if (family.email && !emailLooksValid(family.email)) {
+      setError(
+        `That email address doesn't look right — "${family.email}". Please check it in "Your family" above; it is where your confirmation goes.`
+      );
+      return;
+    }
+
     // HARD requirement: the agreements. These are conditions of attending, not
     // preferences -- so unlike the two permissions below, an unanswered one
     // stops the submit rather than saving as null.
@@ -374,18 +374,9 @@ export default function FamilyWizard({
         {/* The required deposit (Larry, 24 Aug), asked for at the moment the
             family is most ready to hear it -- right after "you're in". Not a
             gate: the registration above is already saved either way. */}
-        {/* Gated on whether anything has actually been PAID, not on whether
-            this was an update (reported 25 Aug: editing an unpaid registration
-            hid the deposit panel). "Update" and "already paid" are different
-            facts, and only the second one means the ask is finished. The
-            server returns depositDue with the save. */}
-        {result.depositDue !== false && (
+        {!isUpdate && (
           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
-            <p className="font-semibold">
-              {isUpdate
-                ? 'Still outstanding: the deposit holds your spots.'
-                : 'Next step: the deposit holds your spots.'}
-            </p>
+            <p className="font-semibold">Next step: the deposit holds your spots.</p>
             {/* Careful with the second sentence: the site does NOT know the
                 ministry's balance-due date, and "any time before the event"
                 was a promise nobody had authorised (flagged 24 Aug). Until
@@ -604,22 +595,6 @@ export default function FamilyWizard({
         subtitle="Everyone attending — including yourself if you're coming. Each person gets their own place and fee."
       >
         <div className="space-y-6">
-          {/* Said ONCE, at the top, rather than in small grey type under every
-              person (reported 25 Aug). It is the most important thing on this
-              card that is not a field: what this form does NOT ask for, and
-              where the rest is going to be asked. */}
-          <div className="rounded border border-brand/30 bg-brand-light/60 px-4 py-3 text-sm">
-            <p className="font-semibold text-brand-dark">
-              This form asks no medical questions.
-            </p>
-            <p className="mt-1 text-neutral-700">
-              Each person attending gets a short details form afterwards — medications,
-              allergy detail, what helps on a hard day, and an emergency contact. You&rsquo;ll
-              find a link for each of them on your dashboard as soon as you{' '}
-              {isUpdate ? 'update' : 'submit'}.
-            </p>
-          </div>
-
           {/* One tick instead of retyping the name from the card above.
               Requested in testing (24 Aug): the primary contact is usually
               attending, and typing your own name twice on one form is the
@@ -684,14 +659,11 @@ export default function FamilyWizard({
                     <option value="" disabled>
                       Choose a role…
                     </option>
-                    <option value="Camper with disability">Camper with disability</option>
-                    <option value="Parent/Guardian">Parent/Guardian</option>
-                    {/* Label widened 25 Aug: a parent or volunteer may bring a
-                        child who is nobody's sibling. The VALUE stays "Sibling"
-                        because the server maps it to the camp_role enum. */}
-                    <option value="Sibling">Sibling / Child</option>
-                    <option value="Caregiver">Caregiver</option>
-                    <option value="Volunteer">Volunteer</option>
+                    <option>Camper with disability</option>
+                    <option>Parent/Guardian</option>
+                    <option>Sibling</option>
+                    <option>Caregiver</option>
+                    <option>Volunteer</option>
                   </select>
                 </div>
               </div>
@@ -793,6 +765,11 @@ export default function FamilyWizard({
                   </span>
                 </label>
               </div>
+              <p className="mt-2 text-xs text-neutral-500">
+                A fuller form for {m.firstName.trim() || 'this person'} — medications,
+                allergy detail, what helps on a hard day, emergency contact — appears on
+                your dashboard after you {isUpdate ? 'update' : 'submit'}.
+              </p>
             </div>
           ))}
           {/* Saved household members who are not on this registration yet.
@@ -1005,17 +982,6 @@ export default function FamilyWizard({
       {/* The running total and the way out, pinned to the bottom of the
           viewport so a long scroll never hides either. */}
       <div className="sticky bottom-0 z-20 -mx-4 sm:mx-0 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] sm:rounded-lg sm:border">
-        {/* The same message as above, repeated HERE because this is where the
-            person is looking when they press the button. A validation notice
-            that only exists further up the page is a notice nobody reads. */}
-        {error && (
-          <p
-            role="alert"
-            className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800"
-          >
-            {error}
-          </p>
-        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-bold">

@@ -54,6 +54,22 @@ export default async function PersonDetailsPage({ params }) {
     photoUrl = signed?.signedUrl ?? null;
   }
 
+  // What role(s) this person actually holds on live registrations. The form
+  // uses it to decide how much to ask up front (25 Aug): a camper gets the
+  // full support profile, everyone else gets the short version they can
+  // expand. Read from participants rather than guessed from age — a sibling
+  // may have as much need as a camper, and a volunteer may have none.
+  const { data: roleRows } = await supabase
+    .from('registration_participants')
+    .select('camp_role, status')
+    .eq('person_id', personId);
+  const liveRoles = (roleRows ?? [])
+    .filter((r) => r.status !== 'cancelled')
+    .map((r) => r.camp_role);
+  // Anyone who is a camper ANYWHERE gets the full form. Erring toward asking
+  // is the safe direction with medical detail.
+  const isCamper = liveRoles.includes('camper');
+
   const name = person.preferred_name || person.first_name;
 
   return (
@@ -73,7 +89,13 @@ export default async function PersonDetailsPage({ params }) {
           </Link>
         </p>
 
-        <DetailsForm person={person} support={support} photoUrl={photoUrl} />
+        <DetailsForm
+          person={person}
+          support={support}
+          photoUrl={photoUrl}
+          isCamper={isCamper}
+          roles={liveRoles}
+        />
       </div>
     </section>
   );

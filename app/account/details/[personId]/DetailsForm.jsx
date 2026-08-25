@@ -74,6 +74,8 @@ export default function DetailsForm({
   support,
   photoUrl = null,
   backHref = '/account/dashboard/',
+  isCamper = true,
+  roles = [],
 }) {
   const s = support ?? {};
   const [f, setF] = useState({
@@ -107,6 +109,28 @@ export default function DetailsForm({
   // Whether a photo exists for this person -- seeded from the server, flipped
   // by PhotoUpload's onUploaded. Drives the strong urging in save().
   const [hasPhoto, setHasPhoto] = useState(Boolean(photoUrl));
+
+  // HOW MUCH TO ASK. Decided 25 Aug: asking a parent/guardian and a
+  // four-year-old sibling for a full seizure plan reads as absurd, gets
+  // skipped, and teaches families that this form is noise. Campers get the
+  // full profile; everyone else gets allergies, diet and an emergency contact,
+  // and can open the rest — because a volunteer with a severe allergy or a
+  // sibling with real needs must never find the questions missing.
+  //
+  // Anyone who ALREADY has detail saved in the fuller sections sees them open,
+  // whatever their role: hiding answers a family has given would read as data
+  // loss, and would be.
+  const FULLER_TEXT = [
+    'disabilities', 'communication', 'mobility', 'personal_care',
+    'daily_living_supports', 'medications', 'seizure_detail',
+    'rescue_medication_detail', 'behaviour_triggers', 'redirection_strategies',
+    'sleep_notes',
+  ];
+  const hasFullerDetail =
+    FULLER_TEXT.some((k) => (s[k] ?? '').trim() !== '') ||
+    Boolean(s.has_seizures || s.has_rescue_medication || s.has_sleep_disturbance ||
+      s.has_caregiver || s.buddy_required);
+  const [showAll, setShowAll] = useState(isCamper || hasFullerDetail);
 
   const set = (k) => (e) => {
     setSaved(false);
@@ -187,7 +211,9 @@ export default function DetailsForm({
       <Card
         n={1}
         title={`About ${name}`}
-        subtitle="Answer what you can. Every box is optional — a blank tells us as much as a guess, and you can come back and add to this at any time."
+        subtitle={showAll
+          ? 'Answer what you can. Every box is optional — a blank tells us as much as a guess, and you can come back and add to this at any time.'
+          : `The short version, because ${name} isn\u2019t registered as a camper. You can open the full form lower down if there is more we should know.`}
       >
         {/* CampSite blocks registration until a photo is uploaded. Our photo
             is also required (Larry, 24 Aug) but enforced as a strong urging
@@ -211,6 +237,8 @@ export default function DetailsForm({
           />
         </div>
 
+        {showAll && (
+          <>
         <label className={label}>
           Disability or diagnosis, in your own words <span className="font-normal text-neutral-500">(optional)</span>
         </label>
@@ -250,6 +278,8 @@ export default function DetailsForm({
           value={f.daily_living_supports}
           onChange={set('daily_living_supports')}
         />
+          </>
+        )}
       </Card>
 
       <Card
@@ -278,6 +308,8 @@ export default function DetailsForm({
           </p>
         </YesNo>
 
+        {showAll && (
+          <>
         <YesNo
           id="seizures"
           question={`Does ${name} have seizures?`}
@@ -319,10 +351,17 @@ export default function DetailsForm({
           placeholder="Name, dose and when it's taken. Families keep and give their own medications at camp — staff never take them into custody."
         />
 
+          </>
+        )}
+
+        {/* Diet stays in the SHORT form for everyone: every attendee eats, and
+            the kitchen plans from this. */}
         <label className={label}>Dietary needs</label>
         <textarea className={input} rows={2} value={f.dietary_needs} onChange={set('dietary_needs')} />
       </Card>
 
+      {showAll && (
+        <>
       <Card
         n={3}
         title="A hard day"
@@ -381,6 +420,28 @@ export default function DetailsForm({
           </p>
         </YesNo>
       </Card>
+        </>
+      )}
+
+      {/* Offered, never hidden. A volunteer with a severe allergy or a sibling
+          with real needs must be able to reach these questions in one click —
+          the short form is a default, not a ceiling. */}
+      {!showAll && (
+        <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-center">
+          <p className="text-sm text-neutral-700">
+            We&rsquo;ve kept this short because {name} isn&rsquo;t registered as a camper.
+            If there is more we should know — how they communicate, getting around,
+            medications, seizures, what helps on a hard day — it all matters just as much.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="btn-outline !py-1.5 text-sm mt-3"
+          >
+            Tell us more about {name}
+          </button>
+        </div>
+      )}
 
       <Card
         n={5}

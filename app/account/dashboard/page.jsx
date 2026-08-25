@@ -22,6 +22,27 @@ function ageFrom(dob) {
   return age;
 }
 
+// "Jul 20–24" / "Oct 29 – Nov 1". Short enough for a title bar, and it is what
+// makes a chronological list read as chronological.
+function eventDates(ev) {
+  const s = ev?.starts_on;
+  const e = ev?.ends_on;
+  if (!s) return '';
+  const fmt = (iso, withYear = false) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(withYear ? { year: 'numeric' } : {}),
+    });
+  };
+  if (!e || e === s) return fmt(s, true);
+  const sameMonth = s.slice(0, 7) === e.slice(0, 7);
+  return sameMonth
+    ? `${fmt(s)}\u2013${e.split('-')[2].replace(/^0/, '')}, ${e.slice(0, 4)}`
+    : `${fmt(s)} \u2013 ${fmt(e, true)}`;
+}
+
 const money = (cents) =>
   `$${((cents ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}`;
 
@@ -176,7 +197,42 @@ export default async function DashboardPage({ searchParams }) {
         .order('created_at', { ascending: false })
     : { data: [] };
 
-  const regs = registrations ?? [];
+  // Ordered by WHEN THE EVENT IS, not when the family happened to register
+  // (asked for 25 Aug). Two tiers, because a plain ascending sort by date puts
+  // last month's camp above next month's retreat — technically chronological
+  // and exactly wrong for a dashboard, where the thing coming up is the thing
+  // you came to deal with.
+  //
+  //   1. Upcoming first, soonest at the top.
+  //   2. Then past events, most recent first — still reachable, out of the way.
+  //
+  // "Past" is judged on ends_on, so an event running today is still upcoming.
+  // Falls back to created_at when an event has no dates at all, which keeps
+  // the order stable rather than arbitrary.
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const eventEnd = (r) => r.events?.ends_on ?? r.events?.starts_on ?? '';
+  const eventStart = (r) => r.events?.starts_on ?? r.events?.ends_on ?? '';
+  const isPast = (r) => {
+    const end = eventEnd(r);
+    return Boolean(end) && end < todayISO;
+  };
+
+  const regs = [...(registrations ?? [])].sort((a, b) => {
+    const aPast = isPast(a);
+    const bPast = isPast(b);
+    if (aPast !== bPast) return aPast ? 1 : -1;
+
+    const aStart = eventStart(a);
+    const bStart = eventStart(b);
+    if (!aStart && !bStart) {
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+    }
+    if (!aStart) return 1;
+    if (!bStart) return -1;
+
+    // Upcoming: soonest first. Past: most recent first.
+    return aPast ? bStart.localeCompare(aStart) : aStart.localeCompare(bStart);
+  });
   const regIds = regs.map((r) => r.id);
 
   // Short notes from staff TO the family, per registration (0019), shown on
@@ -602,6 +658,8 @@ export default async function DashboardPage({ searchParams }) {
                     <RegistrationCard
                       key={r.id}
                       eventName={r.events?.name ?? 'Camp registration'}
+                      dateLabel={eventDates(r.events)}
+                      past={isPast(r)}
                       peopleLabel={`${parts.length} ${parts.length === 1 ? 'person' : 'people'}`}
                       totalLabel={money(total)}
                       status={status}

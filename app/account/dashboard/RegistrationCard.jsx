@@ -27,6 +27,8 @@ import { useState } from 'react';
 
 export default function RegistrationCard({
   eventName,
+  dateLabel = '',
+  past = false,
   peopleLabel,
   totalLabel,
   status,          // { text, tone } | null — what this registration still wants
@@ -60,6 +62,14 @@ export default function RegistrationCard({
             ▶
           </span>
           <span className="font-semibold">{eventName}</span>
+          {dateLabel && (
+            <span className="shrink-0 text-sm text-neutral-500">{dateLabel}</span>
+          )}
+          {past && (
+            <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-500">
+              past
+            </span>
+          )}
           {status && (
             <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${toneClass}`}>
               {status.text}

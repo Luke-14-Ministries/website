@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import ChangesList from './ChangesList';
@@ -105,7 +106,11 @@ export default async function RecentChangesPage() {
         <p className="mt-1 pl-4 border-l-2 border-neutral-200">
           Marking a change &ldquo;reviewed&rdquo; doesn&rsquo;t alter anyone&rsquo;s status — it
           just confirms staff have seen it. New people added to a registration don&rsquo;t appear
-          here; they land in the &ldquo;Awaiting review&rdquo; queue on the Overview, where they
+          here; they land in the{' '}
+          <Link href="/admin#awaiting-review" className="text-brand underline font-semibold">
+            &ldquo;Awaiting review&rdquo; queue on the Overview
+          </Link>
+          , where they
           can be confirmed or waitlisted.
         </p>
       </details>

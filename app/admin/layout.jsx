@@ -91,6 +91,7 @@ export default async function AdminLayout({ children }) {
   let recentPayments = 0;
   let openCancellations = 0;
   let openScholarships = 0;
+  let awaitingReview = 0;
   if (can(staff, 'admin')) {
     // Accounts created in the last 7 days -- the same amber treatment as the
     // review queues, so a burst of new signups is visible from any admin page.
@@ -105,6 +106,7 @@ export default async function AdminLayout({ children }) {
       { count: payCount },
       { count: cancelCount },
       { count: scholCount },
+      { count: reviewCount },
     ] = await Promise.all([
         supabase
           .from('family_change_log')
@@ -140,12 +142,27 @@ export default async function AdminLayout({ children }) {
           .from('scholarships')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'requested'),
+        // New sign-ups waiting to be confirmed or waitlisted -- the biggest
+        // review queue in the ministry, and until now the only one with no
+        // number on the nav. It lives on the Overview, which meant the one
+        // page that could tell you there was work to do was the one page you
+        // had to already be on. Asked for 25 Aug: "not obvious where new
+        // registrations get reviewed."
+        //
+        // 'submitted' only. Waitlisted is a decision already made, and
+        // counting it here would put a badge on the nav that no amount of
+        // reviewing could clear.
+        supabase
+          .from('registration_participants')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'submitted'),
       ]);
     unreviewedChanges = changesCount ?? 0;
     volunteersAwaiting = volCount ?? 0;
     recentPayments = payCount ?? 0;
     openCancellations = cancelCount ?? 0;
     openScholarships = scholCount ?? 0;
+    awaitingReview = reviewCount ?? 0;
   }
 
   return (
@@ -215,6 +232,7 @@ export default async function AdminLayout({ children }) {
             events={items.filter((n) => n.group === 'events')}
             rest={items.filter((n) => !n.group && n.href !== '/admin')}
             badges={{
+              '/admin': awaitingReview,
               '/admin/changes': unreviewedChanges,
               '/admin/volunteers': volunteersAwaiting,
               '/admin/accounts': recentAccounts,
@@ -223,6 +241,7 @@ export default async function AdminLayout({ children }) {
               '/admin/payments': recentPayments,
             }}
             badgeTitles={{
+              '/admin': 'new sign-ups waiting to be confirmed or waitlisted',
               '/admin/accounts': 'created in the last 7 days',
               '/admin/cancellations': 'families waiting to hear back',
               '/admin/scholarships': 'families waiting on a decision about the fee',

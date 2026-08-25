@@ -41,7 +41,13 @@ export default async function AdminOverview() {
   const byEvent = new Map();
   const eventRow = (ev) => {
     if (!byEvent.has(ev)) {
-      byEvent.set(ev, { families: new Set(), people: 0, confirmed: 0, pending: 0 });
+      byEvent.set(ev, {
+        families: new Set(),
+        people: 0,
+        confirmed: 0,
+        pending: 0,
+        waitlisted: 0,
+      });
     }
     return byEvent.get(ev);
   };
@@ -64,7 +70,14 @@ export default async function AdminOverview() {
     row.families.add(p.registration_id);
     row.people += 1;
     if (p.status === 'confirmed') row.confirmed += 1;
-    if (p.status === 'submitted' || p.status === 'waitlisted') row.pending += 1;
+    // Waitlisted is a decision staff have ALREADY made, not work outstanding.
+    // Counting it as "awaiting review" (as this did until 25 Aug) put a
+    // number on the page that no amount of reviewing could ever clear, and
+    // made the headline disagree with the list underneath it, which only ever
+    // showed 'submitted'. Same rule as the nav badges: an amber number has to
+    // be reachable by doing the work.
+    if (p.status === 'submitted') row.pending += 1;
+    if (p.status === 'waitlisted') row.waitlisted += 1;
 
     if (p.status === 'submitted') {
       const cur = needsReview.get(p.registration_id) ?? {
@@ -85,6 +98,7 @@ export default async function AdminOverview() {
   const totalPeople = [...byEvent.values()].reduce((s, r) => s + r.people, 0);
   const totalConfirmed = [...byEvent.values()].reduce((s, r) => s + r.confirmed, 0);
   const totalPending = [...byEvent.values()].reduce((s, r) => s + r.pending, 0);
+  const totalWaitlisted = [...byEvent.values()].reduce((s, r) => s + r.waitlisted, 0);
 
   const reviewList = [...needsReview.entries()];
 
@@ -119,15 +133,28 @@ export default async function AdminOverview() {
         />
         <Stat
           label="Awaiting review"
-          sub={totalPending > 0 ? 'needs staff action below' : 'nothing waiting on staff'}
+          sub={
+            totalPending > 0
+              ? 'needs staff action below'
+              : totalWaitlisted > 0
+                ? `nothing waiting on staff · ${totalWaitlisted} waitlisted`
+                : 'nothing waiting on staff'
+          }
           value={totalPending}
           tone={totalPending > 0 ? 'amber' : undefined}
         />
       </div>
 
-      {/* The work queue: families with someone still pending review. */}
+      {/* The work queue: families with someone still pending review.
+          Given an id (25 Aug) because other pages point at it in words --
+          Recent Changes says new people "land in the Awaiting review queue on
+          the Overview" -- and a page you have to hunt for is not really a
+          queue. That sentence is now a link to this card. */}
       {can(staff, 'registrar') && reviewList.length > 0 && (
-        <div className="rounded-lg bg-white border border-amber-200 shadow-sm p-6 mb-8">
+        <div
+          id="awaiting-review"
+          className="scroll-mt-4 rounded-lg bg-white border border-amber-200 shadow-sm p-6 mb-8"
+        >
           <h3 className="font-bold mb-1">New registrations awaiting review</h3>
           <p className="text-sm text-neutral-500 mb-3">
             Families with someone marked &ldquo;submitted — pending review&rdquo; — new sign-ups,
@@ -170,6 +197,7 @@ export default async function AdminOverview() {
                   <th className="py-2 pr-4 font-semibold text-right">Families</th>
                   <th className="py-2 pr-4 font-semibold text-right">People</th>
                   <th className="py-2 pr-4 font-semibold text-right">Confirmed</th>
+                  <th className="py-2 pr-4 font-semibold text-right">Waitlisted</th>
                   <th className="py-2 font-semibold text-right">Awaiting review</th>
                 </tr>
               </thead>
@@ -180,6 +208,7 @@ export default async function AdminOverview() {
                     <td className="py-2 pr-4 text-right">{r.families.size}</td>
                     <td className="py-2 pr-4 text-right">{r.people}</td>
                     <td className="py-2 pr-4 text-right text-green-700 font-semibold">{r.confirmed}</td>
+                    <td className="py-2 pr-4 text-right text-neutral-600">{r.waitlisted}</td>
                     <td className={`py-2 text-right font-semibold ${r.pending > 0 ? 'text-amber-700' : 'text-neutral-400'}`}>
                       {r.pending}
                     </td>

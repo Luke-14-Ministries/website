@@ -151,7 +151,7 @@ export default function FamilyWizard({
   // A signature is evidence with a date on it. If this household already
   // signed for this registration, the original stands and we do not ask again
   // -- we show what was signed and when, and offer a copy.
-  const alreadySigned = Boolean(signedAlready?.signedAt);
+
 
   const [family, setFamily] = useState(
     existing?.family ?? {
@@ -189,6 +189,15 @@ export default function FamilyWizard({
   const [result, setResult] = useState(null);
 
   const week = weeks[weekIdx] ?? weeks[0];
+
+  // A signature belongs to the registration it was given for, and therefore
+  // to that EVENT. Reported 25 Aug: switching the event selection left the
+  // "already signed" panel in place, so a signature given for Camp Celebrate
+  // could roll onto the Adult Adventure Retreat without the words ever being
+  // shown again.
+  const signedEventId = signedAlready?.eventId ?? existing?.eventId ?? null;
+  const alreadySigned =
+    Boolean(signedAlready?.signedAt) && signedEventId != null && week?.eventId === signedEventId;
   const named = members.filter((m) => m.firstName.trim() && m.lastName.trim());
   const namedCount = named.length;
   const total = (week?.feeCents ?? 0) * namedCount;
@@ -239,10 +248,18 @@ export default function FamilyWizard({
       if (idx === -1) return;
       const m = members[idx];
       const untouched = !m.role && !m.tshirt && !m.firstTime && !m.dob && !m.sex;
-      if (untouched) {
-        const next = members.filter((_, j) => j !== idx);
-        setMembers(next.length ? next : [{ ...emptyMember }]);
+      // A row with real answers used to be kept SILENTLY -- the tick sprang
+      // back and nothing said why, which reads as a broken checkbox (reported
+      // 25 Aug). Refusing to throw away answers is still right; doing it
+      // without a word was not. Ask, then honour the answer either way.
+      if (!untouched) {
+        const ok = window.confirm(
+          `${m.firstName || 'This person'} already has answers filled in on this registration.\n\nRemove them from it anyway? Their answers on this form will be discarded.`
+        );
+        if (!ok) return;
       }
+      const next = members.filter((_, j) => j !== idx);
+      setMembers(next.length ? next : [{ ...emptyMember }]);
     }
   }
 
@@ -374,9 +391,18 @@ export default function FamilyWizard({
         {/* The required deposit (Larry, 24 Aug), asked for at the moment the
             family is most ready to hear it -- right after "you're in". Not a
             gate: the registration above is already saved either way. */}
-        {!isUpdate && (
+        {/* Gated on whether anything has actually been PAID, not on whether
+            this was an update (reported 25 Aug: editing an unpaid registration
+            hid the deposit panel). "Update" and "already paid" are different
+            facts, and only the second means the ask is finished. The server
+            returns depositDue with the save; undefined errs toward asking. */}
+        {result.depositDue !== false && (
           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
-            <p className="font-semibold">Next step: the deposit holds your spots.</p>
+            <p className="font-semibold">
+              {isUpdate
+                ? 'Still outstanding: the deposit holds your spots.'
+                : 'Next step: the deposit holds your spots.'}
+            </p>
             {/* Careful with the second sentence: the site does NOT know the
                 ministry's balance-due date, and "any time before the event"
                 was a promise nobody had authorised (flagged 24 Aug). Until
@@ -595,6 +621,22 @@ export default function FamilyWizard({
         subtitle="Everyone attending — including yourself if you're coming. Each person gets their own place and fee."
       >
         <div className="space-y-6">
+          {/* Said ONCE, at the top, rather than in small grey type under every
+              person (reported 25 Aug). It is the most important thing on this
+              card that is not a field: what this form does NOT ask for, and
+              where the rest gets asked. */}
+          <div className="rounded border border-brand/30 bg-brand-light/60 px-4 py-3 text-sm">
+            <p className="font-semibold text-brand-dark">
+              This form asks no medical questions.
+            </p>
+            <p className="mt-1 text-neutral-700">
+              Each person attending gets a short details form afterwards — medications,
+              allergy detail, what helps on a hard day, and an emergency contact. You&rsquo;ll
+              find a link for each of them on your dashboard as soon as you{' '}
+              {isUpdate ? 'update' : 'submit'}.
+            </p>
+          </div>
+
           {/* One tick instead of retyping the name from the card above.
               Requested in testing (24 Aug): the primary contact is usually
               attending, and typing your own name twice on one form is the
@@ -659,11 +701,16 @@ export default function FamilyWizard({
                     <option value="" disabled>
                       Choose a role…
                     </option>
-                    <option>Camper with disability</option>
-                    <option>Parent/Guardian</option>
-                    <option>Sibling</option>
-                    <option>Caregiver</option>
-                    <option>Volunteer</option>
+                    <option value="Camper with disability">Camper with disability</option>
+                    <option value="Parent/Guardian">Parent/Guardian</option>
+                    {/* Label widened 25 Aug: a parent or volunteer may bring a
+                        child who is nobody's sibling. The VALUE stays "Sibling"
+                        because the server maps it to the camp_role enum -- the
+                        option carried no value attribute, so relabelling alone
+                        would have written every sibling as a camper. */}
+                    <option value="Sibling">Sibling / Child</option>
+                    <option value="Caregiver">Caregiver</option>
+                    <option value="Volunteer">Volunteer</option>
                   </select>
                 </div>
               </div>
@@ -765,11 +812,6 @@ export default function FamilyWizard({
                   </span>
                 </label>
               </div>
-              <p className="mt-2 text-xs text-neutral-500">
-                A fuller form for {m.firstName.trim() || 'this person'} — medications,
-                allergy detail, what helps on a hard day, emergency contact — appears on
-                your dashboard after you {isUpdate ? 'update' : 'submit'}.
-              </p>
             </div>
           ))}
           {/* Saved household members who are not on this registration yet.
@@ -970,18 +1012,26 @@ export default function FamilyWizard({
         </Card>
       )}
 
-      {error && (
-        <p
-          role="alert"
-          className="rounded border border-red-300 bg-red-50 px-4 py-3 text-red-800"
-        >
-          {error}
-        </p>
-      )}
+      {/* The standalone copy of this message used to live here. It was removed
+          on 25 Aug: the sticky bar below shows the same sentence, so scrolling
+          to the bottom showed it twice. One message, in the place you are
+          looking when you press the button. */}
 
       {/* The running total and the way out, pinned to the bottom of the
           viewport so a long scroll never hides either. */}
       <div className="sticky bottom-0 z-20 -mx-4 sm:mx-0 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] sm:rounded-lg sm:border">
+        {/* The ONLY copy of this message (25 Aug). It lives here because this
+            is where the person is looking when they press the button; the
+            standalone copy that used to sit above showed the same sentence
+            twice once you scrolled to the bottom. */}
+        {error && (
+          <p
+            role="alert"
+            className="mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800"
+          >
+            {error}
+          </p>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-bold">

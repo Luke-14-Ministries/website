@@ -72,6 +72,52 @@ export async function updatePersonInfo(personId, form) {
   if ('last_name' in form && !clean(form.last_name)) {
     return { ok: false, error: 'A last name is needed.' };
   }
+
+  // ⭐ IDENTITY IS FROZEN ONCE SOMEONE IS REGISTERED (reported 25 Aug: a
+  // registered "Raphael TEST4" was renamed to "Tom Bombadil" and the system
+  // allowed it).
+  //
+  // The name and date of birth are not just labels here. Rosters, check-in
+  // lists, signed agreements and medical pages all print the name, and the
+  // registration RPC matches returning people by name + DATE OF BIRTH — so
+  // editing either silently detaches a person from their own history and
+  // creates a duplicate at the next registration. Staff would be looking at a
+  // roster for someone who no longer exists under that name.
+  //
+  // Deliberately NOT "cancel your registration to fix a typo": that is a
+  // heavy price for a common mistake, and it would push families toward
+  // cancelling real places. Staff can correct it on the admin side, where the
+  // consequences are visible.
+  const nextFirst = clean(form.first_name);
+  const nextLast = clean(form.last_name);
+  const nextDob = clean(form.date_of_birth);
+  if (nextFirst || nextLast || nextDob) {
+    const { data: current } = await supabase
+      .from('people')
+      .select('first_name, last_name, date_of_birth')
+      .eq('id', personId)
+      .maybeSingle();
+
+    const changed =
+      (nextFirst && nextFirst !== (current?.first_name ?? '')) ||
+      (nextLast && nextLast !== (current?.last_name ?? '')) ||
+      (nextDob && nextDob !== (current?.date_of_birth ?? ''));
+
+    if (changed) {
+      const { count } = await supabase
+        .from('registration_participants')
+        .select('id', { count: 'exact', head: true })
+        .eq('person_id', personId)
+        .neq('status', 'cancelled');
+      if ((count ?? 0) > 0) {
+        return {
+          ok: false,
+          error:
+            'This person is on a registration, so their name and date of birth are locked — camp rosters and signed agreements already use them. Email the ministry and staff can correct it.',
+        };
+      }
+    }
+  }
   if (!emailLooksValid(form.email)) {
     return { ok: false, error: 'That email address doesn’t look right — please check it.' };
   }

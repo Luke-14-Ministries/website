@@ -15,6 +15,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import SaveButton from '@/components/SaveButton';
+import PhotoUpload from '@/components/PhotoUpload';
 import { formatPhone, formatZip, tidyCity, US_STATES } from '@/lib/format';
 import {
   updateHouseholdInfo,
@@ -35,7 +36,12 @@ function Field({ label, children }) {
 
 const inputCls = 'w-full rounded border border-neutral-300 px-3 py-2';
 
-export default function HouseholdManager({ household, members, caregiversByPerson }) {
+export default function HouseholdManager({
+  household,
+  members,
+  caregiversByPerson,
+  photoUrlByPerson = {},
+}) {
   const router = useRouter();
   const [, start] = useTransition();
   // Per-card save state, keyed by card ('hh' or a person id):
@@ -233,6 +239,20 @@ export default function HouseholdManager({ household, members, caregiversByPerso
                 {m.age != null ? ` · age ${m.age}` : ' · no date of birth on file'}
               </span>
             </h2>
+            {/* The photo lives here as well as on the details form (asked for
+                25 Aug). It is a household fact — "who is this person" — not an
+                event one, and a family keeping their roster current should not
+                have to open a per-event form to change a face. Same component,
+                same storage path, so a photo added in either place is the
+                same photo. */}
+            <div className="mt-3 rounded border border-neutral-200 bg-neutral-50 p-4">
+              <PhotoUpload
+                personId={m.id}
+                personName={m.first_name}
+                initialUrl={photoUrlByPerson[m.id] ?? null}
+              />
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2 mt-3">
               <Field label="First name">
                 <input name="first_name" defaultValue={m.first_name ?? ''} className={inputCls} />

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import ActivityPicker from './ActivityPicker';
+import BackBar from '@/components/BackBar';
 
 export const metadata = { title: 'Activities — Luke 14 Ministries' };
 
@@ -145,6 +146,7 @@ export default async function ActivitiesPage() {
             </div>
           </>
         )}
+        <BackBar />
       </div>
     </section>
   );

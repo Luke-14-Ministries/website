@@ -79,6 +79,9 @@ function Row({ row }) {
         >
           Open the registration
         </Link>
+        <span className="text-xs text-neutral-500">
+          — cancel the places there, and refund on the payment below them
+        </span>
       </div>
 
       {row.status === 'open' && (

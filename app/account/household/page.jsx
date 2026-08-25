@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import HouseholdManager from './HouseholdManager';
+import BackBar from '@/components/BackBar';
 
 export const metadata = { title: 'Manage Household — Luke 14 Ministries' };
 
@@ -76,6 +77,24 @@ export default async function ManageHouseholdPage() {
     isGuardian: guardianIds.has(p.id),
   }));
 
+  // Signed URLs for whoever already has a photo. Asked for 25 Aug: the photo
+  // is a household fact ("who is this person"), so keeping it only on the
+  // per-event details form made families hunt for it.
+  const photoUrlByPerson = {};
+  if ((people ?? []).length) {
+    const { data: photoRows } = await supabase
+      .from('person_photos')
+      .select('person_id, storage_path')
+      .in('person_id', (people ?? []).map((p) => p.id));
+    for (const row of photoRows ?? []) {
+      if (!row.storage_path) continue;
+      const { data: signed } = await supabase.storage
+        .from('person-photos')
+        .createSignedUrl(row.storage_path, 3600);
+      if (signed?.signedUrl) photoUrlByPerson[row.person_id] = signed.signedUrl;
+    }
+  }
+
   const caregiversByPerson = {};
   for (const link of careLinks ?? []) {
     if (!caregiversByPerson[link.person_id]) caregiversByPerson[link.person_id] = {};
@@ -101,7 +120,9 @@ export default async function ManageHouseholdPage() {
           household={household}
           members={members}
           caregiversByPerson={caregiversByPerson}
+          photoUrlByPerson={photoUrlByPerson}
         />
+        <BackBar />
       </div>
     </section>
   );

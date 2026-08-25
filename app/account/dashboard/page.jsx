@@ -5,6 +5,7 @@ import { getStaff } from '@/lib/staff';
 import PayPanel from './PayPanel';
 import RegistrationCard from './RegistrationCard';
 import CancelRequest from './CancelRequest';
+import SupportDetailsCard from './SupportDetailsCard';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -230,6 +231,14 @@ export default async function DashboardPage({ searchParams }) {
       supportStatus.set(s.person_id, s.details_saved_at ? 'started' : 'empty');
     }
   }
+
+  // Everyone reviewed? Then the card has done its job and can fold itself to
+  // a line (asked for 25 Aug). It is NOT removed: families come back to change
+  // a medication or an emergency contact, and a card that vanished when
+  // complete would send them hunting.
+  const allDetailsDone =
+    attendingPeople.length > 0 &&
+    attendingPeople.every((p) => supportStatus.get(p.id) === 'started');
 
   // Registered volunteers who haven't filed their volunteer application yet —
   // surfaced as a nudge below, because the application is a separate short
@@ -472,7 +481,10 @@ export default async function DashboardPage({ searchParams }) {
             person attending, so the promise made at the end of the wizard has
             somewhere to land. */}
         {attendingPeople.length > 0 && (
-          <div className="mb-8 rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+          <SupportDetailsCard
+            allDone={allDetailsDone}
+            count={attendingPeople.length}
+          >
             <h2 className="text-xl font-bold">Support details</h2>
             <p className="mt-1 text-sm text-neutral-600">
               A short form for each person attending — allergies, medications, what helps on
@@ -512,7 +524,7 @@ export default async function DashboardPage({ searchParams }) {
                 );
               })}
             </ul>
-          </div>
+          </SupportDetailsCard>
         )}
 
         {/* Staff door -- only when this login is also active staff. */}

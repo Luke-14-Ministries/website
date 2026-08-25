@@ -115,6 +115,43 @@ export default async function RegistrationDetailPage({ params }) {
     .eq('registration_id', id)
     .maybeSingle();
 
+  // Payments on this registration, with any refunds already issued against
+  // each. Refunds are per-PAYMENT (you refund a transaction, not a balance),
+  // so the two have to arrive together or the UI cannot say how much of a
+  // given payment is still refundable.
+  const [{ data: paymentRows }, { data: refundRows }] = await Promise.all([
+    supabase
+      .from('payments')
+      .select('id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note, stripe_payment_intent_id')
+      .eq('registration_id', id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('payment_refunds')
+      .select('id, payment_id, amount_cents, fee_cover_cents, status, reason, method, refunded_on, created_at')
+      .eq('registration_id', id)
+      .order('created_at', { ascending: false }),
+  ]);
+  const refundsByPayment = new Map();
+  for (const rf of refundRows ?? []) {
+    if (!refundsByPayment.has(rf.payment_id)) refundsByPayment.set(rf.payment_id, []);
+    refundsByPayment.get(rf.payment_id).push(rf);
+  }
+  const payments = (paymentRows ?? []).map((p) => {
+    const refunds = refundsByPayment.get(p.id) ?? [];
+    // Only pending and succeeded refunds hold money; a failed or cancelled one
+    // must not lock up the amount it was going to return.
+    const refunded = refunds
+      .filter((r) => r.status === 'pending' || r.status === 'succeeded')
+      .reduce((s, r) => s + (r.amount_cents ?? 0), 0);
+    return {
+      ...p,
+      refunds,
+      refundedCents: refunded,
+      refundableCents: Math.max(0, (p.amount_cents ?? 0) - refunded),
+      isStripe: Boolean(p.stripe_payment_intent_id),
+    };
+  });
+
   const [{ data: consentRows }, { data: sigRows }] = await Promise.all([
     peopleIds.length
       ? supabase
@@ -179,6 +216,7 @@ export default async function RegistrationDetailPage({ params }) {
       familyMessages={familyMessages}
       signatures={signatures}
       balance={balanceRow}
+      payments={payments}
     />
   );
 }

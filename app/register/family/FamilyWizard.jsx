@@ -141,6 +141,10 @@ export default function FamilyWizard({
   askHeardAbout = false,
   agreements = [],
   signedAlready = null,
+  // Everyone already saved in this household, whether or not they have ever
+  // registered. Offered as one-click adds so a family keeps its roster once
+  // and picks from it, rather than retyping the same children every year.
+  householdPeople = [],
 }) {
   const isUpdate = existing?.isUpdate === true;
   // A signature is evidence with a date on it. If this household already
@@ -757,13 +761,59 @@ export default function FamilyWizard({
               </p>
             </div>
           ))}
-          <button
-            type="button"
-            className="btn-outline !py-2"
-            onClick={() => setMembers([...members, { ...emptyMember }])}
-          >
-            + Add another person
-          </button>
+          {/* Saved household members who are not on this registration yet.
+              One click each. The role is deliberately left blank -- it can
+              differ per event (a sibling one year, a volunteer the next), so
+              it is the one thing we never carry over. */}
+          {(() => {
+            const onForm = new Set(
+              members.map((m) => m.personId).filter(Boolean)
+            );
+            const available = householdPeople.filter((p) => !onForm.has(p.personId));
+            if (available.length === 0) return null;
+            return (
+              <div className="rounded border border-neutral-200 bg-neutral-50 p-4">
+                <p className="text-sm font-semibold">Already in your household</p>
+                <p className="mt-0.5 text-xs text-neutral-600">
+                  Tap to add them to this registration — no need to type them in again.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {available.map((p) => (
+                    <button
+                      key={p.personId}
+                      type="button"
+                      onClick={() =>
+                        setMembers([
+                          ...members.filter(
+                            // Drop a still-blank row so adding someone doesn't
+                            // leave an empty card stranded above them.
+                            (m) => m.firstName.trim() || m.lastName.trim() || m.personId
+                          ),
+                          { ...emptyMember, ...p },
+                        ])
+                      }
+                      className="rounded-full border border-brand bg-white px-3 py-1.5 text-sm font-semibold text-brand hover:bg-brand-light"
+                    >
+                      + {p.firstName} {p.lastName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="btn-outline !py-2"
+              onClick={() => setMembers([...members, { ...emptyMember }])}
+            >
+              + Add someone new
+            </button>
+            <span className="text-sm text-neutral-500">
+              Anyone you add here is saved to your household for next time.
+            </span>
+          </div>
         </div>
       </Card>
 
@@ -859,17 +909,37 @@ export default function FamilyWizard({
                         needs to know in what CAPACITY the signature is given:
                         an adult signing for themselves, or an adult signing
                         on behalf of people in their care. */}
-                    <label className={label}>This signature covers</label>
-                    <select
-                      className={input}
-                      value={signerRole}
-                      onChange={(e) => setSignerRole(e.target.value)}
-                    >
-                      <option value="self">myself and my household</option>
-                      <option value="guardian">
-                        people I am parent or legal guardian for
-                      </option>
-                    </select>
+                    {/* Radio buttons, not a dropdown (24 Aug: "should it be a
+                        check box?"). It cannot be a checkbox -- these are two
+                        mutually exclusive capacities, and two checkboxes would
+                        let someone tick both. But with only two choices a
+                        dropdown hides half the question behind a click, so
+                        both are simply on screen. */}
+                    <span className={label}>This signature covers</span>
+                    <div className="space-y-2">
+                      {[
+                        ['self', 'myself and my household'],
+                        ['guardian', 'people I am parent or legal guardian for'],
+                      ].map(([value, text]) => (
+                        <label
+                          key={value}
+                          className={`flex cursor-pointer items-start gap-2 rounded border px-3 py-2 text-sm ${
+                            signerRole === value
+                              ? 'border-brand bg-brand-light font-semibold'
+                              : 'border-neutral-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="signerRole"
+                            className="mt-0.5"
+                            checked={signerRole === value}
+                            onChange={() => setSignerRole(value)}
+                          />
+                          <span>{text}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <p className="mt-3 text-xs text-neutral-600">

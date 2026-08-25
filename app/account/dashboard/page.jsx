@@ -106,12 +106,27 @@ export default async function DashboardPage({ searchParams }) {
     .eq('profile_id', user.id);
   const householdIds = (memberships ?? []).map((m) => m.household_id);
 
-  const { data: households } = householdIds.length
+  // people!people_household_id_fkey — the constraint is named EXPLICITLY, and
+  // it has to be. Since 0037 there are two foreign keys between households and
+  // people (people.household_id -> households, and
+  // households.primary_contact_person_id -> people), so a bare `people ( ... )`
+  // is ambiguous: PostgREST refuses the whole query rather than guess. That
+  // failure is what emptied this card on 24 Aug -- the error was discarded, the
+  // card fell back to its empty state, and a family with people on file was
+  // told it had none.
+  const { data: households, error: householdError } = householdIds.length
     ? await supabase
         .from('households')
-        .select('id, display_name, primary_contact_person_id, people ( id, first_name, last_name, date_of_birth )')
+        .select(
+          'id, display_name, primary_contact_person_id, people!people_household_id_fkey ( id, first_name, last_name, date_of_birth )'
+        )
         .in('id', householdIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (householdError) {
+    // Never silently. An empty card that means "we couldn't load this" must not
+    // look like an empty card that means "you have nobody".
+    console.error('dashboard household query:', householdError.message);
+  }
   const household = households?.[0] ?? null;
   const members = household?.people ?? [];
 
@@ -261,6 +276,68 @@ export default async function DashboardPage({ searchParams }) {
         .in('registration_id', regIds)
         .order('created_at', { ascending: false })
     : { data: [] };
+
+  // Refunds, shown to the family alongside their payments. A refund they
+  // cannot see is a refund they telephone about -- and their balance has
+  // already changed to account for it, so hiding the cause would make the
+  // number look wrong.
+  const { data: refundRows } = regIds.length
+    ? await supabase
+        .from('payment_refunds')
+        .select('registration_id, amount_cents, fee_cover_cents, status, reason, refunded_on, created_at')
+        .in('registration_id', regIds)
+        .in('status', ['pending', 'succeeded'])
+        .order('created_at', { ascending: false })
+    : { data: [] };
+  const refundsByReg = new Map();
+  for (const r of refundRows ?? []) {
+    if (!refundsByReg.has(r.registration_id)) refundsByReg.set(r.registration_id, []);
+    refundsByReg.get(r.registration_id).push(r);
+  }
+  // Buddies, but only where staff have PUBLISHED them: the RLS policy on
+  // buddy_assignments checks buddies_published(event_id), so an unpublished
+  // pairing simply returns nothing here. No client-side gate needed -- the
+  // database refuses to hand it over, which is the right place for that rule.
+  const myParticipantIds = regs.flatMap((r) =>
+    (r.registration_participants ?? []).map((p) => p.id)
+  );
+  const buddyNameByParticipant = new Map();
+  if (myParticipantIds.length) {
+    const { data: buddyRows } = await supabase
+      .from('buddy_assignments')
+      .select(
+        `camper_participant_id,
+         buddy:registration_participants!buddy_assignments_buddy_participant_id_fkey (
+           people ( first_name, last_name ) )`
+      )
+      .in('camper_participant_id', myParticipantIds)
+      .is('ended_at', null);
+    for (const b of buddyRows ?? []) {
+      const n = `${b.buddy?.people?.first_name ?? ''} ${b.buddy?.people?.last_name ?? ''}`.trim();
+      if (n) buddyNameByParticipant.set(b.camper_participant_id, n);
+    }
+  }
+
+  // Where each person is sleeping, once staff have published. Same story as
+  // buddies: the RLS policy checks lodging_published(event_id), so an
+  // unpublished draft returns nothing and no client-side gate is needed.
+  const lodgingByParticipant = new Map();
+  if (myParticipantIds.length) {
+    const { data: bedRows } = await supabase
+      .from('lodging_assignments')
+      .select('registration_participant_id, lodgings ( name, parent:lodgings!lodgings_parent_id_fkey ( name ) )')
+      .in('registration_participant_id', myParticipantIds);
+    for (const b of bedRows ?? []) {
+      const room = b.lodgings?.name;
+      if (!room) continue;
+      const parent = b.lodgings?.parent?.name;
+      lodgingByParticipant.set(
+        b.registration_participant_id,
+        parent ? `${parent} — ${room}` : room
+      );
+    }
+  }
+
   const paymentsByReg = new Map();
   for (const p of paymentRows ?? []) {
     if (!paymentsByReg.has(p.registration_id)) paymentsByReg.set(p.registration_id, []);
@@ -475,6 +552,22 @@ export default async function DashboardPage({ searchParams }) {
                                   {label}
                                 </span>
                               </div>
+                              {lodgingByParticipant.get(p.id) && (
+                                <p className="mt-1 text-xs text-neutral-600">
+                                  Staying in:{' '}
+                                  <span className="font-semibold">
+                                    {lodgingByParticipant.get(p.id)}
+                                  </span>
+                                </p>
+                              )}
+                              {buddyNameByParticipant.get(p.id) && (
+                                <p className="mt-1 text-xs text-neutral-600">
+                                  Buddy for the week:{' '}
+                                  <span className="font-semibold">
+                                    {buddyNameByParticipant.get(p.id)}
+                                  </span>
+                                </p>
+                              )}
                               {/* Volunteers keep a permanent path back to their
                                   application — the amber banner only covers the
                                   not-yet-filed case. */}
@@ -550,6 +643,38 @@ export default async function DashboardPage({ searchParams }) {
                               );
                             })}
                           </ul>
+                          {/* Refunds sit with the payments they reverse, not in
+                              a separate place: the family's question is "what
+                              happened to my money", and that is one story. */}
+                          {(refundsByReg.get(r.id) ?? []).length > 0 && (
+                            <ul className="mt-2 border-t border-neutral-200 pt-2 text-sm">
+                              {(refundsByReg.get(r.id) ?? []).map((rf, i) => (
+                                <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-1">
+                                  <span className="text-neutral-700">
+                                    {(rf.refunded_on ?? rf.created_at ?? '').slice(0, 10)} · Refunded{' '}
+                                    <span className="font-semibold">{money(rf.amount_cents)}</span>
+                                    {(rf.fee_cover_cents ?? 0) > 0 && (
+                                      <span className="text-neutral-500">
+                                        {' '}+ {money(rf.fee_cover_cents)} processing
+                                      </span>
+                                    )}
+                                    {rf.reason && (
+                                      <span className="text-neutral-500"> — {rf.reason}</span>
+                                    )}
+                                  </span>
+                                  <span
+                                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                      rf.status === 'succeeded'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}
+                                  >
+                                    {rf.status === 'succeeded' ? 'Refunded' : 'Refund on its way'}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       )}
 
@@ -655,6 +780,16 @@ export default async function DashboardPage({ searchParams }) {
                             hidden behind "having trouble?" — the ministry
                             raises money for this, and a link people have to
                             hunt for is one most families will not click. */}
+                        {/* Activities live on their own page: a family with
+                            three people and eleven activities is more screen
+                            than a dashboard card should carry. */}
+                        <Link
+                          href="/account/activities/"
+                          title="Choose horseback riding, the boat, rafting and the rest."
+                          className="btn-outline !py-2"
+                        >
+                          Choose activities
+                        </Link>
                         <Link
                           href={`/account/scholarship/${r.id}`}
                           title="Ask for help with the fee. It will not affect anyone's place."
@@ -686,9 +821,15 @@ export default async function DashboardPage({ searchParams }) {
           {/* Household -- real */}
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-4' : 'order-2'}`}>
             <h2 className="text-xl font-bold mb-4">My Household</h2>
-            {members.length === 0 ? (
+            {householdError ? (
+              <p className="text-amber-800">
+                We couldn&rsquo;t load your household just now. Refreshing usually fixes
+                it — if it doesn&rsquo;t, please let the ministry know.
+              </p>
+            ) : members.length === 0 ? (
               <p className="text-neutral-500">
-                No family members on file yet. They&rsquo;re added when you register.
+                No family members on file yet — add them below, or they&rsquo;re added
+                automatically when you register.
               </p>
             ) : (
               <ul className="space-y-2 text-neutral-700">

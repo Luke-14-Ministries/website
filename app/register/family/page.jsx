@@ -133,6 +133,8 @@ export default async function FamilyRegisterPage({ searchParams }) {
   // recent. ----
   let existing = null;
   let signedAlready = null;
+  // Everyone saved in this household, offered as pick-and-add in the wizard.
+  let householdPeople = [];
   // "How did you hear about us?" is a first-contact question, so it is asked
   // once per family and never again. CampSite asks it on every enrolment, which
   // is why their export repeats the same answer for every child every year.
@@ -251,6 +253,29 @@ export default async function FamilyRegisterPage({ searchParams }) {
         directoryWasNo: latestConsent.get(`${p.people?.id}:directory`) === 'false',
       }));
 
+    // EVERY person in the household, not only those on the last registration.
+    // This is what lets the wizard offer "add someone you've already saved"
+    // instead of making a family retype the same children each year (24 Aug).
+    const { data: allPeople } = await supabase
+      .from('people')
+      .select('id, first_name, last_name, date_of_birth, gender')
+      .eq('household_id', householdId)
+      .order('created_at');
+    householdPeople = (allPeople ?? []).map((p) => ({
+      personId: p.id,
+      firstName: p.first_name ?? '',
+      lastName: p.last_name ?? '',
+      dob: p.date_of_birth ?? '',
+      sex: p.gender ?? '',
+      tshirt: carried.get(p.id)?.tshirt ?? '',
+      firstTime: (() => {
+        const v = carried.get(p.id)?.firstTime;
+        return v === true ? 'true' : v === false ? 'false' : '';
+      })(),
+      mediaWasNo: latestConsent.get(`${p.id}:media`) === 'false',
+      directoryWasNo: latestConsent.get(`${p.id}:directory`) === 'false',
+    }));
+
     askHeardAbout = !household?.how_did_you_hear;
 
     existing = {
@@ -333,6 +358,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
             askHeardAbout={askHeardAbout}
             agreements={requiredAgreements}
             signedAlready={signedAlready}
+            householdPeople={householdPeople}
           />
         )}
       </div>

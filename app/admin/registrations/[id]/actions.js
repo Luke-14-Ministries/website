@@ -15,6 +15,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getStaff, can } from '@/lib/staff';
+import { getStripe } from '@/lib/stripe/server';
 
 const STATUSES = ['draft', 'submitted', 'waitlisted', 'confirmed', 'cancelled'];
 const CAMP_ROLES = [
@@ -445,4 +446,143 @@ export async function deleteFamilyMessage(registrationId, messageId) {
   }
   revalidatePath(`/admin/registrations/${registrationId}`);
   return { ok: true };
+}
+
+// --- refunds -----------------------------------------------------------------
+//
+// Money back to a family, in full or in part (board direction, 24 Aug: credits
+// alone are not enough). A refund reverses a specific PAYMENT, never a balance
+// -- Stripe can only refund a charge it made, and a partial refund is
+// meaningless without knowing which transaction it came out of.
+//
+// Two routes, deliberately kept apart:
+//   * a payment Stripe handled -> ask Stripe, record what it says
+//   * a check or cash payment  -> record only. The ministry writes the check;
+//     the site's job is to make sure the balance and the paper agree.
+//
+// The database is the real guard: the trigger on payment_refunds refuses any
+// total above the original payment, so a stale page or a doubled click cannot
+// over-refund. The checks here exist to give a person a sentence they can
+// understand instead of a constraint violation.
+export async function refundPayment(registrationId, input) {
+  const staff = await getStaff();
+  if (!can(staff, 'registrar')) return { ok: false, error: 'Not permitted.' };
+
+  const { paymentId, amountCents, feeCoverCents = 0, reason, note } = input || {};
+  const amount = Math.round(Number(amountCents));
+  const feeCover = Math.round(Number(feeCoverCents) || 0);
+
+  if (!paymentId) return { ok: false, error: 'Which payment is being refunded?' };
+  if (!Number.isFinite(amount) || amount < 1) {
+    return { ok: false, error: 'Enter a refund amount of at least $0.01.' };
+  }
+  if (!(reason || '').trim()) {
+    // Not a database rule, a working one: a refund with no reason is
+    // unanswerable when someone asks about it next year.
+    return { ok: false, error: 'Please give a short reason for the refund.' };
+  }
+
+  const supabase = await createClient();
+
+  const { data: payment, error: payError } = await supabase
+    .from('payments')
+    .select('id, registration_id, amount_cents, fee_cover_cents, status, method, stripe_payment_intent_id')
+    .eq('id', paymentId)
+    .eq('registration_id', registrationId)
+    .maybeSingle();
+  if (payError || !payment) return { ok: false, error: 'That payment could not be found.' };
+
+  const { data: priorRefunds } = await supabase
+    .from('payment_refunds')
+    .select('amount_cents, status')
+    .eq('payment_id', paymentId);
+  const alreadyRefunded = (priorRefunds ?? [])
+    .filter((r) => r.status === 'pending' || r.status === 'succeeded')
+    .reduce((s, r) => s + (r.amount_cents ?? 0), 0);
+  const refundable = (payment.amount_cents ?? 0) - alreadyRefunded;
+
+  if (amount > refundable) {
+    return {
+      ok: false,
+      error:
+        refundable <= 0
+          ? 'This payment has already been refunded in full.'
+          : `The most that can still be refunded on this payment is $${(refundable / 100).toFixed(2)}.`,
+    };
+  }
+  if (feeCover > (payment.fee_cover_cents ?? 0)) {
+    return { ok: false, error: 'That is more than the processing-fee contribution on this payment.' };
+  }
+
+  // Stripe first, database second. If Stripe refuses, nothing is recorded and
+  // the family's balance is untouched -- whereas recording first and failing
+  // second would show a refund that never happened.
+  let stripeRefundId = null;
+  let status = 'succeeded';
+  let method = 'check';
+
+  if (payment.stripe_payment_intent_id) {
+    const stripe = getStripe();
+    if (!stripe) {
+      return { ok: false, error: 'Stripe is not configured, so this payment cannot be refunded here.' };
+    }
+    try {
+      const refund = await stripe.refunds.create({
+        payment_intent: payment.stripe_payment_intent_id,
+        // Stripe's own cut is not returned, so the fee contribution is added
+        // to what the family gets back only when staff have chosen to.
+        amount: amount + feeCover,
+        reason: 'requested_by_customer',
+        metadata: {
+          registration_id: registrationId,
+          payment_id: paymentId,
+          recorded_reason: (reason || '').slice(0, 400),
+        },
+      });
+      stripeRefundId = refund.id;
+      method = 'stripe';
+      // Stripe returns 'succeeded' for cards almost always, and 'pending' for
+      // bank refunds that take days. Either way the money is committed, and
+      // the balance view counts both.
+      status = refund.status === 'succeeded' ? 'succeeded' : 'pending';
+    } catch (e) {
+      return { ok: false, error: `Stripe refused the refund: ${e?.message ?? 'unknown error'}` };
+    }
+  }
+
+  const { error: insertError } = await supabase.from('payment_refunds').insert({
+    payment_id: paymentId,
+    registration_id: registrationId,
+    amount_cents: amount,
+    fee_cover_cents: feeCover,
+    status,
+    reason: (reason || '').trim(),
+    note: (note || '').trim() || null,
+    method,
+    stripe_refund_id: stripeRefundId,
+    refunded_by: staff.userId ?? null,
+    refunded_on: new Date().toISOString().slice(0, 10),
+  });
+  if (insertError) {
+    // The money may already have left Stripe at this point, so this must be
+    // loud rather than swallowed.
+    console.error('refundPayment insert:', insertError.message, { stripeRefundId });
+    return {
+      ok: false,
+      error: stripeRefundId
+        ? `Stripe issued refund ${stripeRefundId}, but recording it here failed: ${insertError.message}. Tell an administrator — the balance is now wrong.`
+        : `The refund could not be recorded: ${insertError.message}`,
+    };
+  }
+
+  // A payment refunded down to nothing is marked refunded, so the payments
+  // list stops presenting it as money the ministry holds.
+  if (amount >= refundable) {
+    await supabase.from('payments').update({ status: 'refunded' }).eq('id', paymentId);
+  }
+
+  revalidatePath(`/admin/registrations/${registrationId}`);
+  revalidatePath('/admin/payments');
+  revalidatePath('/account/dashboard');
+  return { ok: true, status, stripeRefundId };
 }

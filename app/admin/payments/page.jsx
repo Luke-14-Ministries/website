@@ -375,14 +375,16 @@ export default async function AdminPaymentsPage({ searchParams }) {
                         >
                           Email balance owed + payment link
                         </button>
-                        <button
-                          type="button"
-                          disabled
-                          title="Planned — refunds work in the Stripe dashboard today"
-                          className="block w-full cursor-not-allowed px-3 py-1.5 text-left text-neutral-400"
+                        {/* Real since 0038. A refund reverses one PAYMENT,
+                            and this table knows balances, not transactions --
+                            so the action lives on the family's registration
+                            page, where each payment can be picked. */}
+                        <a
+                          href={`/admin/registrations/${b.registration_id}#payments`}
+                          className="block px-3 py-1.5 text-brand hover:bg-neutral-50"
                         >
-                          Refund
-                        </button>
+                          Refund a payment
+                        </a>
                       </div>
                     </details>
                   </td>

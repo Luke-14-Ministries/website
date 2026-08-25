@@ -11,6 +11,23 @@ import { usePathname } from 'next/navigation';
 
 const OPEN_KEY = 'l14_admin_nav_events_open';
 
+// Two kinds of number, and the difference is NOT whether a human should look
+// -- both deserve eyes (24 Aug). It is whether looking makes the number go
+// away:
+//
+//   amber  a queue that DRAINS. Review the item and it leaves the count;
+//          zero is reachable and means "nothing outstanding".
+//   blue   a rolling seven-day window. It shrinks with time, not with
+//          action, and can never be cleared.
+//
+// Mixing them costs the amber ones their meaning: a badge nobody can ever
+// clear teaches staff that badges are wallpaper, and then the two that really
+// are to-do lists stop being read as to-do lists.
+const BADGE_TONE = {
+  '/admin/accounts': 'window',
+  '/admin/payments': 'window',
+};
+
 export default function AdminNav({ top, events, rest, badges = {}, badgeTitles = {} }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
@@ -39,19 +56,33 @@ export default function AdminNav({ top, events, rest, badges = {}, badgeTitles =
     // lit while inside one -- the trail back stays visible (24 Aug).
     (href === '/admin/rosters' && pathname?.startsWith('/admin/registrations'));
 
+  // "You are here" in the ministry's own teal, with a solid left edge doing
+  // most of the work. Grey-200 read as a warm, faintly alarming wash next to
+  // the amber count badges (24 Aug); a colour from the palette says "current
+  // page" without suggesting anything is wrong. The bold weight and the bar
+  // mean the state survives if colour alone is hard to see.
   const Item = ({ n, indent = false }) =>
     n.ready ? (
       <Link
         href={n.href}
-        className={`block rounded px-3 py-2 font-medium hover:bg-neutral-200 ${
+        aria-current={isActive(n.href) ? 'page' : undefined}
+        className={`block rounded px-3 py-2 font-medium hover:bg-brand-light/60 ${
           indent ? 'ml-4' : ''
-        } ${isActive(n.href) ? 'bg-neutral-200' : ''}`}
+        } ${
+          isActive(n.href)
+            ? 'bg-brand-light text-brand-dark font-semibold border-l-4 border-brand pl-2'
+            : ''
+        }`}
       >
         {n.label}
         {(badges[n.href] ?? 0) > 0 && (
           <span
             title={`${badges[n.href]} ${badgeTitles[n.href] ?? 'needing review'}`}
-            className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold"
+            className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+              BADGE_TONE[n.href] === 'window'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-amber-100 text-amber-800'
+            }`}
           >
             {badges[n.href]}
           </span>
@@ -95,6 +126,19 @@ export default function AdminNav({ top, events, rest, badges = {}, badgeTitles =
       {rest.map((n) => (
         <Item key={n.href} n={n} />
       ))}
+
+      {/* Said once, here, rather than left as tribal knowledge -- the whole
+          point of two colours is lost if nobody knows there are two. */}
+      <p className="mt-3 px-3 text-xs leading-relaxed text-neutral-500">
+        <span className="inline-block rounded-full bg-amber-100 px-1.5 font-semibold text-amber-800">
+          n
+        </span>{' '}
+        waiting for review ·{' '}
+        <span className="inline-block rounded-full bg-blue-100 px-1.5 font-semibold text-blue-800">
+          n
+        </span>{' '}
+        activity in the last 7 days
+      </p>
     </nav>
   );
 }

@@ -111,10 +111,15 @@ export default function CheckinList({ rows }) {
                       <span
                         key={f.t}
                         title={f.title}
+                        /* red = ignoring it harms someone or breaks a
+                           promise; amber = work outstanding; neutral = a
+                           settled fact worth seeing (an assigned buddy). */
                         className={`mr-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
                           f.tone === 'amber'
                             ? 'bg-amber-100 text-amber-800'
-                            : 'bg-red-100 text-red-800'
+                            : f.tone === 'neutral'
+                              ? 'bg-neutral-100 text-neutral-600'
+                              : 'bg-red-100 text-red-800'
                         }`}
                       >
                         {f.t}

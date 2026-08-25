@@ -20,6 +20,7 @@ import {
   deleteFamilyMessage,
   setParticipantEnrollment,
   setPersonConsent,
+  refundPayment,
 } from './actions';
 
 const TSHIRT_SIZES = [
@@ -78,6 +79,14 @@ const ROLE_BADGE = {
   volunteer: 'bg-amber-100 text-amber-800',
   childcare: 'bg-blue-100 text-blue-800',
   support_team: 'bg-blue-100 text-blue-800',
+};
+
+const PAY_METHOD_LABEL = {
+  card: 'Card',
+  bank_transfer: 'Bank transfer',
+  check: 'Check',
+  cash: 'Cash',
+  other: 'Other',
 };
 
 const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
@@ -1005,6 +1014,220 @@ function FamilyMessages({ registrationId, messages }) {
   );
 }
 
+
+// --- payments and refunds -----------------------------------------------------
+//
+// A refund reverses one PAYMENT, so this is the only screen where refunding
+// makes sense -- Event Payments knows balances, not transactions. Partial is
+// the normal case (one child withdraws from three), so the amount box opens
+// pre-filled with everything still refundable and is freely editable down.
+function PaymentsCard({ registrationId, payments }) {
+  const [openFor, setOpenFor] = useState(null);
+
+  if (payments.length === 0) {
+    return (
+      <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+        <h2 className="text-lg font-bold mb-1">Payments</h2>
+        <p className="text-sm text-neutral-500">Nothing has been paid on this registration yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
+      <h2 className="text-lg font-bold mb-1">Payments</h2>
+      <p className="text-sm text-neutral-500 mb-4">
+        Refunds go back against the payment they came from. Card and bank payments are
+        refunded through Stripe here; checks and cash are recorded here and paid by the
+        ministry.
+      </p>
+      <ul className="divide-y divide-neutral-100">
+        {payments.map((p) => (
+          <li key={p.id} className="py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span>
+                <strong>{money(p.amount_cents)}</strong>
+                {(p.fee_cover_cents ?? 0) > 0 && (
+                  <span className="text-neutral-500"> + {money(p.fee_cover_cents)} fee cover</span>
+                )}
+                <span className="text-neutral-500">
+                  {' '}· {PAY_METHOD_LABEL[p.method] ?? p.method}
+                  {' '}· {(p.received_on ?? p.created_at ?? '').slice(0, 10)}
+                </span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    p.status === 'refunded'
+                      ? 'bg-neutral-200 text-neutral-600'
+                      : p.status === 'succeeded'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {p.status}
+                </span>
+                {p.refundableCents > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenFor(openFor === p.id ? null : p.id)}
+                    className="text-sm text-brand underline"
+                  >
+                    {openFor === p.id ? 'Cancel' : 'Refund…'}
+                  </button>
+                )}
+              </span>
+            </div>
+
+            {p.refunds.length > 0 && (
+              <ul className="mt-2 ml-4 space-y-1 border-l-2 border-neutral-100 pl-3 text-sm">
+                {p.refunds.map((r) => (
+                  <li key={r.id} className="text-neutral-600">
+                    Refunded <strong>{money(r.amount_cents)}</strong>
+                    {(r.fee_cover_cents ?? 0) > 0 && ` + ${money(r.fee_cover_cents)} fee`}
+                    {' '}· {(r.refunded_on ?? r.created_at ?? '').slice(0, 10)}
+                    {' '}· <span className="italic">{r.reason || 'no reason recorded'}</span>
+                    {r.status !== 'succeeded' && (
+                      <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                        {r.status}
+                      </span>
+                    )}
+                  </li>
+                ))}
+                {p.refundableCents > 0 && (
+                  <li className="text-neutral-500">
+                    {money(p.refundableCents)} of this payment can still be refunded.
+                  </li>
+                )}
+              </ul>
+            )}
+
+            {openFor === p.id && (
+              <RefundForm
+                registrationId={registrationId}
+                payment={p}
+                onDone={() => setOpenFor(null)}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RefundForm({ registrationId, payment, onDone }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState('');
+  // Dollars as typed, defaulting to everything still refundable -- the common
+  // case is "give it all back", and the uncommon one is one keystroke away.
+  const [amount, setAmount] = useState((payment.refundableCents / 100).toFixed(2));
+  const [feeCover, setFeeCover] = useState(false);
+  const [reason, setReason] = useState('');
+
+  const cents = Math.round((parseFloat(amount) || 0) * 100);
+  const feeCents = feeCover ? payment.fee_cover_cents ?? 0 : 0;
+
+  function submit() {
+    setError('');
+    start(async () => {
+      const res = await refundPayment(registrationId, {
+        paymentId: payment.id,
+        amountCents: cents,
+        feeCoverCents: feeCents,
+        reason,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      onDone();
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">
+        Refund from this {PAY_METHOD_LABEL[payment.method] ?? payment.method} payment
+      </p>
+      <p className="mt-0.5 text-xs text-amber-800">
+        {payment.isStripe
+          ? 'This goes to Stripe now and back to the card or bank account it came from — usually visible to the family in 5–10 days.'
+          : 'This records a refund the ministry pays by check or cash. Nothing is sent anywhere automatically.'}
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="block">
+          <span className="block text-xs font-semibold text-neutral-600 mb-0.5">Amount</span>
+          <span className="flex items-center gap-1">
+            <span className="text-neutral-500">$</span>
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-28 rounded border border-neutral-300 px-2 py-1 bg-white"
+            />
+          </span>
+        </label>
+        <span className="text-xs text-neutral-600 pb-1.5">
+          up to {money(payment.refundableCents)}
+        </span>
+      </div>
+
+      {(payment.fee_cover_cents ?? 0) > 0 && (
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={feeCover}
+            onChange={(e) => setFeeCover(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Also return the {money(payment.fee_cover_cents)} they added to cover processing.
+            <span className="block text-xs text-neutral-600">
+              Stripe keeps its fee on a refund, so this comes out of ministry funds.
+            </span>
+          </span>
+        </label>
+      )}
+
+      <label className="mt-3 block">
+        <span className="block text-xs font-semibold text-neutral-600 mb-0.5">
+          Reason (recorded, and visible to the family)
+        </span>
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Withdrew from Week 1 — family illness"
+          className="w-full rounded border border-neutral-300 px-2 py-1 bg-white"
+        />
+      </label>
+
+      {error && (
+        <p className="mt-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || cents < 1 || cents > payment.refundableCents || !reason.trim()}
+          className="btn-primary !py-1.5 text-sm disabled:opacity-50"
+        >
+          {pending ? 'Refunding…' : `Refund ${money(cents + feeCents)}`}
+        </button>
+        <button type="button" onClick={onDone} disabled={pending} className="text-sm underline">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function RegistrationManager({
   registration,
   options,
@@ -1012,6 +1235,7 @@ export default function RegistrationManager({
   familyMessages = [],
   signatures = [],
   balance = null,
+  payments = [],
 }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
@@ -1022,11 +1246,22 @@ export default function RegistrationManager({
 
   return (
     <div>
-      <div className="mb-4">
-        <Link href="/admin/rosters" className="text-sm text-brand underline">
-          ← Back to rosters
+      {/* A breadcrumb rather than a bare back-link (asked for 24 Aug: "a
+          visual indicator of how I got here"). It answers two questions a
+          back-link only answers one of -- where this page sits, and where
+          the way out goes. The left-hand nav stays lit on Rosters for the
+          same reason. */}
+      <nav aria-label="Breadcrumb" className="mb-4 text-sm">
+        <Link href="/admin/rosters" className="text-brand underline">
+          Rosters
         </Link>
-      </div>
+        <span aria-hidden className="mx-2 text-neutral-400">
+          ›
+        </span>
+        <span className="text-neutral-600">
+          {registration.household?.display_name ?? 'Registration'}
+        </span>
+      </nav>
 
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
         <h1 className="text-2xl font-bold">{registration.event?.name ?? 'Registration'}</h1>
@@ -1073,6 +1308,8 @@ export default function RegistrationManager({
         <HouseholdEditor registrationId={registration.id} household={registration.household} />
 
         <AgreementsCard signatures={signatures} />
+
+        <PaymentsCard registrationId={registration.id} payments={payments} />
 
         <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
           <h2 className="text-lg font-bold mb-1">People on this week</h2>

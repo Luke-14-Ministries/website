@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 
 export default function SignupForm() {
   const [form, setForm] = useState({
@@ -15,6 +16,11 @@ export default function SignupForm() {
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // The bot check. `captchaBump` forces a fresh token after any failed
+  // attempt -- Turnstile tokens are single use, so retrying with a spent one
+  // fails for a reason that has nothing to do with what the person typed.
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaBump, setCaptchaBump] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -33,6 +39,12 @@ export default function SignupForm() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    if (turnstileEnabled && !captchaToken) {
+      setError('Please complete the "I am human" check just above the button.');
+      return;
+    }
+
     setBusy(true);
 
     const supabase = createClient();
@@ -41,6 +53,8 @@ export default function SignupForm() {
       email: form.email,
       password: form.password,
       options: {
+        // Verified by SUPABASE, not by this site -- see components/Turnstile.
+        ...(captchaToken ? { captchaToken } : {}),
         // The link in the confirmation email lands here; ?next= is carried
         // through so the callback drops them back where they were headed. This
         // absolute URL must match a Redirect URL in Supabase (Authentication ->
@@ -63,6 +77,7 @@ export default function SignupForm() {
     if (signUpError) {
       setError(signUpError.message);
       setBusy(false);
+      setCaptchaBump((n) => n + 1);
       return;
     }
 
@@ -80,6 +95,7 @@ export default function SignupForm() {
         'An account already exists for this email. Please log in instead, or use “Forgot password” if you need to reset it.'
       );
       setBusy(false);
+      setCaptchaBump((n) => n + 1);
       return;
     }
 
@@ -138,6 +154,12 @@ export default function SignupForm() {
       <p className="mt-1.5 text-sm text-neutral-500">
         At least 8 characters.
       </p>
+
+      <Turnstile
+        onToken={setCaptchaToken}
+        resetKey={captchaBump}
+        className="mt-5 flex justify-center"
+      />
 
       <button type="submit" className="btn-primary w-full mt-6" disabled={busy}>
         {busy ? 'Creating account…' : 'Create Account & Continue'}

@@ -68,6 +68,90 @@ export async function updatePersonInfo(personId, form) {
   return { ok: true };
 }
 
+// Add a person to this household directly, without going through a
+// registration.
+//
+// Until 24 Aug the ONLY way a person came into existence was by being typed
+// into the registration wizard, which put the family's own roster behind an
+// event. Asked for in exactly the terms of an airline's saved-traveller list:
+// keep the family up to date once, then pick people from it when registering.
+// Row-level security has allowed this since 0001 (people_insert is scoped to
+// my_household_ids()); only the UI was missing.
+export async function addHouseholdPerson(householdId, form) {
+  const supabase = await createClient();
+  const first = clean(form.first_name);
+  const last = clean(form.last_name);
+  if (!first || !last) {
+    return { ok: false, error: 'Please give a first and last name.' };
+  }
+  const { data, error } = await supabase
+    .from('people')
+    .insert({
+      household_id: householdId,
+      first_name: first,
+      last_name: last,
+      date_of_birth: clean(form.date_of_birth),
+      gender: clean(form.gender),
+      phone: clean(form.phone),
+      email: clean(form.email),
+    })
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/account/household');
+  revalidatePath('/account/dashboard');
+  revalidatePath('/register/family');
+  return { ok: true, personId: data?.id };
+}
+
+// Remove a person from the household -- guarded twice.
+//
+// A person who appears on ANY registration is part of a record the ministry
+// has acted on: a roster was printed, a fee was charged, an agreement was
+// signed naming the household. Deleting them would quietly change history, so
+// it is refused here and pointed at staff, who can cancel a participant
+// properly. Someone who has never registered is just a wrong entry, and
+// deleting a wrong entry is exactly right.
+export async function removeHouseholdPerson(personId) {
+  const supabase = await createClient();
+
+  const { count: partCount, error: partError } = await supabase
+    .from('registration_participants')
+    .select('id', { count: 'exact', head: true })
+    .eq('person_id', personId);
+  if (partError) return { ok: false, error: partError.message };
+  if ((partCount ?? 0) > 0) {
+    return {
+      ok: false,
+      error:
+        'This person is on a registration, so they can’t be removed here. Contact the ministry and staff can cancel their place properly.',
+    };
+  }
+
+  // The primary contact is pointed at by the household row. Deleting them
+  // would silently blank that pointer (ON DELETE SET NULL), leaving a
+  // household nobody is responsible for -- so ask for a new contact first.
+  const { data: asContact } = await supabase
+    .from('households')
+    .select('id')
+    .eq('primary_contact_person_id', personId)
+    .maybeSingle();
+  if (asContact) {
+    return {
+      ok: false,
+      error:
+        'This person is your primary contact. Choose a different primary contact first, then remove them.',
+    };
+  }
+
+  const { error } = await supabase.from('people').delete().eq('id', personId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/account/household');
+  revalidatePath('/account/dashboard');
+  revalidatePath('/register/family');
+  return { ok: true };
+}
+
 // Replace a person's caregiver links with the given pair (either may be null).
 export async function setCaregivers(personId, caregiver1Id, caregiver2Id) {
   const supabase = await createClient();

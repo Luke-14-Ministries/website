@@ -37,8 +37,9 @@ const NAV = [
   { href: '/admin/dietary', label: 'Dietary & Allergies', need: 'sensitive', ready: true, group: 'events' },
   { href: '/admin/medical', label: 'Medical & Support', need: 'sensitive', ready: true, group: 'events' },
   { href: '/admin/volunteers', label: 'Volunteers', need: 'registrar', ready: true, group: 'events' },
-  { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: false, group: 'events' },
-  { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: false, group: 'events' },
+  { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: true, group: 'events' },
+  { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: true, group: 'events' },
+  { href: '/admin/lodging', label: 'Rooms & Cabins', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/giving', label: 'Giving', need: 'giving', ready: true },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: true },
@@ -85,6 +86,7 @@ export default async function AdminLayout({ children }) {
   let unreviewedChanges = 0;
   let volunteersAwaiting = 0;
   let recentAccounts = 0;
+  let recentPayments = 0;
   if (can(staff, 'admin')) {
     // Accounts created in the last 7 days -- the same amber treatment as the
     // review queues, so a burst of new signups is visible from any admin page.
@@ -92,20 +94,32 @@ export default async function AdminLayout({ children }) {
     recentAccounts = n ?? 0;
   }
   if (can(staff, 'registrar')) {
-    const [{ count: changesCount }, { count: volCount }] = await Promise.all([
-      supabase
-        .from('family_change_log')
-        .select('id', { count: 'exact', head: true })
-        .is('reviewed_at', null),
-      // Applications sitting in "applied" — same treatment as Recent
-      // Changes: a number on the nav whenever something needs review.
-      supabase
-        .from('volunteer_applications')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'applied'),
-    ]);
+    const paymentsSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [{ count: changesCount }, { count: volCount }, { count: payCount }] =
+      await Promise.all([
+        supabase
+          .from('family_change_log')
+          .select('id', { count: 'exact', head: true })
+          .is('reviewed_at', null),
+        // Applications sitting in "applied" — same treatment as Recent
+        // Changes: a number on the nav whenever something needs review.
+        supabase
+          .from('volunteer_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'applied'),
+        // Payment ACTIVITY, not a review queue (asked for 24 Aug). Nothing
+        // here is waiting on a decision; the number answers "has money moved
+        // since I last looked?", which is the question the payments page gets
+        // opened for. Seven days, matching the Accounts badge, so the two
+        // numbers on the nav mean the same span of time.
+        supabase
+          .from('payments')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', paymentsSince),
+      ]);
     unreviewedChanges = changesCount ?? 0;
     volunteersAwaiting = volCount ?? 0;
+    recentPayments = payCount ?? 0;
   }
 
   return (
@@ -178,9 +192,11 @@ export default async function AdminLayout({ children }) {
               '/admin/changes': unreviewedChanges,
               '/admin/volunteers': volunteersAwaiting,
               '/admin/accounts': recentAccounts,
+              '/admin/payments': recentPayments,
             }}
             badgeTitles={{
               '/admin/accounts': 'created in the last 7 days',
+              '/admin/payments': 'payments in the last 7 days',
             }}
             />
           </div>

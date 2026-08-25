@@ -16,7 +16,13 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import SaveButton from '@/components/SaveButton';
 import { formatPhone, formatZip, tidyCity, US_STATES } from '@/lib/format';
-import { updateHouseholdInfo, updatePersonInfo, setCaregivers } from './actions';
+import {
+  updateHouseholdInfo,
+  updatePersonInfo,
+  setCaregivers,
+  addHouseholdPerson,
+  removeHouseholdPerson,
+} from './actions';
 
 function Field({ label, children }) {
   return (
@@ -273,13 +279,31 @@ export default function HouseholdManager({ household, members, caregiversByPerso
               </p>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <SaveButton
                 type="submit"
                 busy={state[m.id]?.busy}
                 saved={state[m.id]?.saved}
                 className="!py-2"
               />
+              {/* Removal is quiet and to the side -- it is the rare action,
+                  and the server refuses it for anyone on a registration or
+                  serving as the primary contact, explaining why. */}
+              <button
+                type="button"
+                disabled={state[m.id]?.busy}
+                onClick={() => {
+                  const ok = window.confirm(
+                    `Remove ${m.first_name} ${m.last_name} from your household?\n\n` +
+                      `This only works for someone who has never been registered for an event.`
+                  );
+                  if (!ok) return;
+                  run(m.id, () => removeHouseholdPerson(m.id));
+                }}
+                className="text-sm text-neutral-500 underline hover:text-red-700 disabled:opacity-50"
+              >
+                Remove from household
+              </button>
               {state[m.id]?.error && (
                 <span className="text-sm text-red-700">{state[m.id].error}</span>
               )}
@@ -288,10 +312,73 @@ export default function HouseholdManager({ household, members, caregiversByPerso
         );
       })}
 
+      {/* Add someone without registering them for anything (24 Aug). The old
+          rule -- people only exist once they've been typed into a
+          registration -- put the family's own roster behind an event, and
+          meant re-typing the same children every year. Now the household is
+          kept up to date here and people are PICKED at registration. */}
+      <form
+        className="rounded-lg border-2 border-dashed border-neutral-300 bg-white p-6"
+        onInput={markDirty('add')}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const formEl = e.currentTarget;
+          const f = Object.fromEntries(new FormData(formEl));
+          run('add', async () => {
+            const res = await addHouseholdPerson(household.id, f);
+            if (res.ok) formEl.reset();
+            return res;
+          });
+        }}
+      >
+        <h2 className="text-lg font-bold mb-1">Add a family member</h2>
+        <p className="text-sm text-neutral-600 mb-4">
+          Anyone in your family can live here whether or not they&rsquo;re attending
+          something — then you just tick them when you register, instead of typing
+          them in again.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First name">
+            <input name="first_name" className={inputCls} required />
+          </Field>
+          <Field label="Last name">
+            <input
+              name="last_name"
+              className={inputCls}
+              defaultValue={members[0]?.last_name ?? ''}
+              required
+            />
+          </Field>
+          <Field label="Date of birth">
+            <input name="date_of_birth" type="date" className={inputCls} />
+          </Field>
+          <Field label="Sex">
+            <select name="gender" className={inputCls} defaultValue="">
+              <option value="">— select —</option>
+              <option>Male</option>
+              <option>Female</option>
+            </select>
+          </Field>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <SaveButton
+            type="submit"
+            busy={state.add?.busy}
+            saved={state.add?.saved}
+            label="Add to my household"
+            className="!py-2"
+          />
+          {state.add?.error && <span className="text-sm text-red-700">{state.add.error}</span>}
+          {state.add?.saved && (
+            <span className="text-sm text-green-700">Added — they&rsquo;re in the list above.</span>
+          )}
+        </div>
+      </form>
+
       <p className="text-sm text-neutral-500">
-        Need to add or remove a family member? That happens through a{' '}
-        <a href="/register/family/" className="text-brand font-semibold">registration</a>, or by
-        contacting the ministry.
+        Someone already on a registration can&rsquo;t be removed here — contact the
+        ministry and staff will cancel their place properly, so the roster and any
+        fees stay correct.
       </p>
     </div>
   );

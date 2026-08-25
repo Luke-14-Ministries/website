@@ -50,6 +50,28 @@ export default async function CheckinPage({ searchParams }) {
       supabase.from('person_current_consents').select('person_id, granted').eq('kind', 'media'),
     ]);
 
+    // Who is paired with whom. Staff see assignments whether or not they have
+    // been published -- publication gates the FAMILY's view, not the door's.
+    const { data: buddyRows } = await supabase
+      .from('buddy_assignments')
+      .select(
+        `camper_participant_id,
+         buddy:registration_participants!buddy_assignments_buddy_participant_id_fkey (
+           people ( first_name, last_name ) )`
+      )
+      .eq('event_id', eventId)
+      .is('ended_at', null);
+
+    const buddyNamesOf = new Map();
+    for (const b of buddyRows ?? []) {
+      const n = `${b.buddy?.people?.first_name ?? ''} ${b.buddy?.people?.last_name ?? ''}`.trim();
+      if (!n) continue;
+      if (!buddyNamesOf.has(b.camper_participant_id)) {
+        buddyNamesOf.set(b.camper_participant_id, []);
+      }
+      buddyNamesOf.get(b.camper_participant_id).push(n);
+    }
+
     const noPhotoIds = new Set(
       (consents ?? []).filter((c) => c.granted === false).map((c) => c.person_id)
     );
@@ -84,13 +106,28 @@ export default async function CheckinPage({ searchParams }) {
         if (s?.has_allergies) flags.push({ t: 'allergies', tone: 'red' });
         if (s?.has_seizures) flags.push({ t: 'seizures', tone: 'red' });
         if (s?.has_rescue_medication) flags.push({ t: 'rescue med', tone: 'red' });
-        if (s?.buddy_required)
-          flags.push({
-            t: 'needs buddy',
-            tone: 'amber',
-            title:
-              'This person needs a one-to-one buddy. Buddy assignments are made by staff before the event; when that tool is built, the buddy’s name will show here.',
-          });
+        // Buddy state is TWO pills, not one (agreed 24 Aug). An assigned
+        // buddy is a fact worth knowing -- grey, carrying the name, because
+        // "who?" is the question staff actually have. An unassigned one is
+        // work outstanding -- amber. Sharing a colour is precisely what
+        // would let a missing assignment hide among the finished ones.
+        if (s?.buddy_required) {
+          const names = buddyNamesOf.get(p.id) ?? [];
+          if (names.length > 0) {
+            flags.push({
+              t: `Buddy: ${names.join(', ')}`,
+              tone: 'neutral',
+              title: 'The buddy assigned to this person for the week.',
+            });
+          } else {
+            flags.push({
+              t: 'needs buddy',
+              tone: 'amber',
+              title:
+                'This person asked for a one-to-one buddy and none is assigned yet. Pairing is done by staff on the Buddy Assignments page.',
+            });
+          }
+        }
         rows.push({
           id: p.id,
           name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),

@@ -22,7 +22,7 @@ export default async function RostersPage() {
       .select(
         `id, event_id, created_at, family_notes,
          households ( display_name, email, phone ),
-         registration_participants ( camp_role, status, fee_cents, submitted_at, created_at,
+         registration_participants ( id, camp_role, status, fee_cents, submitted_at, created_at,
            tshirt_size, first_time_attending,
            people ( id, first_name, last_name, gender ) )`
       )
@@ -47,6 +47,10 @@ export default async function RostersPage() {
       rows.push({
         eventId: r.event_id,
         registrationId: r.id,
+        // Carried so a volunteer's row can link across to their application
+        // and background check. The trip back the other way has always
+        // existed; this one did not (25 Aug).
+        participantId: p.id,
         household: r.households?.display_name ?? 'Household',
         contact: [r.households?.email, r.households?.phone].filter(Boolean).join(' · '),
         person: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),

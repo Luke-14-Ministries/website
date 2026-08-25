@@ -303,7 +303,29 @@ export default function RosterTable({ events, rows }) {
                   </td>
                   <td className="px-4 py-2">{r.person}</td>
                   <td className="px-4 py-2 text-neutral-600">{r.sex || '—'}</td>
-                  <td className="px-4 py-2">{ROLE_LABEL[r.role] ?? r.role}</td>
+                  <td className="px-4 py-2">
+                    {/* Volunteers carry a second record — application status
+                        and background check — that lives on its own page
+                        because it is its own lifecycle, not extra columns
+                        here. Volunteers has always linked back to the
+                        registration; this is the missing return trip, so the
+                        two pages are a pair rather than a one-way street. */}
+                    {/* Not linked for a cancelled volunteer: the Volunteers
+                        page drops them, so the link would land on a dead
+                        anchor — which reads as a broken page rather than as
+                        "there is nothing there". */}
+                    {r.role === 'volunteer' && r.status !== 'cancelled' ? (
+                      <a
+                        href={`/admin/volunteers#v-${r.participantId}`}
+                        title="Application status and background check"
+                        className="text-brand underline"
+                      >
+                        {ROLE_LABEL[r.role] ?? r.role} ↗
+                      </a>
+                    ) : (
+                      ROLE_LABEL[r.role] ?? r.role
+                    )}
+                  </td>
                   <td className="px-4 py-2 whitespace-nowrap text-neutral-600">
                     {r.tshirt || '—'}
                   </td>

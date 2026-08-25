@@ -5,7 +5,7 @@
 // record (a yes/no and dates — documents stay in the restricted SharePoint
 // folder). Actions live in ./actions.js; RLS is the backstop.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { reviewVolunteerApplication, setVolunteerClearance } from './actions';
@@ -162,6 +162,23 @@ function CheckrPanel({ clearance, email }) {
 function VolunteerRow({ row }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Arriving from the roster (25 Aug). A staff member looking at a volunteer
+  // on the roster and wanting their background check had no way across; the
+  // link back the other way has always existed. Landing on a collapsed row
+  // among thirty others is barely better than not linking at all, so the
+  // target opens itself and says which one it is.
+  const anchorId = `v-${row.participantId}`;
+  const [linked, setLinked] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const hit = window.location.hash === `#${anchorId}`;
+      setLinked(hit);
+      if (hit) setOpen(true);
+    };
+    check();
+    window.addEventListener('hashchange', check);
+    return () => window.removeEventListener('hashchange', check);
+  }, [anchorId]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const { person, household, app, clearance } = row;
@@ -181,7 +198,12 @@ function VolunteerRow({ row }) {
   const expired = cleared && clearance?.expires_on && clearance.expires_on < new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="border-t border-neutral-100 py-3">
+    <div
+      id={anchorId}
+      className={`scroll-mt-4 border-t border-neutral-100 py-3 ${
+        linked ? 'rounded-lg bg-brand-light/50 ring-2 ring-brand px-3' : ''
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold">

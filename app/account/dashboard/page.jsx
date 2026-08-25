@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getStaff } from '@/lib/staff';
 import PayPanel from './PayPanel';
+import RegistrationCard from './RegistrationCard';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -541,14 +542,46 @@ export default async function DashboardPage({ searchParams }) {
                 {regs.map((r) => {
                   const parts = r.registration_participants ?? [];
                   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
+
+                  // What this registration still wants, said on the title bar
+                  // so a COLLAPSED card is still honest about it. Computed
+                  // here, on the server, from the same balance rows the body
+                  // uses -- the bar and the card can never disagree.
+                  const bal = balByReg.get(r.id);
+                  const clearing = pendingByReg.get(r.id) ?? 0;
+                  const depositCents = Math.min(
+                    r.events?.deposit_cents ?? 0,
+                    bal?.balance_cents ?? 0
+                  );
+                  const nothingPaid =
+                    bal && (bal.paid_cents ?? 0) === 0 && clearing === 0;
+                  const depositDue =
+                    depositCents > 0 && nothingPaid && (bal?.balance_cents ?? 0) > 0;
+                  const owes = (bal?.balance_cents ?? 0) > 0;
+
+                  const status = depositDue
+                    ? { text: `${money(depositCents)} deposit due`, tone: 'amber' }
+                    : owes
+                      ? { text: `${money(bal.balance_cents)} balance`, tone: 'amber' }
+                      : clearing > 0
+                        ? { text: 'Clearing the bank', tone: 'neutral' }
+                        : bal
+                          ? { text: 'Paid in full', tone: 'green' }
+                          : null;
+
+                  // Open by default when something is outstanding, or when
+                  // there is only one registration (nothing to tidy away).
+                  const defaultOpen = depositDue || owes || regs.length === 1;
+
                   return (
-                    <div key={r.id} className="rounded border border-neutral-200 p-4">
-                      <div className="flex flex-wrap justify-between gap-3">
-                        <p className="font-semibold">{r.events?.name ?? 'Camp registration'}</p>
-                        <span className="text-neutral-600 text-sm">
-                          {parts.length} {parts.length === 1 ? 'person' : 'people'} · Total {money(total)}
-                        </span>
-                      </div>
+                    <RegistrationCard
+                      key={r.id}
+                      eventName={r.events?.name ?? 'Camp registration'}
+                      peopleLabel={`${parts.length} ${parts.length === 1 ? 'person' : 'people'}`}
+                      totalLabel={money(total)}
+                      status={status}
+                      defaultOpen={defaultOpen}
+                    >
                       <ul className="mt-3 divide-y divide-neutral-100">
                         {parts.map((p, i) => {
                           const [label, cls] = STATUS[p.status] ?? STATUS.submitted;
@@ -819,7 +852,7 @@ export default async function DashboardPage({ searchParams }) {
                           Signed agreements
                         </Link>
                       </div>
-                    </div>
+                    </RegistrationCard>
                   );
                 })}
                 <Link href="/register/family" className="btn-outline !py-2 inline-block">

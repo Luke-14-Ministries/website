@@ -350,7 +350,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
         {/* Generic on purpose: the ministry runs several events, and this
             wizard serves all of them -- the event itself is chosen (or
             preselected via ?event=) in step 3. The old hardcoded
-            "Camp Celebrate 2026" title presumed camp on every neutral entry. */}
+            "Camp Celebrate 2027" title presumed camp on every neutral entry. */}
         <h1 className="text-4xl font-bold text-center">Family Registration</h1>
         {chosenProgram && weeks.length > 0 && (
           <p className="text-center text-lg text-brand-dark font-semibold mt-1">

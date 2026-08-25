@@ -40,8 +40,8 @@ export default async function RegisterPage() {
 
   const open = (events ?? []).filter((e) => registrationOpen(e));
 
-  // Group sessions into programs: "Camp Celebrate 2026 — Week 1/2" becomes one
-  // "Camp Celebrate 2026" card spanning both weeks.
+  // Group sessions into programs: "Camp Celebrate 2027 — Week 1/2" becomes one
+  // "Camp Celebrate 2027" card spanning both weeks.
   const programs = [];
   for (const e of open) {
     const key = programOf(e.name);

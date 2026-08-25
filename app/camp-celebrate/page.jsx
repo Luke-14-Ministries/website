@@ -44,7 +44,7 @@ export default function CampCelebratePage() {
       <section className="bg-brand-light py-14">
         <div className="container-site text-center max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold">
-            Camp Celebrate 2026 registration is now OPEN!
+            Camp Celebrate 2027 registration is now OPEN!
           </h2>
           <p className="mt-4 text-lg">
             Coming as a family, or coming to serve? Pick your door — each page

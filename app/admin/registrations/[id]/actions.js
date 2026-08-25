@@ -386,7 +386,12 @@ export async function deleteParticipantPermanently(registrationId, participantId
 // what the registration_balances view subtracts, so granting here flows into
 // every balance, statement, and the family's dashboard automatically. A
 // scholarships row is kept alongside as the audit trail (who granted what,
-// when, and the note).
+// when, and the staff note -- NOT the family's statement, which belongs to
+// the family and is never overwritten here).
+//
+// This editor is the "I already know what I'm doing" path: it sets amounts
+// directly, with no reference to whether anybody asked. The answer to an
+// actual request is the Approve/Decline pair on the review card.
 export async function setAdjustments(registrationId, participantId, input) {
   const { staff, error: authError } = await requireRegistrar();
   if (authError) return { ok: false, error: authError };
@@ -428,14 +433,37 @@ export async function setAdjustments(registrationId, participantId, input) {
   // Audit trail in the scholarships table (one row per participant).
   const { data: existing } = await supabase
     .from('scholarships')
-    .select('id')
+    .select('id, status')
     .eq('registration_participant_id', participantId)
     .maybeSingle();
+
+  // Two bugs lived in the three lines this replaces.
+  //
+  // FIRST: the note was written into family_statement, which is the family's
+  // own words explaining why the fee was hard. Granting an award therefore
+  // deleted the reason it had been asked for, and nothing warned anybody
+  // because the note that replaced it looked like a note. 0048 gave the staff
+  // note its own column.
+  //
+  // SECOND: clearing an amount set the status to 'withdrawn' -- a statement
+  // that the FAMILY took their request back. A registrar typing 0 is not the
+  // family doing anything. Now: an amount is a grant; zeroing an award that
+  // was granted records that it is no longer granted; and zeroing against a
+  // request nobody has answered yet leaves it waiting, because clearing a
+  // figure is not a decision. Turning a request DOWN is a deliberate act with
+  // its own button, in app/admin/scholarships/actions.js.
+  const nextStatus =
+    scholarship > 0
+      ? 'granted'
+      : existing?.status === 'requested'
+        ? 'requested'
+        : 'declined';
+
   const auditRow = {
     registration_participant_id: participantId,
     granted_cents: scholarship,
-    status: scholarship > 0 ? 'granted' : 'withdrawn',
-    family_statement: note || null,
+    status: nextStatus,
+    staff_note: note || null,
     reviewed_by: staff.userId,
     reviewed_at: new Date().toISOString(),
   };

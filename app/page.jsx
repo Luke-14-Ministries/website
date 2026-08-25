@@ -87,7 +87,7 @@ export default function HomePage() {
           </h1>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link href="/camp-celebrate" className="btn-primary">
-              Camp Celebrate 2026
+              Camp Celebrate 2027
             </Link>
             <Link href="/donate" className="btn-gold">
               Donate

@@ -31,7 +31,7 @@ export default function CamperInformationPage() {
 
       <section className="container-site py-14 max-w-3xl mx-auto text-center">
         <h2 className="text-3xl font-bold">
-          Camp Celebrate 2026 early registration is now OPEN!
+          Camp Celebrate 2027 early registration is now OPEN!
         </h2>
         <div className="prose-site mt-6">
           <p>
@@ -80,11 +80,11 @@ export default function CamperInformationPage() {
               </a>
             </p>
             <p>
-              2026 Dates:
+              2027 Dates:
               <br />
-              July 20 - 24 and
+              July 19 - 23 and
               <br />
-              July 27 - July 31
+              July 26 - July 30
             </p>
             <p>
               Campers arrive on Monday afternoon each week and depart before

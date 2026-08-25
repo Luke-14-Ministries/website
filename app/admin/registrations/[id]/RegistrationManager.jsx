@@ -9,6 +9,9 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+// The same card the Scholarship Requests queue uses. Shared deliberately: a
+// decision has to mean the same thing wherever a registrar makes it.
+import ScholarshipReview from '@/app/admin/scholarships/ScholarshipReview';
 import {
   setParticipantStatus,
   updatePerson,
@@ -310,7 +313,7 @@ function AdjustmentsEditor({ registrationId, participant, onDone }) {
 }
 
 // --- one participant row ------------------------------------------------------
-function ParticipantRow({ registrationId, participant }) {
+function ParticipantRow({ registrationId, participant, awaitingScholarship = false }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
@@ -388,8 +391,21 @@ function ParticipantRow({ registrationId, participant }) {
               discover the family asked us not to photograph someone. */}
           {(participant.media?.granted === false ||
             participant.directory?.granted === false ||
-            participant.first_time_attending === true) && (
+            participant.first_time_attending === true ||
+            awaitingScholarship) && (
             <p className="mt-1 flex flex-wrap gap-1">
+              {/* Amber here for the same reason as everywhere else: work
+                  outstanding. It links up to the card at the top rather than
+                  duplicating the controls, so there is one place a decision
+                  gets made. */}
+              {awaitingScholarship && (
+                <a
+                  href="#scholarship-requests"
+                  className="rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-900 hover:bg-amber-300"
+                >
+                  asked for help with the fee →
+                </a>
+              )}
               {participant.media?.granted === false && (
                 <span className="rounded-full bg-neutral-800 text-white px-2 py-0.5 text-[11px] font-semibold">
                   no photos
@@ -1247,6 +1263,7 @@ export default function RegistrationManager({
   registration,
   options,
   adjustmentRecords = [],
+  scholarshipRequests = [],
   familyMessages = [],
   signatures = [],
   balance = null,
@@ -1254,6 +1271,9 @@ export default function RegistrationManager({
 }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
+  // Which people are waiting on a decision about the fee, so their row can say
+  // so where a registrar is already looking.
+  const awaitingScholarship = new Set(scholarshipRequests.map((r) => r.participantId));
   const adjustments = parts.reduce(
     (s, p) => s + (p.scholarship_cents ?? 0) + (p.discount_cents ?? 0),
     0
@@ -1320,6 +1340,35 @@ export default function RegistrationManager({
       </p>
 
       <div className="space-y-6">
+        {/* A family asking for help with the fee gets the top of the page.
+            It used to be a light-grey line at the bottom reading "$0
+            requested" (the amount was never even loaded), which is how the
+            most consequential thing on the screen ended up looking like an
+            archived receipt. Raised in testing, 25 Aug: not prominent, not
+            obviously in need of review, and no way to answer it.
+
+            Amber, because it is work outstanding that drains when somebody
+            acts — the same rule the cancellation queue and Recent Changes
+            follow. */}
+        {scholarshipRequests.length > 0 && (
+          <div id="scholarship-requests" className="scroll-mt-4">
+            <h2 className="text-lg font-bold mb-1">
+              {scholarshipRequests.length === 1
+                ? 'This family has asked for help with the fee'
+                : `This family has asked for help with the fee (${scholarshipRequests.length} people)`}
+            </h2>
+            <p className="text-sm text-neutral-600 mb-3">
+              Nothing is decided until you decide it. Approving takes the amount straight off
+              their balance; declining records why, so whoever answers the phone knows.
+            </p>
+            <div className="space-y-4">
+              {scholarshipRequests.map((row) => (
+                <ScholarshipReview key={row.participantId} row={row} />
+              ))}
+            </div>
+          </div>
+        )}
+
         <HouseholdEditor registrationId={registration.id} household={registration.household} />
 
         <AgreementsCard signatures={signatures} />
@@ -1346,7 +1395,12 @@ export default function RegistrationManager({
                       </p>
                     )}
                     {group.map((p) => (
-                      <ParticipantRow key={p.id} registrationId={registration.id} participant={p} />
+                      <ParticipantRow
+                        key={p.id}
+                        registrationId={registration.id}
+                        participant={p}
+                        awaitingScholarship={awaitingScholarship.has(p.id)}
+                      />
                     ))}
                   </div>
                 );
@@ -1354,34 +1408,63 @@ export default function RegistrationManager({
               {parts
                 .filter((p) => !ROLE_ORDER.includes(p.camp_role))
                 .map((p) => (
-                  <ParticipantRow key={p.id} registrationId={registration.id} participant={p} />
+                  <ParticipantRow
+                    key={p.id}
+                    registrationId={registration.id}
+                    participant={p}
+                    awaitingScholarship={awaitingScholarship.has(p.id)}
+                  />
                 ))}
             </div>
           )}
           <AddPerson registrationId={registration.id} options={options} />
 
-          {/* The scholarship/discount record: who granted what, and when.
-              Comes from the scholarships audit table (one row per person,
-              kept current by the adjustments editor). */}
+          {/* Decisions ALREADY made — history, not work. Anything still
+              waiting on an answer is at the top of the page instead, because
+              a request and a receipt are different objects and this list is
+              where the request used to be buried.
+
+              Grey is right here for the same reason amber is right up there:
+              nothing on this list is asking anybody to do anything. */}
           {adjustmentRecords.length > 0 && (
             <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
               <p className="text-sm font-semibold text-neutral-700 mb-1">
-                Scholarship &amp; discount record
+                Scholarship decisions already made
               </p>
-              <ul className="text-xs text-neutral-600 space-y-1">
+              <ul className="text-xs text-neutral-600 space-y-1.5">
                 {adjustmentRecords.map((r, i) => {
                   const person = parts.find((p) => p.id === r.participantId)?.person;
                   const who = person ? `${person.first_name} ${person.last_name}` : 'Removed person';
+                  const outcome =
+                    r.status === 'granted'
+                      ? `${money(r.grantedCents)} granted`
+                      : r.status === 'declined'
+                        ? 'not granted'
+                        : 'request withdrawn by the family';
                   return (
                     <li key={i}>
                       <span className="font-medium text-neutral-800">{who}</span>
                       {' — '}
-                      {r.status === 'withdrawn'
-                        ? 'assistance withdrawn'
-                        : `${money(r.grantedCents)} ${r.status}`}
+                      {outcome}
                       {r.grantedBy && <> · by {r.grantedBy}</>}
                       {r.at && <> · {String(r.at).slice(0, 10)}</>}
-                      {r.note && <> · &ldquo;{r.note}&rdquo;</>}
+                      {/* Two different people's words, kept apart since 0048.
+                          The staff note used to overwrite the family's
+                          statement, so granting an award erased the reason it
+                          had been asked for. */}
+                      {r.staffNote && (
+                        <>
+                          <br />
+                          <span className="text-neutral-500">Staff:</span> &ldquo;{r.staffNote}&rdquo;
+                        </>
+                      )}
+                      {r.familyStatement && (
+                        <>
+                          <br />
+                          <span className="text-neutral-500">Family asked:</span> &ldquo;
+                          {r.familyStatement}&rdquo;
+                        </>
+                      )}
                     </li>
                   );
                 })}

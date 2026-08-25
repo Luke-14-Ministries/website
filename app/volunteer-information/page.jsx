@@ -33,7 +33,7 @@ export default function VolunteerInformationPage() {
 
       <section className="container-site py-14 max-w-3xl mx-auto text-center">
         <h2 className="text-3xl font-bold">
-          Camp Celebrate 2026 registration is now OPEN!
+          Camp Celebrate 2027 registration is now OPEN!
         </h2>
         <div className="prose-site mt-6">
           <p>
@@ -74,11 +74,11 @@ export default function VolunteerInformationPage() {
           <div className="prose-site">
             <p>Carson Springs Baptist Conference Center in Newport, TN</p>
             <p>
-              2026 Dates:
+              2027 Dates:
               <br />
-              July 19 - 24 and
+              July 18 - 23 and
               <br />
-              July 26 - July 31
+              July 25 - July 30
             </p>
             <p>
               Each week volunteers arrive at camp on Sunday morning and depart

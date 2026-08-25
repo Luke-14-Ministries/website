@@ -46,16 +46,30 @@ export default async function RegistrationDetailPage({ params }) {
     .eq('event_id', reg.events?.id)
     .order('sort_order');
 
-  // The scholarship/discount record: who granted what, and when. One row per
-  // participant (upserted by setAdjustments), with the granting staff member's
-  // name looked up separately — nested joins with two FKs to profiles are
-  // fragile, so keep the lookups simple.
+  // Scholarships on this registration, in two piles.
+  //
+  // This query used to omit requested_cents entirely, which is why every
+  // pending request on this page read "$0 requested" — the number was never
+  // fetched, so the screen quietly reported that a family had asked for
+  // nothing. Raised in testing, 25 Aug.
+  //
+  // The two piles are the point. A request WAITING on a decision and a record
+  // of a decision already made are different objects: one is work, the other
+  // is history. They were rendered as one light-grey list at the bottom of the
+  // page, which is how a family's ask for help ended up looking like an
+  // archived receipt.
+  //
+  // Reviewer names are looked up separately — nested joins with two FKs to
+  // profiles are fragile, so keep the lookups simple.
   const partIds = (reg.registration_participants ?? []).map((p) => p.id);
   let adjustmentRecords = [];
+  let scholarshipRequests = [];
   if (partIds.length) {
     const { data: schols } = await supabase
       .from('scholarships')
-      .select('registration_participant_id, granted_cents, status, family_statement, reviewed_by, reviewed_at, updated_at')
+      .select(
+        'registration_participant_id, requested_cents, granted_cents, status, family_statement, staff_note, reviewed_by, reviewed_at, created_at, updated_at'
+      )
       .in('registration_participant_id', partIds);
     const reviewerIds = [...new Set((schols ?? []).map((s) => s.reviewed_by).filter(Boolean))];
     let names = new Map();
@@ -66,14 +80,54 @@ export default async function RegistrationDetailPage({ params }) {
         .in('id', reviewerIds);
       names = new Map((profs ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`.trim()]));
     }
-    adjustmentRecords = (schols ?? []).map((s) => ({
-      participantId: s.registration_participant_id,
-      grantedCents: s.granted_cents,
-      status: s.status,
-      note: s.family_statement,
-      grantedBy: names.get(s.reviewed_by) ?? null,
-      at: s.reviewed_at ?? s.updated_at,
-    }));
+    const partById = new Map((reg.registration_participants ?? []).map((p) => [p.id, p]));
+
+    adjustmentRecords = (schols ?? [])
+      .filter((s) => s.status !== 'requested')
+      .map((s) => ({
+        participantId: s.registration_participant_id,
+        grantedCents: s.granted_cents,
+        status: s.status,
+        // Kept apart since 0048: the family's words and the staff's reasoning
+        // are different claims by different people, and the staff note used to
+        // overwrite the family's statement.
+        familyStatement: s.family_statement,
+        staffNote: s.staff_note,
+        grantedBy: names.get(s.reviewed_by) ?? null,
+        at: s.reviewed_at ?? s.updated_at,
+      }));
+
+    scholarshipRequests = (schols ?? [])
+      .filter((s) => s.status === 'requested')
+      .map((s) => {
+        const part = partById.get(s.registration_participant_id);
+        return {
+          participantId: s.registration_participant_id,
+          registrationId: reg.id,
+          name:
+            `${part?.people?.first_name ?? ''} ${part?.people?.last_name ?? ''}`.trim() ||
+            'Person',
+          // The participant row below already carries the role badge.
+          roleLabel: null,
+          feeCents: part?.fee_cents ?? 0,
+          discountCents: part?.discount_cents ?? 0,
+          requestedCents: s.requested_cents,
+          grantedCents: s.granted_cents ?? 0,
+          status: s.status,
+          familyStatement: s.family_statement ?? '',
+          staffNote: s.staff_note ?? '',
+          requestedAt: s.created_at,
+          // A family whose request was turned down may ask again, which flips
+          // the same row back to 'requested'. Carrying the earlier decision
+          // through means a registrar sees they are answering a SECOND time,
+          // and what was said the first time.
+          reviewedAt: s.reviewed_at,
+          reviewedBy: names.get(s.reviewed_by) ?? null,
+          cancelled: part?.status === 'cancelled',
+        };
+      })
+      // Someone removed from the week has nothing left to decide.
+      .filter((r) => !r.cancelled);
   }
 
   // Notes TO the family (short staff messages shown on their dashboard),
@@ -217,6 +271,7 @@ export default async function RegistrationDetailPage({ params }) {
       signatures={signatures}
       balance={balanceRow}
       payments={payments}
+      scholarshipRequests={scholarshipRequests}
     />
   );
 }

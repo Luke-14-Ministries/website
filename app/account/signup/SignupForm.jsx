@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
-import { emailLooksValid } from '@/lib/format';
+import { emailLooksValid, formatPhone } from '@/lib/format';
 
 export default function SignupForm() {
   const [form, setForm] = useState({
@@ -36,6 +36,17 @@ export default function SignupForm() {
       : '/account/dashboard/';
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  // Phone is the number camp rings when something happens at 2am, and this
+  // form was the one place in the site not checking it at all -- type="tel"
+  // only changes the on-screen keyboard, it validates nothing (26 Aug).
+  //
+  // A hint, not a block. The house rule in lib/format is tidy-never-mangle,
+  // and a hard stop would refuse a foreign number or an extension that is
+  // perfectly correct. Someone who has typed four digits and moved on has
+  // almost certainly slipped, and saying so is enough.
+  const phoneDigits = (form.phone || '').replace(/\D/g, '');
+  const phoneLooksShort = phoneDigits.length > 0 && phoneDigits.length < 10;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -154,7 +165,25 @@ export default function SignupForm() {
       <label className="block font-semibold mb-1.5 mt-4" htmlFor="su-phone">
         Phone
       </label>
-      <input id="su-phone" type="tel" autoComplete="tel" value={form.phone} onChange={set('phone')} className="w-full rounded border border-neutral-300 px-4 py-2.5" />
+      <input
+        id="su-phone"
+        type="tel"
+        autoComplete="tel"
+        value={form.phone}
+        onChange={set('phone')}
+        // On blur, never on keystrokes: reformatting under a moving cursor is
+        // maddening. formatPhone hands back anything that is not a clean
+        // 10-digit US number exactly as typed.
+        onBlur={() => setForm((f) => ({ ...f, phone: formatPhone(f.phone) }))}
+        aria-describedby={phoneLooksShort ? 'su-phone-hint' : undefined}
+        className="w-full rounded border border-neutral-300 px-4 py-2.5"
+      />
+      {phoneLooksShort && (
+        <p id="su-phone-hint" className="mt-1.5 text-sm text-amber-800">
+          That looks short for a phone number — a US number has 10 digits. Leave
+          it as it is if it&rsquo;s right.
+        </p>
+      )}
       <label className="block font-semibold mb-1.5 mt-4" htmlFor="su-password">
         Password
       </label>

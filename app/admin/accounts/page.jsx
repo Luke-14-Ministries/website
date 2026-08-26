@@ -45,14 +45,18 @@ export default async function AccountsPage() {
   return (
     <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6">
       <h1 className="text-2xl font-bold mb-1">Accounts</h1>
+      {/* max-w-prose caps this at a 65-character measure, as everywhere else
+          in the staff pages: text run to the full width of this card is hard
+          to read back. At five lines it looked like a wrapping fault rather
+          than a choice (26 Aug), so the answer was less text, not a wider
+          column -- it was explaining three things where two do. */}
       <p className="text-sm text-neutral-500 mb-6 max-w-prose">
         Every login on the platform. Removing a login never deletes a
-        family&rsquo;s registrations or payments &mdash; that takes the
-        separate &ldquo;delete family &amp; data&rdquo; action, which spells
-        out what it is about to remove. The amber count on the nav is simply
-        accounts created in the last 7 days &mdash; awareness, not a review
-        queue; each one drops off as it turns a week old. The &ldquo;New this
-        week&rdquo; filter below shows exactly those.
+        family&rsquo;s registrations or payments &mdash; that takes the separate
+        &ldquo;delete family &amp; data&rdquo; action, which spells out what it
+        is about to remove. The amber count on the nav is accounts created in
+        the last 7 days &mdash; awareness, not a queue; &ldquo;New this
+        week&rdquo; below shows exactly those.
       </p>
       <AccountsManager
         accounts={accounts ?? []}

@@ -222,7 +222,12 @@ export default async function AdminActivitiesPage({ searchParams }) {
                   </ul>
                 )}
 
-                <SlotEditor activity={a} slots={slotsByActivity.get(a.id) ?? []} />
+                <SlotEditor
+                  activity={a}
+                  slots={slotsByActivity.get(a.id) ?? []}
+                  eventStart={visibleEvents.find((e) => e.id === selected)?.starts_on ?? ''}
+                  eventEnd={visibleEvents.find((e) => e.id === selected)?.ends_on ?? ''}
+                />
 
                 <ActivityEditor activity={a} />
               </ActivityCard>

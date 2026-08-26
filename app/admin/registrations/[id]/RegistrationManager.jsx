@@ -42,6 +42,8 @@ const TSHIRT_SIZES = [
 // staying folded in July is how a registrar stops seeing the payments panel
 // and never notices they have stopped.
 function Panel({ title, count = null, children, defaultOpen = true }) {
+  // count may be a number ("3") or a phrase ("4 signed") — whichever says the
+  // most in the fewest characters for that card.
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="rounded-lg bg-white border border-neutral-200 shadow-sm">
@@ -732,9 +734,14 @@ function AgreementsCard({ signatures }) {
 
   const first = signatures[0];
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-4">
-      <p className="font-semibold">Signed agreements</p>
-      <p className="mt-1 text-sm text-neutral-600">
+    // Folds like the rest of the page (25 Aug). The bar carries the count,
+    // because "how many are signed" is the whole question a registrar has
+    // about this card — the list of WHICH ones is the follow-up.
+    <Panel
+      title="Signed agreements"
+      count={`${signatures.length} signed`}
+    >
+      <p className="text-sm text-neutral-600">
         Signed by <strong>{first.signerName}</strong>{' '}
         {SIGNER_ROLE_LABEL[first.signerRole] ?? ''} on{' '}
         {new Date(first.signedAt).toLocaleString('en-US', {
@@ -768,7 +775,7 @@ function AgreementsCard({ signatures }) {
         Signatures are never rewritten — the date on a release is part of the record. If the
         board revises an agreement, the new version is signed alongside, not over the top.
       </p>
-    </div>
+    </Panel>
   );
 }
 
@@ -1154,9 +1161,14 @@ function PaymentsCard({ registrationId, payments }) {
                   <button
                     type="button"
                     onClick={() => setOpenFor(openFor === p.id ? null : p.id)}
-                    className="text-sm text-brand underline"
+                    className="btn-outline !py-1 !px-3 text-sm"
                   >
-                    {openFor === p.id ? 'Cancel' : 'Refund…'}
+                    {/* "Refund…" read as unfinished rather than as "opens a
+                        form" (flagged twice, 25 Aug), and "Cancel" beside a
+                        registration is worse — it looks like cancelling the
+                        PLACE. Two plain words, and a button rather than a
+                        cramped link. */}
+                    {openFor === p.id ? 'Close' : 'Refund'}
                   </button>
                 )}
               </span>

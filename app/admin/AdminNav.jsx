@@ -66,7 +66,11 @@ export default function AdminNav({ top, events, rest, badges = {}, badgeTitles =
       <Link
         href={n.href}
         aria-current={isActive(n.href) ? 'page' : undefined}
-        className={`block rounded px-3 py-2 font-medium hover:bg-brand-light/60 ${
+        // flex, not block: a label long enough to wrap used to push its badge
+        // onto a line of its own, which read as a stray number under the item
+        // rather than a count on it (25 Aug). Now the label takes the room it
+        // needs and the badge holds its place at the end.
+        className={`flex items-center justify-between gap-2 rounded px-3 py-2 font-medium hover:bg-brand-light/60 ${
           indent ? 'ml-4' : ''
         } ${
           isActive(n.href)
@@ -74,11 +78,11 @@ export default function AdminNav({ top, events, rest, badges = {}, badgeTitles =
             : ''
         }`}
       >
-        {n.label}
+        <span className="min-w-0">{n.label}</span>
         {(badges[n.href] ?? 0) > 0 && (
           <span
             title={`${badges[n.href]} ${badgeTitles[n.href] ?? 'needing review'}`}
-            className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+            className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
               BADGE_TONE[n.href] === 'window'
                 ? 'bg-blue-100 text-blue-800'
                 : 'bg-amber-100 text-amber-800'

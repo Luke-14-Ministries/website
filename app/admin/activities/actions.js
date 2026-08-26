@@ -271,3 +271,89 @@ export async function deleteSlot(slotId) {
   revalidateAll();
   return { ok: true };
 }
+
+// Build a run of times in one go.
+//
+// The salon takes one person at a time from 9 to 5; the pontoon runs half-hour
+// trips all Tuesday afternoon. Typing twenty of those by hand is how a
+// coordinator decides the software is not worth it, and how the twelfth one
+// ends up starting at 2:15 instead of 2:20 (asked for 25 Aug).
+//
+// Everything is checked BEFORE anything is written: a partial run is worse
+// than none, because the gap is invisible until somebody cannot book.
+export async function generateSlots(activityId, input) {
+  const { error: authError } = await requireCoordinator();
+  if (authError) return { ok: false, error: authError };
+  if (!activityId) return { ok: false, error: 'Which activity?' };
+
+  const date = String(input?.date ?? '').trim();
+  const start = String(input?.start ?? '').trim();
+  const end = String(input?.end ?? '').trim();
+  if (!date) return { ok: false, error: 'Which day?' };
+  if (!HHMM.test(start) || !HHMM.test(end)) {
+    return { ok: false, error: 'Give a start and an end time for the whole run.' };
+  }
+  if (end <= start) return { ok: false, error: 'The run ends before it starts.' };
+
+  const minutes = Number.parseInt(String(input?.minutes ?? '').trim(), 10);
+  if (Number.isNaN(minutes) || minutes < 5) {
+    return { ok: false, error: 'How long is each slot? Five minutes or more.' };
+  }
+
+  let capacity = null;
+  if (String(input?.capacity ?? '').trim() !== '') {
+    const n = Number.parseInt(String(input.capacity).replace(/[^0-9-]/g, ''), 10);
+    if (Number.isNaN(n) || n < 1) {
+      return { ok: false, error: 'Places per slot has to be 1 or more, or blank for no limit.' };
+    }
+    capacity = n;
+  }
+
+  const toMin = (t) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const toHHMM = (m) =>
+    `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+  const from = toMin(start);
+  const to = toMin(end);
+  const count = Math.floor((to - from) / minutes);
+  if (count < 1) {
+    return { ok: false, error: 'That run is shorter than one slot.' };
+  }
+  // A guard on the coordinator's own typo, not on the ministry: 5-minute slots
+  // across a whole day is 200 rows, and nobody means that.
+  if (count > 60) {
+    return {
+      ok: false,
+      error: `That would make ${count} slots. If you really want that many, add them in a few runs — it is usually a typo in the length.`,
+    };
+  }
+
+  const rows = [];
+  for (let i = 0; i < count; i += 1) {
+    rows.push({
+      activity_id: activityId,
+      slot_date: date,
+      start_time: toHHMM(from + i * minutes),
+      end_time: toHHMM(from + (i + 1) * minutes),
+      capacity,
+      // Numbered so two slots at the same time on different boats can still be
+      // told apart, and so the run reads as a run.
+      label: String(input?.labelPrefix ?? '').trim()
+        ? `${String(input.labelPrefix).trim()} ${i + 1}`
+        : null,
+    });
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('activity_slots').insert(rows);
+  if (error) {
+    console.error('generateSlots:', error.message);
+    return { ok: false, error: 'Those times could not be added.' };
+  }
+
+  revalidateAll();
+  return { ok: true, made: rows.length };
+}

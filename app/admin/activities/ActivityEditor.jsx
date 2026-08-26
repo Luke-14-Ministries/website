@@ -16,6 +16,7 @@ import {
   setActivityActive,
   createSlot,
   deleteSlot,
+  generateSlots,
 } from './actions';
 
 // Wall-clock, formatted as people say it. No timezone maths anywhere in this
@@ -271,6 +272,16 @@ export function AddActivity({ eventId, eventName }) {
     <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-5">
       <h3 className="font-bold mb-3">Add an activity</h3>
       <Fields f={f} set={set} />
+      {/* Said here because the obvious next question after "Sign-up" is "where
+          do I put the times?" and the answer is "not yet" (25 Aug). */}
+      {f.mode === 'signup' && (
+        <p className="mt-3 rounded border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+          <span className="font-semibold">Times come afterwards.</span> If this one runs in
+          sittings — a boat that goes out four times, a chair that takes one person at a time —
+          add it first, then open it and use <span className="font-semibold">Times</span>. You
+          can add them one at a time or generate a whole run at once.
+        </p>
+      )}
       {error && <p className="mt-2 text-sm font-semibold text-red-700">{error}</p>}
       <div className="mt-4 flex flex-wrap gap-3">
         <button
@@ -383,13 +394,26 @@ export function ActivityCard({
 // exists, the database requires every signup to name one (0052) — so adding
 // the first time to an activity people have already joined is a real change,
 // and the panel says so.
-export function SlotEditor({ activity, slots = [] }) {
+export function SlotEditor({ activity, slots = [], eventStart = '', eventEnd = '' }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
   const blank = { date: '', start: '', end: '', capacity: '', label: '' };
   const [f, setF] = useState(blank);
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  // A run of slots, generated. See generateSlots() for why this exists.
+  const genBlank = { date: '', start: '', end: '', minutes: '30', capacity: '', labelPrefix: '' };
+  const [g, setG] = useState(genBlank);
+  const setG_ = (k) => (e) => setG((prev) => ({ ...prev, [k]: e.target.value }));
+  const [genOpen, setGenOpen] = useState(false);
+
+  // Days outside the event are almost always a typo — a slot on a date camp is
+  // not running is bookable and unrunnable (25 Aug). Advisory rather than
+  // enforced: an arrival-evening or departure-morning activity is a real thing
+  // and the browser's own min/max would simply refuse it.
+  const dayBounds = eventStart && eventEnd ? { min: eventStart, max: eventEnd } : {};
+  const outsideCamp = (d) => Boolean(d && eventStart && eventEnd && (d < eventStart || d > eventEnd));
 
   if (activity.booking_mode !== 'signup') {
     return (
@@ -458,7 +482,13 @@ export function SlotEditor({ activity, slots = [] }) {
       <div className="mt-3 grid gap-2 sm:grid-cols-5">
         <label className="text-xs">
           <span className="block font-semibold text-neutral-700 mb-0.5">Day</span>
-          <input type="date" className={input} value={f.date} onChange={set('date')} />
+          <input
+            type="date"
+            className={input}
+            value={f.date}
+            onChange={set('date')}
+            {...dayBounds}
+          />
         </label>
         <label className="text-xs">
           <span className="block font-semibold text-neutral-700 mb-0.5">From</span>
@@ -491,13 +521,105 @@ export function SlotEditor({ activity, slots = [] }) {
 
       {error && <p className="mt-2 text-sm font-semibold text-red-700">{error}</p>}
 
-      <button
-        onClick={() => run(() => createSlot(activity.id, f))}
-        disabled={pending}
-        className="mt-3 btn-outline !py-1.5 text-sm disabled:opacity-50"
-      >
-        {pending ? 'Adding…' : 'Add this time'}
-      </button>
+      {outsideCamp(f.date) && (
+        <p className="mt-2 text-xs font-semibold text-amber-800">
+          That day is outside {eventStart} – {eventEnd}. Fine if the activity really runs then
+          — worth a second look otherwise.
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => run(() => createSlot(activity.id, f))}
+          disabled={pending}
+          className="btn-outline !py-1.5 text-sm disabled:opacity-50"
+        >
+          {pending ? 'Adding…' : 'Add this time'}
+        </button>
+        <button
+          onClick={() => setGenOpen((v) => !v)}
+          className="text-sm font-semibold text-brand underline"
+        >
+          {genOpen ? 'Close' : 'Or generate a run of times'}
+        </button>
+      </div>
+
+      {genOpen && (
+        <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <p className="text-xs text-neutral-600">
+            Splits one stretch of the day into equal slots — half-hour boat trips all
+            afternoon, fifteen-minute salon appointments. Each gets the same number of places.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-6">
+            <label className="text-xs">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Day</span>
+              <input
+                type="date"
+                className={input}
+                value={g.date}
+                onChange={setG_('date')}
+                {...dayBounds}
+              />
+            </label>
+            <label className="text-xs">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Starts</span>
+              <input type="time" className={input} value={g.start} onChange={setG_('start')} />
+            </label>
+            <label className="text-xs">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Ends</span>
+              <input type="time" className={input} value={g.end} onChange={setG_('end')} />
+            </label>
+            <label className="text-xs">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Each (mins)</span>
+              <input
+                className={input}
+                inputMode="numeric"
+                value={g.minutes}
+                onChange={setG_('minutes')}
+              />
+            </label>
+            <label className="text-xs">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Places each</span>
+              <input
+                className={input}
+                inputMode="numeric"
+                value={g.capacity}
+                onChange={setG_('capacity')}
+                placeholder="no limit"
+              />
+            </label>
+            <label className="text-xs">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Name each</span>
+              <input
+                className={input}
+                value={g.labelPrefix}
+                onChange={setG_('labelPrefix')}
+                placeholder="Trip"
+              />
+            </label>
+          </div>
+
+          {outsideCamp(g.date) && (
+            <p className="mt-2 text-xs font-semibold text-amber-800">
+              That day is outside {eventStart} – {eventEnd}.
+            </p>
+          )}
+
+          <button
+            onClick={() =>
+              run(async () => {
+                const res = await generateSlots(activity.id, g);
+                if (res.ok) setG(genBlank);
+                return res;
+              })
+            }
+            disabled={pending}
+            className="mt-3 btn-primary !py-1.5 text-sm disabled:opacity-50"
+          >
+            {pending ? 'Making…' : 'Make these times'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,7 +41,10 @@ const NAV = [
   { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/lodging', label: 'Rooms & Cabins', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/cancellations', label: 'Cancellations', need: 'registrar', ready: true, group: 'events' },
-  { href: '/admin/scholarships', label: 'Scholarship Requests', need: 'registrar', ready: true, group: 'events' },
+  // "Scholarship Requests" wrapped to two lines, dropping its badge onto a
+  // line of its own (25 Aug). Shortened to match its neighbours — Rosters,
+  // Volunteers, Cancellations are all one word. The page keeps its full title.
+  { href: '/admin/scholarships', label: 'Scholarships', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/payments', label: 'Event Payments', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/giving', label: 'Giving', need: 'giving', ready: true },
   { href: '/admin/setup', label: 'Setup', need: 'admin', ready: true },

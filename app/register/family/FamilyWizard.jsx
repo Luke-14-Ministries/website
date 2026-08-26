@@ -1182,7 +1182,15 @@ export default function FamilyWizard({
           needed: someone looking at $495 and wondering whether to carry on.
           Only the instruction changes -- and it now says the asking happens
           after submitting, so nobody stops here believing they must sort the
-          money out first. */}
+          money out first.
+
+          ⚠ REVISIT AFTER THE DEPOSIT DECISION (Decisions doc, question 9).
+          This assumes today's behaviour: a registration reaches staff whether
+          or not the deposit is paid. If the deposit becomes required to
+          submit, this line is the FIRST place that has to say so -- a family
+          reading "submit your registration, then..." and being refused at the
+          button has been misled by us. The deposit paragraph in the
+          confirmation email changes with it. */}
       <p className="text-center text-sm text-neutral-500 pb-2">
         Cost shouldn&rsquo;t decide this. Submit your registration, then use
         &ldquo;Request help with the fee&rdquo; on your dashboard &mdash; asking

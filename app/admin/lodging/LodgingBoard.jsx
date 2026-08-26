@@ -25,12 +25,17 @@ const ROLE_SHORT = {
   support_team: 'support',
 };
 
-function PersonChip({ person, onRemove, pending, accessWarning }) {
+function PersonChip({ person, onRemove, onMove, pending, accessWarning, moving }) {
   return (
     <li className="flex flex-wrap items-center gap-2 rounded border border-neutral-200 bg-white px-3 py-1.5 text-sm">
       <span className="font-medium">{person.name}</span>
       <span className="text-xs text-neutral-500">{ROLE_SHORT[person.role] ?? person.role}</span>
       {person.gender && <span className="text-xs text-neutral-400">{person.gender}</span>}
+      {person.age != null && (
+        <span className="text-xs text-neutral-400" title="Age">
+          {person.age}
+        </span>
+      )}
       {person.household && (
         <span className="text-xs text-neutral-400" title="Household">
           {person.household}
@@ -44,11 +49,26 @@ function PersonChip({ person, onRemove, pending, accessWarning }) {
           check access
         </span>
       )}
+      {/* Moving someone was impossible before (25 Aug): only the "not yet
+          placed" list could be selected from, and being placed took you off
+          it. Remove-then-replace worked but reads as undoing a decision rather
+          than changing one, and it empties a bed in between. */}
+      {onMove && (
+        <button
+          onClick={onMove}
+          disabled={pending}
+          className={`ml-auto text-xs font-semibold underline ${
+            moving ? 'text-brand-dark' : 'text-brand'
+          }`}
+        >
+          {moving ? 'Choosing a new place…' : 'Move'}
+        </button>
+      )}
       {onRemove && (
         <button
           onClick={onRemove}
           disabled={pending}
-          className="ml-auto text-xs font-semibold text-brand underline"
+          className={`${onMove ? '' : 'ml-auto'} text-xs font-semibold text-brand underline`}
         >
           Remove
         </button>
@@ -94,6 +114,20 @@ export default function LodgingBoard({
     .filter((p) => !placedIds.has(p.participantId))
     .sort((a, b) => a.household.localeCompare(b.household) || a.name.localeCompare(b.name));
 
+  // Grouped by household, not merely sorted by it (25 Aug). Camp places
+  // families together by default -- same room where they fit, adjacent rooms
+  // where they do not -- so the unit a coordinator picks up is the family, and
+  // the list should hand them one.
+  const unplacedByHousehold = useMemo(() => {
+    const m = new Map();
+    for (const p of unplaced) {
+      const key = p.household || 'No household name';
+      if (!m.has(key)) m.set(key, []);
+      m.get(key).push(p);
+    }
+    return [...m.entries()];
+  }, [unplaced]);
+
   const childrenOf = useMemo(() => {
     const m = new Map();
     for (const l of lodgings) {
@@ -118,8 +152,59 @@ export default function LodgingBoard({
     return Boolean(person.mobility && person.mobility.trim());
   }
 
+  // Who is already in this exact place. Sharing rules are about the ROOM, not
+  // the building: a lodge holding forty people is not a mixed room.
+  function occupantsOf(lodgingId) {
+    return byLodging.get(lodgingId) ?? [];
+  }
+
   function doAssign(person, lodging) {
     setError('');
+
+    // Sleeping arrangements, as camp makes them (25 Aug): a family shares
+    // freely; people from DIFFERENT families sharing a room are same-sex, and
+    // a child sharing with adults is worth a second look. All warnings, never
+    // blocks -- camp has always had arrangements a rule would forbid, and the
+    // coordinator on the screen knows the family.
+    const here = occupantsOf(lodging.id).filter(
+      (p) => p.participantId !== person.participantId
+    );
+    const others = here.filter((p) => p.household !== person.household);
+    if (others.length > 0) {
+      const mixedSex = others.filter(
+        (p) => p.gender && person.gender && p.gender !== person.gender
+      );
+      const adultsWithChild =
+        person.age != null && person.age < 18
+          ? others.filter((p) => p.age != null && p.age >= 18)
+          : person.age != null && person.age >= 18
+            ? others.filter((p) => p.age != null && p.age < 18)
+            : [];
+
+      const lines = [];
+      if (mixedSex.length > 0) {
+        lines.push(
+          `Different sex, different family: ${mixedSex
+            .map((p) => `${p.name} (${p.gender}${p.age != null ? `, ${p.age}` : ''})`)
+            .join(', ')}.`
+        );
+      }
+      if (adultsWithChild.length > 0) {
+        lines.push(
+          `An under-18 would be sharing with adults from another family: ${adultsWithChild
+            .map((p) => `${p.name}${p.age != null ? ` (${p.age})` : ''}`)
+            .join(', ')}.`
+        );
+      }
+      if (lines.length > 0) {
+        const ok = window.confirm(
+          `${lodging.name} already has people from another family in it.\n\n${lines.join(
+            '\n'
+          )}\n\nPlace ${person.name} here anyway?`
+        );
+        if (!ok) return;
+      }
+    }
     // The access warning is the reason this screen exists rather than a
     // spreadsheet. It fires where it can still change the decision.
     if (needsAccess(person) && !lodging.accessible) {
@@ -229,19 +314,23 @@ export default function LodgingBoard({
                   person={p}
                   pending={pending}
                   accessWarning={needsAccess(p) && !lodging.accessible}
+                  moving={placing === p.participantId}
+                  onMove={() =>
+                    setPlacing((cur) => (cur === p.participantId ? null : p.participantId))
+                  }
                   onRemove={() => doRemove(p.participantId)}
                 />
               ))}
             </ul>
           )}
 
-          {placing && (
+          {placing && !here.some((p) => p.participantId === placing) && (
             <button
               onClick={() => doAssign(peopleById.get(placing), lodging)}
               disabled={pending}
               className="mt-3 btn-outline !py-1 text-xs"
             >
-              Place {peopleById.get(placing)?.name} here
+              {placedIds.has(placing) ? 'Move' : 'Place'} {peopleById.get(placing)?.name} here
             </button>
           )}
         </div>
@@ -303,15 +392,38 @@ export default function LodgingBoard({
             </button>
           )}
         </div>
+        {/* Selecting a placed person happens down in their room, far from
+            this card, so say plainly what is in hand — otherwise the only
+            feedback is a button caption changing somewhere off screen. */}
+        {placing && placedIds.has(placing) && (
+          <p className="mt-2 rounded border border-brand bg-brand-light px-3 py-2 text-sm">
+            Moving <span className="font-semibold">{peopleById.get(placing)?.name}</span> —
+            choose their new place below.{' '}
+            <button onClick={() => setPlacing(null)} className="underline font-semibold">
+              Never mind
+            </button>
+          </p>
+        )}
+
         {unplaced.length === 0 ? (
           <p className="mt-2 text-sm text-green-700">Everyone has somewhere to sleep.</p>
         ) : (
           <>
             <p className="mt-1 text-sm text-neutral-500">
-              Pick someone, then choose their place below. Households are grouped together.
+              Pick someone, then choose their place below.{' '}
+              <span className="font-semibold text-neutral-700">
+                Keep a family together where you can
+              </span>{' '}
+              — same room if they fit, adjacent rooms if they do not.
             </p>
-            <ul className="mt-3 grid gap-1 sm:grid-cols-2">
-              {unplaced.map((p) => (
+            {unplacedByHousehold.map(([householdName, group]) => (
+            <div key={householdName} className="mt-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">
+              {householdName}
+              {group.length > 1 && ` · ${group.length} people`}
+            </p>
+            <ul className="mt-1 grid gap-1 sm:grid-cols-2">
+              {group.map((p) => (
                 <li key={p.participantId}>
                   <button
                     onClick={() => setPlacing(p.participantId)}
@@ -327,7 +439,11 @@ export default function LodgingBoard({
                       {ROLE_SHORT[p.role] ?? p.role}
                     </span>
                     {p.gender && <span className="text-xs text-neutral-400">{p.gender}</span>}
-                    <span className="text-xs text-neutral-400">{p.household}</span>
+                    {p.age != null && (
+                      <span className="text-xs text-neutral-400" title="Age">
+                        {p.age}
+                      </span>
+                    )}
                     {needsAccess(p) && (
                       <span
                         className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800"
@@ -340,6 +456,8 @@ export default function LodgingBoard({
                 </li>
               ))}
             </ul>
+            </div>
+            ))}
           </>
         )}
       </div>

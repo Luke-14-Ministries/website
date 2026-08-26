@@ -166,6 +166,11 @@ export default function FamilyWizard({
   // registered. Offered as one-click adds so a family keeps its roster once
   // and picks from it, rather than retyping the same children every year.
   householdPeople = [],
+  // Weeks this household already has a registration for. Used only to warn:
+  // starting a NEW registration no longer inherits another week's people
+  // (25 Aug), so the family needs telling when the week they just picked is
+  // one they are already on.
+  existingEvents = [],
 }) {
   const isUpdate = existing?.isUpdate === true;
   // A signature is evidence with a date on it. If this household already
@@ -203,7 +208,13 @@ export default function FamilyWizard({
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [agreed, setAgreed] = useState(() => new Set());
   const [signerName, setSignerName] = useState('');
-  const [signerRole, setSignerRole] = useState('self');
+  // Replaced the capacity radio (25 Aug). "Myself and my household" versus
+  // "adults I am the legal guardian for" was still not clear to the person
+  // signing -- twice rewritten and twice reported -- and the reason is that it
+  // asked for a legal category when what the release needs is a plain claim
+  // about THESE people. Lawrence's wording: the signature covers everyone
+  // listed above, and the signer states they are able to give it.
+  const [coversAll, setCoversAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -235,7 +246,18 @@ export default function FamilyWizard({
   // Derived, never stored: storing it would need an effect to keep it honest
   // as dates of birth are typed, and an effect that rewrites the user's answer
   // is how a form starts arguing with the person filling it in.
-  const effectiveSignerRole = hasMinor ? 'guardian' : signerRole;
+  // One value now, because there is one claim: this signature covers everyone
+  // on this registration. Whether that includes children is a fact of the
+  // list, not a separate question.
+  const effectiveSignerRole = 'all_registered';
+
+  // Already registered for the week on screen, and this is not that
+  // registration being edited? Say so, with the way in. Silence here is how a
+  // family ends up with two half-built registrations for the same week.
+  const alreadyRegisteredHere =
+    !isUpdate && week?.eventId
+      ? existingEvents.find((e) => e.eventId === week.eventId) ?? null
+      : null;
 
   // A signature belongs to the registration it was given for, and therefore
   // to that EVENT. Reported 25 Aug: switching the event selection left the
@@ -376,6 +398,12 @@ export default function FamilyWizard({
       }
       if (!signerName.trim()) {
         setError('Please type your full name as your signature at the bottom of the “Agreements” card.');
+        return;
+      }
+      if (!coversAll) {
+        setError(
+          'Please tick the box confirming you are able to sign for everyone listed on this registration — in the “Agreements” card below.'
+        );
         return;
       }
       // The signature must name the accountable adult filling in this form --
@@ -541,6 +569,28 @@ export default function FamilyWizard({
             </label>
           ))}
         </div>
+
+        {/* Starting a new registration no longer inherits another week's
+            people (25 Aug), which is right — but it means a family who is
+            already on this week would otherwise see an empty form and build a
+            second, half-finished registration beside the real one. */}
+        {alreadyRegisteredHere && (
+          <p className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+            <span className="font-semibold">
+              You already have a registration for this session
+            </span>{' '}
+            ({alreadyRegisteredHere.people}{' '}
+            {alreadyRegisteredHere.people === 1 ? 'person' : 'people'}). This form is blank
+            because it starts something new.{' '}
+            <a
+              href={`/register/family/?event=${alreadyRegisteredHere.eventId}`}
+              className="font-semibold text-brand underline"
+            >
+              Open the one you already have
+            </a>{' '}
+            to add or change people on it.
+          </p>
+        )}
       </Card>
 
       {/* 2 — the family's own details. */}
@@ -1004,68 +1054,53 @@ export default function FamilyWizard({
                     />
                   </div>
                   <div>
-                    {/* The record needs to know in what CAPACITY the
-                        signature is given. "Parent" and "guardian" as separate
-                        options were confusing side by side (flagged 24 Aug),
-                        so there are two capacities, not three.
+                    {/* Not a menu of legal categories. The release covers the
+                        people on this registration — that list is a few inches
+                        up the page — and what it needs from the signer is the
+                        claim that they can give it for those people.
 
-                        But the choice only appears when it IS a choice. With
-                        anyone under 18 on the form the answer is already
-                        known, and asking invites the wrong one -- which is
-                        exactly what happened (25 Aug: a release covering a
-                        seven-year-old recorded as signed "for themselves").
-
-                        Where the radios do appear: not a dropdown (24 Aug:
-                        "should it be a check box?"). It cannot be a checkbox,
-                        because these are mutually exclusive capacities and two
-                        boxes would let someone tick both; and with only two
-                        choices a dropdown hides half the question behind a
-                        click. */}
+                        Two earlier attempts asked this as a choice ("myself and
+                        my household" / "people I am parent or guardian for")
+                        and both were reported as unclear, the second one after
+                        a release covering a seven-year-old recorded itself as
+                        signed "for themselves". A question nobody can answer
+                        confidently is the wrong question. */}
                     <span className={label}>This signature covers</span>
-                    {hasMinor ? (
-                      /* Not a question. Stated, so the person signing knows
-                         exactly what they are attesting to, and so the record
-                         says something true about a release that covers a
-                         child. */
-                      <div className="rounded border border-brand bg-brand-light px-3 py-2 text-sm">
-                        <p className="font-semibold">
-                          As parent or legal guardian
-                        </p>
+                    <div className="rounded border border-brand bg-brand-light px-3 py-2 text-sm">
+                      <p className="font-semibold">
+                        Everyone listed in &ldquo;Who is coming&rdquo; above
+                        {named.length > 0 && ` — ${named.length} ${
+                          named.length === 1 ? 'person' : 'people'
+                        }`}
+                      </p>
+                      {named.length > 0 && (
                         <p className="mt-1 text-neutral-700">
-                          {minorsOnForm.length === 1
-                            ? `${minorsOnForm[0].firstName || 'One person'} is under 18 at camp, so you are signing on their behalf as well as your own.`
-                            : `${minorsOnForm.length} people on this registration are under 18 at camp, so you are signing on their behalf as well as your own.`}
+                          {named
+                            .map((m) => `${m.firstName} ${m.lastName}`.trim())
+                            .filter(Boolean)
+                            .join(', ')}
                         </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {[
-                          ['self', 'myself and my household'],
-                          [
-                            'guardian',
-                            'adults I am the legal guardian for',
-                          ],
-                        ].map(([value, text]) => (
-                          <label
-                            key={value}
-                            className={`flex cursor-pointer items-start gap-2 rounded border px-3 py-2 text-sm ${
-                              signerRole === value
-                                ? 'border-brand bg-brand-light font-semibold'
-                                : 'border-neutral-300'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="signerRole"
-                              className="mt-0.5"
-                              checked={signerRole === value}
-                              onChange={() => setSignerRole(value)}
-                            />
-                            <span>{text}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
+                      )}
+                      <label className="mt-2 flex items-start gap-2 font-medium">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={coversAll}
+                          onChange={(e) => setCoversAll(e.target.checked)}
+                        />
+                        <span>
+                          I am legally able to sign these agreements on behalf of everyone
+                          listed above.
+                        </span>
+                      </label>
+                      {hasMinor && (
+                        <p className="mt-2 text-xs text-neutral-600">
+                          {minorsOnForm.length === 1
+                            ? `${minorsOnForm[0].firstName || 'One person'} is under 18 at camp, so this includes signing as their parent or legal guardian.`
+                            : `${minorsOnForm.length} of them are under 18 at camp, so this includes signing as their parent or legal guardian.`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <p className="mt-3 text-xs text-neutral-600">

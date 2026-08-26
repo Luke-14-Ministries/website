@@ -9,7 +9,8 @@ export const metadata = { title: 'Kitchen List — Staff Admin' };
 // names. Safe to pin up in the kitchen — it says "gluten-free × 3", never who.
 // The named version stays on the Dietary & Allergies screen for staff with the
 // sensitive permission.
-export default async function KitchenListPage() {
+export default async function KitchenListPage({ searchParams }) {
+  const params = await searchParams;
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/dietary/print/');
   if (!can(staff, 'sensitive')) redirect('/admin');
@@ -45,10 +46,23 @@ export default async function KitchenListPage() {
     }
   };
 
+  // The same window the Dietary page uses, so "Current events" means the same
+  // thing on the screen and on the printout: ended less than ~30 days ago.
+  const eventFilter = typeof params?.event === 'string' ? params.event : '';
+  const showPast = params?.past === '1';
+  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const isCurrent = (ev) => (ev.ends_on ?? ev.starts_on ?? '') >= cutoff;
+  const shownEvents = (events ?? []).filter((ev) => {
+    if (eventFilter) return ev.id === eventFilter;
+    return showPast || isCurrent(ev);
+  });
+  const shownIds = new Set(shownEvents.map((e) => e.id));
+
   let people = 0;
   for (const r of regs ?? []) {
     for (const p of r.registration_participants ?? []) {
       if (p.status === 'cancelled' || p.status === 'draft') continue;
+      if (!shownIds.has(r.event_id)) continue;
       const s = p.people?.person_support;
       if (!s) continue;
       let counted = false;
@@ -75,7 +89,20 @@ export default async function KitchenListPage() {
         the kitchen. The named list stays on the Dietary &amp; Allergies page.
       </p>
 
-      {(events ?? []).map((ev) => {
+      {/* Says what it covers, on the printed page too — the one place the
+          filter is invisible once the paper leaves the screen. */}
+      <p className="mb-6 text-sm font-semibold">
+        {eventFilter
+          ? shownEvents[0]?.name ?? 'Selected event'
+          : showPast
+            ? 'All events, including past ones'
+            : 'Current and upcoming events'}
+      </p>
+
+      {/* Only the events asked for. A kitchen list is pinned to a wall and
+          cooked from; one that quietly includes a week that is not happening
+          is worse than no list, because nobody can tell by looking. */}
+      {shownEvents.map((ev) => {
         const bucket = byEvent.get(ev.id);
         if (!bucket || bucket.size === 0) return null;
         const items = [...bucket.values()].sort(

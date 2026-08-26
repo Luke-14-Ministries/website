@@ -124,6 +124,13 @@ export default async function ActivitiesPage() {
               Choose what each person would like to do. Nothing here is binding — tell us
               what you&rsquo;d like and camp staff will confirm the details closer to the
               time. You can change your mind whenever you like.
+              {' '}
+              <span className="font-semibold text-neutral-800">
+                Put a name down for anything that appeals, even if you are not sure it will
+                work.
+              </span>{' '}
+              Camp&rsquo;s whole instinct is to find a way — chairs go down the river and up
+              the climbing wall — so ask, and staff will work out the how.
             </p>
             <div className="space-y-10">
               {sections.map((s) => (

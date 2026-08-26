@@ -71,8 +71,18 @@ export default async function DietaryPage({ searchParams }) {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
         <h2 className="text-xl font-bold">Dietary &amp; Allergies</h2>
-        <a href="/admin/dietary/print" className="btn-outline !py-2 text-sm">
+        {/* The filter travels with the link. Printing "the kitchen list"
+            from a page filtered to one week and getting every registrant the
+            ministry has ever had is not a longer list — it is the wrong list,
+            and the kitchen cannot tell (25 Aug). */}
+        <a
+          href={`/admin/dietary/print${
+            eventFilter ? `?event=${eventFilter}` : showPast ? '?past=1' : ''
+          }`}
+          className="btn-outline !py-2 text-sm"
+        >
           Kitchen list (no names)
+          {eventFilter && <span className="font-normal"> — this event</span>}
         </a>
       </div>
       <p className="text-sm text-neutral-500 mb-6">

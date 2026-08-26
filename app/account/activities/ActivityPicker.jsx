@@ -118,7 +118,8 @@ function ActivityRow({ person, activity }) {
           />
           <span>
             I understand {activity.provider_name || 'the provider'} has their own form to
-            complete, and that the ministry cannot complete it for us.
+            complete, and that the ministry cannot complete it for us. Staff will send us
+            what we need.
           </span>
         </label>
       )}
@@ -132,7 +133,9 @@ function ActivityRow({ person, activity }) {
 
       {full && (
         <p className="mt-1 ml-7 text-sm text-amber-800">
-          This one is full. Camp staff keep a list — email info@luke14ministries.net.
+          Full at the moment — <span className="font-semibold">please ask anyway</span>.
+          Email info@luke14ministries.net and staff will look at whether the numbers can
+          stretch.
         </p>
       )}
 

@@ -78,7 +78,12 @@ export async function setActivityChoice({ participantId, activityId, status, ack
     if (/activity full/i.test(error.message)) {
       return {
         ok: false,
-        error: `${activity.name} is full. Camp staff keep a list — email info@luke14ministries.net and they will add you.`,
+        // Camp's own ethos, stated in the 25 Aug notes: the instinct is to
+        // find a way for everyone to do everything -- wheelchair users go down
+        // the river and up the climbing wall. A message that closes the
+        // subject contradicts the ministry it is speaking for. Capacity is a
+        // number staff can often move; the family should be told that.
+        error: `${activity.name} is full at the moment — but please ask. Email info@luke14ministries.net and staff will look at whether the numbers can stretch. Camp would far rather find a way than turn someone away.`,
       };
     }
     console.error('setActivityChoice:', error.message);

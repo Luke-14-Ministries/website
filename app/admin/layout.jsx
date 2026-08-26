@@ -92,6 +92,7 @@ export default async function AdminLayout({ children }) {
   let openCancellations = 0;
   let openScholarships = 0;
   let awaitingReview = 0;
+  let campersWithoutBuddy = 0;
   if (can(staff, 'admin')) {
     // Accounts created in the last 7 days -- the same amber treatment as the
     // review queues, so a burst of new signups is visible from any admin page.
@@ -163,6 +164,32 @@ export default async function AdminLayout({ children }) {
     openCancellations = cancelCount ?? 0;
     openScholarships = scholCount ?? 0;
     awaitingReview = reviewCount ?? 0;
+  }
+
+  // Campers who asked for a one-to-one buddy and still have nobody. Asked for
+  // 25 Aug: the count existed only as a grey line ON the buddy page, so the
+  // one number that says whether camp is ready was invisible from everywhere
+  // else. Amber, and it reaches zero when the work is done.
+  //
+  // Two reads rather than a join: buddy_assignments is keyed by camper
+  // participant, and the open ones are the rows with no end date. Scoped to
+  // events that have not finished, so last year's camp cannot hold the badge
+  // above zero for ever.
+  if (can(staff, 'coordinator')) {
+    const today = new Date().toISOString().slice(0, 10);
+    const [{ data: needBuddy }, { data: paired }] = await Promise.all([
+      supabase
+        .from('registration_participants')
+        .select(
+          'id, people!inner ( person_support!inner ( buddy_required ) ), registrations!inner ( events!inner ( ends_on ) )'
+        )
+        .neq('status', 'cancelled')
+        .eq('people.person_support.buddy_required', true)
+        .gte('registrations.events.ends_on', today),
+      supabase.from('buddy_assignments').select('camper_participant_id').is('ended_at', null),
+    ]);
+    const hasBuddy = new Set((paired ?? []).map((b) => b.camper_participant_id));
+    campersWithoutBuddy = (needBuddy ?? []).filter((p) => !hasBuddy.has(p.id)).length;
   }
 
   return (
@@ -238,6 +265,7 @@ export default async function AdminLayout({ children }) {
               '/admin/accounts': recentAccounts,
               '/admin/cancellations': openCancellations,
               '/admin/scholarships': openScholarships,
+              '/admin/buddies': campersWithoutBuddy,
               '/admin/payments': recentPayments,
             }}
             badgeTitles={{
@@ -245,6 +273,7 @@ export default async function AdminLayout({ children }) {
               '/admin/accounts': 'created in the last 7 days',
               '/admin/cancellations': 'families waiting to hear back',
               '/admin/scholarships': 'families waiting on a decision about the fee',
+              '/admin/buddies': 'campers who asked for a buddy and still have nobody',
               '/admin/payments': 'payments in the last 7 days',
             }}
             />

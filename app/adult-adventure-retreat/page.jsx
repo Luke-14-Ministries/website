@@ -55,7 +55,11 @@ export default function AdultAdventureRetreatPage() {
               </p>
 
               <dl className="mt-7 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-                <Fact label="Dates">Oct 29 &ndash; Nov 1</Fact>
+                {/* The YEAR belongs here. Without it the page reads as
+                    evergreen, and a returning family cannot tell whether they
+                    are looking at this year's retreat or last year's page
+                    nobody updated (25 Aug). */}
+                <Fact label="Dates">Oct 29 &ndash; Nov 1, 2026</Fact>
                 <Fact label="Arrival">6:00 PM Thursday</Fact>
                 <Fact label="Cost">$480 per person</Fact>
                 <Fact label="Spots">Limited to 30</Fact>

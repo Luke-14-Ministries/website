@@ -82,6 +82,19 @@ export default async function LodgingPage({ searchParams }) {
       household: r.registrations?.households?.display_name ?? '',
       role: r.camp_role,
       gender: r.people?.gender ?? null,
+      // Age, not the birth date: sleeping arrangements are decided on "is this
+      // a child sharing with adults?", and a coordinator should not have to do
+      // the arithmetic in their head for forty people (asked 25 Aug).
+      age: (() => {
+        const dob = r.people?.date_of_birth;
+        if (!dob) return null;
+        const [by, bm, bd] = String(dob).split('-').map(Number);
+        if (!by) return null;
+        const t = new Date();
+        let a = t.getFullYear() - by;
+        if (t.getMonth() + 1 < bm || (t.getMonth() + 1 === bm && t.getDate() < bd)) a -= 1;
+        return a;
+      })(),
       // Free text, not a flag -- there is no boolean for "uses a wheelchair",
       // so the presence of ANY mobility note is what triggers the access
       // warning. Better to ask twice than to put someone up a flight of stairs.

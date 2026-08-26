@@ -149,6 +149,25 @@ export default async function VolunteerPage() {
     .from('people')
     .select('id, first_name, last_name, date_of_birth')
     .in('household_id', householdIds);
+  // ISO dates read as database output, not as dates. Parsed by parts because
+  // new Date('2026-10-29') is UTC midnight and shows as the 28th in the US.
+  const fmtRange = (a, b) => {
+    const one = (iso) => {
+      if (!iso) return '';
+      const [y, m, d] = String(iso).split('-').map(Number);
+      if (!y) return '';
+      return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    };
+    const from = one(a);
+    const to = one(b);
+    if (!from) return '';
+    const year = String(a).slice(0, 4);
+    return ` · ${from}${to ? `–${to}` : ''}, ${year}`;
+  };
+
   const isAdult = (dob) => {
     if (!dob) return true; // unknown DOB: let them be chosen; staff review catches oddities
     const age = (Date.now() - new Date(dob).getTime()) / (365.25 * 86400000);
@@ -175,7 +194,7 @@ export default async function VolunteerPage() {
               personName={`${participant.people?.first_name ?? ''} ${participant.people?.last_name ?? ''}`.trim()}
               isMinor={participant.people?.date_of_birth ? !isAdult(participant.people.date_of_birth) : false}
               personId={participant.people?.id}
-              eventName={`${event?.name ?? 'Event'} (${event?.starts_on ?? ''} – ${event?.ends_on ?? ''})`}
+              eventName={`${event?.name ?? 'Event'}${fmtRange(event?.starts_on, event?.ends_on)}`}
               existing={appByPart.get(participant.id) ?? null}
               adults={adults}
               defaultChurch={defaultChurch}

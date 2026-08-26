@@ -33,6 +33,10 @@ const SIGNER_ROLE_LABEL = {
   // renders says "myself and my household", so a release covering a whole
   // family read as though it covered one person (spotted 25 Aug on a
   // registration containing a seven-year-old).
+  // The value every signature taken from 25 Aug onward carries. The older
+  // four are kept because the rows that used them are still on file, and a
+  // signature is never rewritten.
+  all_registered: 'on behalf of everyone on this registration',
   self: 'for themselves and their household',
   parent: 'as a parent',
   guardian: 'as parent or legal guardian',

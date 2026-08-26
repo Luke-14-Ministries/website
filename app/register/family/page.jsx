@@ -135,6 +135,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
   let signedAlready = null;
   // Everyone saved in this household, offered as pick-and-add in the wizard.
   let householdPeople = [];
+  let existingEvents = [];
   // "How did you hear about us?" is a first-contact question, so it is asked
   // once per family and never again. CampSite asks it on every enrolment, which
   // is why their export repeats the same answer for every child every year.
@@ -172,7 +173,22 @@ export default async function FamilyRegisterPage({ searchParams }) {
     ]);
 
     const wanted = typeof params?.event === 'string' ? params.event : null;
-    const reg = (regs ?? []).find((r) => r.event_id === wanted) ?? (regs ?? [])[0] ?? null;
+
+    // ONLY the registration actually asked for. The fallback that used to sit
+    // here -- `?? (regs ?? [])[0]` -- reached for the most recent registration
+    // of ANY event whenever no ?event= was given, and prefilled its people into
+    // whatever the family was starting next.
+    //
+    // Reported 25 Aug: beginning a fresh Adult Adventure registration arrived
+    // with the whole Camp Celebrate household already on it, "I'm coming too"
+    // ticked, and a child nobody had asked for. Every one of those was the
+    // OTHER event's answer, presented as though the family had given it.
+    //
+    // Starting something new now starts empty. The household's own details
+    // still prefill (they belong to the family, not to an event), and every
+    // saved person is one click away under "add someone you've already saved"
+    // -- chosen deliberately, which is the whole difference.
+    const reg = wanted ? (regs ?? []).find((r) => r.event_id === wanted) ?? null : null;
 
     // Has this household already signed for THIS registration? If so the form
     // shows the signature rather than asking for it again.
@@ -299,9 +315,21 @@ export default async function FamilyRegisterPage({ searchParams }) {
       contactPerson = pc ?? null;
     }
 
+    // Which weeks this household is ALREADY registered for, so the wizard can
+    // say so rather than letting someone quietly build a second registration
+    // for a week they are already on.
+    existingEvents = (regs ?? [])
+      .map((r) => ({
+        eventId: r.event_id,
+        registrationId: r.id,
+        people: (r.registration_participants ?? []).filter((p) => p.status !== 'cancelled')
+          .length,
+      }))
+      .filter((r) => r.eventId);
+
     existing = {
       isUpdate: !!reg,
-      eventId: reg?.event_id ?? wanted ?? null,
+      eventId: reg?.event_id ?? null,
       notes: reg?.family_notes ?? '',
       family: {
         contactFirst: contactPerson?.first_name ?? profile?.first_name ?? '',
@@ -380,6 +408,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
             agreements={requiredAgreements}
             signedAlready={signedAlready}
             householdPeople={householdPeople}
+            existingEvents={existingEvents}
           />
         )}
       </div>

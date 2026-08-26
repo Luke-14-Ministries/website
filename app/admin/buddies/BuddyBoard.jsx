@@ -135,13 +135,15 @@ export default function BuddyBoard({
 
   function doAssign(camper, volunteer) {
     setError('');
-    // A camper who already has a buddy is not necessarily a mistake -- the
-    // schema models time ranges, so shift pairing is possible -- but it is
-    // usually an accident, so it takes an explicit yes.
+    // A camper who already has a buddy is not necessarily a mistake: some
+    // campers genuinely need more than one (25 Aug -- the earlier wording
+    // called this "shift pairing", which is a scheduling idea camp does not
+    // actually work in, and it made a normal decision sound like a workaround).
+    // It still takes an explicit yes, because it is more often a slip.
     const existing = byCamper.get(camper.participantId) ?? [];
     if (existing.length > 0) {
       const ok = window.confirm(
-        `${camper.name} already has a buddy assigned.\n\nAdd ${volunteer.name} as a SECOND buddy? (Use this only for shift pairing — otherwise remove the first pairing.)`
+        `${camper.name} already has a buddy assigned.\n\nAdd ${volunteer.name} as a second buddy?\n\nSome campers do need more than one — say yes if that is the case here. If you meant to swap buddies, remove the first pairing instead.`
       );
       if (!ok) return;
     }
@@ -212,6 +214,40 @@ export default function BuddyBoard({
         </p>
       )}
 
+      {/* The two numbers staff run the week from, given the size that says so.
+          They existed already — as one grey line beside the publish state,
+          which is why testing asked "what counter?" (25 Aug). How many still
+          need a buddy is the whole job of this page; it should be the first
+          thing on it and it should be amber while it is not zero. */}
+      <div className="mb-5 flex flex-wrap gap-4">
+        <div className="rounded-lg border border-neutral-200 bg-white px-5 py-3">
+          <div className="text-3xl font-bold">{campers.length}</div>
+          <div className="text-sm font-semibold text-neutral-700">asking for a buddy</div>
+        </div>
+        <div className="rounded-lg border border-neutral-200 bg-white px-5 py-3">
+          <div className="text-3xl font-bold text-green-700">
+            {campers.length - unpaired.length}
+          </div>
+          <div className="text-sm font-semibold text-neutral-700">paired</div>
+        </div>
+        <div
+          className={`rounded-lg border bg-white px-5 py-3 ${
+            unpaired.length > 0 ? 'border-amber-300' : 'border-neutral-200'
+          }`}
+        >
+          <div
+            className={`text-3xl font-bold ${
+              unpaired.length > 0 ? 'text-amber-700' : 'text-neutral-400'
+            }`}
+          >
+            {unpaired.length}
+          </div>
+          <div className="text-sm font-semibold text-neutral-700">
+            {unpaired.length === 0 ? 'nobody left to pair' : 'still without a buddy'}
+          </div>
+        </div>
+      </div>
+
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-4">
         <div className="min-w-0">
           <p className="font-semibold">
@@ -224,9 +260,7 @@ export default function BuddyBoard({
             )}
           </p>
           <p className="text-sm text-neutral-500">
-            {campers.length} asking for a buddy · {campers.length - unpaired.length} paired ·{' '}
-            {unpaired.length} still to do
-            {publishedAt && ` · published ${publishedAt.slice(0, 10)}`}
+            {publishedAt && `Published ${publishedAt.slice(0, 10)}`}
           </p>
         </div>
         <button

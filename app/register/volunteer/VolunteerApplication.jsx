@@ -98,8 +98,13 @@ export default function VolunteerApplication({
 
   return (
     <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+      {/* min-w-0 flex-1 on the text, shrink-0 on the controls. Without them a
+          longer event name ("Camp Celebrate 2027 — Week 1 (…)") pushed the
+          status chip and the button onto a second line, so two cards on the
+          same page were laid out differently and read as two different
+          designs (reported 25 Aug). Same fix as the admin header, 24 Aug. */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold">
             {personName}
             {isMinor && (
@@ -110,7 +115,7 @@ export default function VolunteerApplication({
           </h2>
           <p className="text-sm text-neutral-500">{eventName}</p>
         </div>
-        <span className="flex items-center gap-2">
+        <span className="flex shrink-0 items-center gap-2">
           {saved && !existing && (
             <span className="rounded-full bg-green-100 text-green-800 px-2.5 py-0.5 text-xs font-semibold">
               Application submitted

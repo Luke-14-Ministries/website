@@ -36,6 +36,10 @@ const SIGNER_ROLE_LABEL = {
   // renders says "myself and my household", so a release covering a whole
   // family read as though it covered one person (spotted 25 Aug on a
   // registration containing a seven-year-old).
+  // The value every signature taken from 25 Aug onward carries. The older
+  // four are kept because the rows that used them are still on file, and a
+  // signature is never rewritten.
+  all_registered: 'on behalf of everyone on this registration',
   self: 'for themselves and their household',
   parent: 'as a parent',
   guardian: 'as parent or legal guardian',
@@ -1322,12 +1326,12 @@ export default function RegistrationManager({
               {' '}
               · Paid {money(balance.paid_cents)} ·{' '}
               <span
+                /* Zero is SETTLED, not neutral — the one balance a registrar
+                   is pleased to see, and it was rendered in the same grey as
+                   "we don't know" (25 Aug). Green for paid up and for a
+                   credit; amber only while money is actually outstanding. */
                 className={`font-bold ${
-                  (balance.balance_cents ?? 0) > 0
-                    ? 'text-amber-700'
-                    : (balance.balance_cents ?? 0) < 0
-                      ? 'text-green-700'
-                      : 'text-neutral-700'
+                  (balance.balance_cents ?? 0) > 0 ? 'text-amber-700' : 'text-green-700'
                 }`}
               >
                 {(balance.balance_cents ?? 0) < 0

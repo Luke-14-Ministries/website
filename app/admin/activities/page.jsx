@@ -40,6 +40,12 @@ export default async function AdminActivitiesPage({ searchParams }) {
         .from('activities')
         .select('id, name, description, booking_mode, capacity, provider_name, provider_url, active')
         .eq('event_id', selected)
+        // Inactive last. Staff see activities families cannot (that is the
+        // point of the "not open" badge), but interleaving them made the two
+        // lists read as disagreeing with each other -- reported 25 Aug as the
+        // staff section "not lining up with the wizard". Same set, same order,
+        // with the ones families cannot see sitting plainly at the bottom.
+        .order('active', { ascending: false })
         .order('sort_order')
     : { data: [] };
 

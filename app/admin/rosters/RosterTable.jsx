@@ -300,6 +300,20 @@ export default function RosterTable({ events, rows }) {
                       {r.household}
                     </a>
                     {r.contact && <div className="text-neutral-500">{r.contact}</div>}
+                    {/* The family's note used to sit in the flags column, off
+                        to the right past several columns of a table that
+                        scrolls sideways — which is why testing reported it
+                        missing from the roster while finding it in the CSV
+                        (25 Aug). It is now in the sticky column, and it shows
+                        its words rather than hiding them in a tooltip: a note
+                        a family wrote is the sort of thing that has to be
+                        READ, not discovered. */}
+                    {r.familyNote && (
+                      <div className="mt-1 max-w-[22rem] rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                        <span className="font-semibold">Note from the family:</span>{' '}
+                        {r.familyNote}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2">{r.person}</td>
                   <td className="px-4 py-2 text-neutral-600">{r.sex || '—'}</td>
@@ -358,15 +372,6 @@ export default function RosterTable({ events, rows }) {
                       {!r.agreementsSigned && (
                         <Flag tone="amber" title="No signed agreements on file for this registration">
                           unsigned
-                        </Flag>
-                      )}
-                      {/* Amber = operational note, the site-wide meaning.
-                          The whole note is in the tooltip, so a scan of the
-                          roster shows both that a family wrote something and
-                          what they wrote, without opening anything. */}
-                      {r.familyNote && (
-                        <Flag tone="amber" title={`Note from the family: ${r.familyNote}`}>
-                          note
                         </Flag>
                       )}
                     </span>

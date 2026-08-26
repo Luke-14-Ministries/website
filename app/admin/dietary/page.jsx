@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import EventFilter from '@/components/EventFilter';
 
 export const metadata = { title: 'Dietary & Allergies — Staff Admin' };
 
@@ -55,7 +56,9 @@ export default async function DietaryPage({ searchParams }) {
   // A 30-day grace keeps a just-finished event visible while follow-up work
   // is still live.
   const eventFilter = typeof params?.event === 'string' ? params.event : '';
-  const showPast = params?.past === '1';
+  // Past events are reached through EventFilter's search now, so selecting
+  // one by id is the only way to see it -- there is no page-wide past mode.
+  const showPast = false;
   const q = typeof params?.q === 'string' ? params.q.trim().toLowerCase() : '';
   const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const isCurrent = (ev) => (ev.ends_on ?? ev.starts_on ?? '') >= cutoff;
@@ -91,39 +94,21 @@ export default async function DietaryPage({ searchParams }) {
       </p>
 
 
-      {/* Event pills + search (24 Aug). The pills mirror Check-In; search
-          matches person or household name. */}
-      <div className="mb-3 flex flex-wrap gap-2">
-        <a
-          href="/admin/dietary"
-          className={`rounded-full px-3 py-1 text-sm font-semibold ${
-            !eventFilter && !showPast ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-          }`}
-        >
-          Current events
-        </a>
-        {(events ?? []).filter(isCurrent).map((ev) => (
-          <a
-            key={ev.id}
-            href={`/admin/dietary?event=${ev.id}`}
-            className={`rounded-full px-3 py-1 text-sm font-semibold ${
-              eventFilter === ev.id ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-            }`}
-          >
-            {ev.name}
-          </a>
-        ))}
-        {pastCount > 0 && (
-          <a
-            href="/admin/dietary?past=1"
-            className={`rounded-full px-3 py-1 text-sm font-semibold ${
-              showPast ? 'bg-brand text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-            }`}
-          >
-            Show past events ({pastCount})
-          </a>
-        )}
-      </div>
+      {/* One filter, shared with Activities, Buddies and Rooms (25 Aug).
+          "All current events" stays, because a kitchen list is not per-week —
+          it is what the kitchen is cooking for. */}
+      <EventFilter
+        events={(events ?? []).map((e) => ({
+          id: e.id,
+          name: e.name,
+          startsOn: e.starts_on,
+          endsOn: e.ends_on,
+        }))}
+        selected={eventFilter || null}
+        basePath="/admin/dietary"
+        extraParams={{ q }}
+        allowAll
+      />
       <form method="get" action="/admin/dietary" className="mb-6 flex flex-wrap items-center gap-2">
         {eventFilter && <input type="hidden" name="event" value={eventFilter} />}
         {showPast && <input type="hidden" name="past" value="1" />}

@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { ActivityEditor, AddActivity } from './ActivityEditor';
+import { ActivityEditor, AddActivity, ActivityCard } from './ActivityEditor';
+import EventFilter from '@/components/EventFilter';
 
 export const metadata = { title: 'Activities — Staff Admin' };
 
@@ -34,8 +34,9 @@ export default async function AdminActivitiesPage({ searchParams }) {
   // Same archiving convention as the rest of the staff portal: current and
   // upcoming by default, past one click away, nothing hidden in the database.
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const showPast = params?.past === '1';
-  const visibleEvents = (events ?? []).filter((e) => showPast || (e.ends_on ?? '9999') >= cutoff);
+  // Current-and-upcoming is what the page opens on; EventFilter owns the
+  // rest, including reaching past events by search.
+  const visibleEvents = (events ?? []).filter((e) => (e.ends_on ?? '9999') >= cutoff);
   const selected = params?.event || visibleEvents[0]?.id || null;
 
   const { data: activities } = selected
@@ -94,27 +95,16 @@ export default async function AdminActivitiesPage({ searchParams }) {
         the stable, the boat, and the outfitter.
       </p>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        {visibleEvents.map((e) => (
-          <Link
-            key={e.id}
-            href={`/admin/activities?event=${e.id}${showPast ? '&past=1' : ''}`}
-            className={`rounded-full px-3 py-1 text-sm font-semibold ${
-              e.id === selected
-                ? 'bg-brand text-white'
-                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-            }`}
-          >
-            {e.name}
-          </Link>
-        ))}
-        <Link
-          href={`/admin/activities?${selected ? `event=${selected}&` : ''}${showPast ? '' : 'past=1'}`}
-          className="text-sm text-brand underline ml-2"
-        >
-          {showPast ? 'Hide past events' : 'Show past events'}
-        </Link>
-      </div>
+      <EventFilter
+        events={(events ?? []).map((e) => ({
+          id: e.id,
+          name: e.name,
+          startsOn: e.starts_on,
+          endsOn: e.ends_on,
+        }))}
+        selected={selected}
+        basePath="/admin/activities"
+      />
 
       {(activities ?? []).length === 0 ? (
         <p className="text-neutral-500 mb-4">
@@ -125,31 +115,19 @@ export default async function AdminActivitiesPage({ searchParams }) {
           {(activities ?? []).map((a) => {
             const people = byActivity.get(a.id) ?? [];
             const signedUp = people.filter((p) => p.status === 'signed_up').length;
+            const interested = people.filter((p) => p.status === 'interested').length;
             const over = a.capacity != null && signedUp > a.capacity;
             return (
-              <div key={a.id} className="rounded-lg bg-white border border-neutral-200 shadow-sm p-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="text-lg font-bold">
-                    {a.name}
-                    {!a.active && (
-                      <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-semibold text-neutral-600">
-                        not open
-                      </span>
-                    )}
-                  </h3>
-                  <span className="text-sm text-neutral-500">
-                    {MODE_LABEL[a.booking_mode] ?? a.booking_mode}
-                    {a.capacity != null && (
-                      <>
-                        {' · '}
-                        <span className={over ? 'font-semibold text-amber-700' : ''}>
-                          {signedUp} of {a.capacity}
-                          {over ? ' — over capacity' : ''}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
+              <ActivityCard
+                key={a.id}
+                name={a.name}
+                active={a.active !== false}
+                modeLabel={MODE_LABEL[a.booking_mode] ?? a.booking_mode}
+                signedUp={signedUp}
+                interested={interested}
+                capacity={a.capacity}
+                over={over}
+              >
 
                 {/* What the family actually reads. Its absence here is what
                     made this page and the family wizard look like two
@@ -205,7 +183,7 @@ export default async function AdminActivitiesPage({ searchParams }) {
                 )}
 
                 <ActivityEditor activity={a} />
-              </div>
+              </ActivityCard>
             );
           })}
         </div>

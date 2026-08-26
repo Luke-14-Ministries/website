@@ -15,8 +15,12 @@ export default async function RostersPage() {
 
   const supabase = await createClient();
 
-  const [{ data: events }, { data: regs }, { data: consents }, { data: sigs }] = await Promise.all([
-    supabase.from('events').select('id, name, starts_on, ends_on').order('starts_on'),
+  const [{ data: events }, { data: regs }, { data: consents }, { data: sigs }, { data: balances }] =
+    await Promise.all([
+    supabase
+      .from('events')
+      .select('id, name, starts_on, ends_on, deposit_cents')
+      .order('starts_on'),
     supabase
       .from('registrations')
       .select(
@@ -34,14 +38,30 @@ export default async function RostersPage() {
     // We only need to know WHETHER a registration has been signed for; the
     // detail page shows which agreements and when.
     supabase.from('agreement_signatures').select('registration_id'),
+    // What each family has actually paid. The roster is where staff look
+    // before a week starts, and "has this family held their places?" was not
+    // answerable from it (25 Aug) -- a family of three showing one $50 deposit
+    // looked settled.
+    supabase.from('registration_balances').select('registration_id, paid_cents'),
   ]);
 
   const consentOf = new Map();
   for (const c of consents ?? []) consentOf.set(`${c.person_id}:${c.kind}`, c.granted);
   const signedRegs = new Set((sigs ?? []).map((s) => s.registration_id).filter(Boolean));
+  const paidByReg = new Map((balances ?? []).map((b) => [b.registration_id, b.paid_cents ?? 0]));
+  const depositByEvent = new Map((events ?? []).map((e) => [e.id, e.deposit_cents ?? 0]));
 
   const rows = [];
   for (const r of regs ?? []) {
+    // Per REGISTRATION, not per person: the deposit holds places, so three
+    // people coming means three deposits.
+    const live = (r.registration_participants ?? []).filter((p) => p.status !== 'cancelled')
+      .length;
+    const each = depositByEvent.get(r.event_id) ?? 0;
+    const due = each * live;
+    const paid = paidByReg.get(r.id) ?? 0;
+    const depositShort = each > 0 && live > 0 && paid < due;
+
     for (const p of r.registration_participants ?? []) {
       const pid = p.people?.id;
       rows.push({
@@ -72,6 +92,9 @@ export default async function RostersPage() {
         // staff a note EXISTED without opening each registration -- which is
         // the same as not collecting it.
         familyNote: r.family_notes ?? '',
+        depositShort,
+        depositPaid: paid,
+        depositDue: due,
       });
     }
   }

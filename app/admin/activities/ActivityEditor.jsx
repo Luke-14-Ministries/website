@@ -28,7 +28,10 @@ function Fields({ f, set }) {
           <input className={input} value={f.name} onChange={set('name')} />
         </label>
         <label className="text-sm">
-          <span className={label}>Order on the page</span>
+          <span className={label}>
+            Position in the list{' '}
+            <span className="font-normal text-neutral-500">— lowest number first</span>
+          </span>
           <input
             className={input}
             inputMode="numeric"
@@ -36,6 +39,11 @@ function Fields({ f, set }) {
             onChange={set('sortOrder')}
             placeholder="10, 20, 30…"
           />
+          {/* Numbered in tens by convention so a new activity can be dropped
+              between two existing ones without renumbering the rest. */}
+          <span className="mt-0.5 block text-xs text-neutral-500">
+            Counting in tens (10, 20, 30) leaves room to slot one in later.
+          </span>
         </label>
       </div>
 
@@ -263,6 +271,76 @@ export function AddActivity({ eventId, eventName }) {
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+// One activity, collapsed to its title bar until somebody wants the detail.
+//
+// Asked for 25 Aug. A coordinator opening this page is usually answering one
+// question — how many for the boat? — and eleven expanded cards, each with a
+// name list and a row of edit links, buries that answer in a page of things
+// nobody is doing right now.
+//
+// Collapsed by default, including the editor: editing is the rare act here and
+// the counts are the common one. The bar carries the number, so a closed card
+// still answers the question the page gets opened for.
+export function ActivityCard({
+  name,
+  active = true,
+  modeLabel,
+  signedUp = 0,
+  interested = 0,
+  capacity = null,
+  over = false,
+  children,
+}) {
+  const [open, setOpen] = useState(false);
+  const total = signedUp + interested;
+
+  return (
+    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-5 py-4 text-left hover:bg-neutral-50"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            aria-hidden
+            className={`shrink-0 text-neutral-400 transition-transform ${open ? 'rotate-90' : ''}`}
+          >
+            ▶
+          </span>
+          <span className="text-lg font-bold">{name}</span>
+          {!active && (
+            <span className="shrink-0 rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-semibold text-neutral-600">
+              not open
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-3 text-sm text-neutral-600">
+          <span>{modeLabel}</span>
+          <span className={over ? 'font-semibold text-amber-700' : 'font-semibold'}>
+            {capacity != null ? `${signedUp} of ${capacity}` : total}
+            {over ? ' — over' : ''}
+            {capacity == null && (
+              <span className="font-normal">
+                {' '}
+                {total === 1 ? 'person' : 'people'}
+                {interested > 0 && signedUp > 0 && ` (${signedUp} signed up)`}
+              </span>
+            )}
+          </span>
+          <span className="text-xs text-neutral-400">{open ? 'Hide' : 'Show'}</span>
+        </span>
+      </button>
+
+      {/* Unmounted, not hidden: the body holds the editor's live controls, and
+          leaving them in the tree but invisible puts focusable fields where a
+          keyboard user cannot see them. */}
+      {open && <div className="border-t border-neutral-200 px-5 pb-5 pt-4">{children}</div>}
     </div>
   );
 }

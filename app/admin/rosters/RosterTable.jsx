@@ -291,11 +291,37 @@ export default function RosterTable({ events, rows }) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((r, i) => (
-                <tr key={i} className="border-t border-neutral-100 align-top">
+              {sorted.map((r, i) => {
+                // Household details belong to the FAMILY, not to each person
+                // in it: name, email, phone and the family's note were being
+                // reprinted on every row, so a family of four filled a quarter
+                // of the screen saying the same thing four times (25 Aug).
+                //
+                // Compared against the row above rather than grouped up front,
+                // because any column heading can re-sort this table. Sorted by
+                // household the rows sit together and repeat once; sorted by
+                // anything else a family is scattered and each row correctly
+                // says who it belongs to again.
+                const sameAsAbove = i > 0 && sorted[i - 1].registrationId === r.registrationId;
+                return (
+                <tr
+                  key={i}
+                  className={`align-top ${
+                    sameAsAbove ? 'border-t border-neutral-50' : 'border-t border-neutral-200'
+                  }`}
+                >
                   {/* Sticky: the household stays put while the rest scrolls,
                       so a wide roster never loses its row labels (24 Aug). */}
                   <td className="sticky left-0 z-10 bg-white px-4 py-2">
+                    {sameAsAbove ? (
+                      // Not blank: an empty cell reads as missing data. A tie
+                      // mark says "same family as the row above" without
+                      // saying the name a fourth time.
+                      <span aria-hidden className="text-neutral-300">
+                        ↳
+                      </span>
+                    ) : (
+                      <>
                     <a href={`/admin/registrations/${r.registrationId}`} className="font-medium text-brand underline">
                       {r.household}
                     </a>
@@ -315,6 +341,19 @@ export default function RosterTable({ events, rows }) {
                         is the thing a scan needs to show; the words are one
                         click away. <details> rather than state — one row's
                         note has nothing to do with any other's. */}
+                    {/* Registration-level, so it lives in the household
+                        cell and is said once per family — not once per person
+                        (25 Aug). The deposit holds PLACES: three people coming
+                        means three of them. */}
+                    {r.depositShort && (
+                      <div
+                        className="mt-1 inline-block rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900"
+                        title={`Deposit is $${((r.depositDue ?? 0) / 100).toFixed(2)} for this family; $${((r.depositPaid ?? 0) / 100).toFixed(2)} received.`}
+                      >
+                        deposit short — ${((r.depositPaid ?? 0) / 100).toFixed(0)} of $
+                        {((r.depositDue ?? 0) / 100).toFixed(0)}
+                      </div>
+                    )}
                     {r.familyNote && (
                       <details className="mt-1 max-w-[22rem]">
                         <summary className="cursor-pointer rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900 marker:text-amber-700">
@@ -324,6 +363,8 @@ export default function RosterTable({ events, rows }) {
                           {r.familyNote}
                         </p>
                       </details>
+                    )}
+                      </>
                     )}
                   </td>
                   <td className="px-4 py-2">{r.person}</td>
@@ -391,7 +432,8 @@ export default function RosterTable({ events, rows }) {
                   <td className="px-4 py-2 text-neutral-600">{r.submitted ? r.submitted.slice(0, 10) : '—'}</td>
                   {!fEvent && <td className="px-4 py-2 text-neutral-600">{eventName(r.eventId)}</td>}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

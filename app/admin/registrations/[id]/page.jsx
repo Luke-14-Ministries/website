@@ -25,7 +25,7 @@ export default async function RegistrationDetailPage({ params }) {
        households ( id, display_name, email, phone,
                     address_line1, address_line2, city, state, postal_code,
                     home_church, how_did_you_hear, how_did_you_hear_from ),
-       events ( id, name, starts_on, ends_on ),
+       events ( id, name, starts_on, ends_on, deposit_cents ),
        registration_participants (
          id, camp_role, status, fee_cents, scholarship_cents, discount_cents,
          tshirt_size, first_time_attending,

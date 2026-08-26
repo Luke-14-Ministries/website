@@ -1287,6 +1287,19 @@ export default function RegistrationManager({
   // Which people are waiting on a decision about the fee, so their row can say
   // so where a registrar is already looking.
   const awaitingScholarship = new Set(scholarshipRequests.map((r) => r.participantId));
+
+  // Is the deposit actually covered? Raised 25 Aug: a family of three had paid
+  // one $50 deposit and nothing on the page said the other two were not held.
+  // The deposit is per PLACE — three people coming means three places held —
+  // and "$50 received" against a $1,440 registration reads as progress when it
+  // is really one third of a first step.
+  //
+  // Cancelled people are not counted: they are not holding a place.
+  const livePeople = parts.filter((p) => p.status !== 'cancelled').length;
+  const depositEach = registration.event?.deposit_cents ?? 0;
+  const depositDue = depositEach * livePeople;
+  const depositPaid = balance?.paid_cents ?? 0;
+  const depositShort = depositEach > 0 && livePeople > 0 && depositPaid < depositDue;
   const adjustments = parts.reduce(
     (s, p) => s + (p.scholarship_cents ?? 0) + (p.discount_cents ?? 0),
     0
@@ -1351,6 +1364,20 @@ export default function RegistrationManager({
       <p className="text-sm text-neutral-500 mb-6">
         Review and update this family. Status changes and edits save immediately.
       </p>
+
+      {depositShort && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
+          <p className="font-bold text-amber-900">
+            Deposit short — {money(depositPaid)} of {money(depositDue)}
+          </p>
+          <p className="mt-1 text-amber-900">
+            {livePeople} {livePeople === 1 ? 'place' : 'places'} at {money(depositEach)} each.{' '}
+            {depositPaid === 0
+              ? 'Nothing has been paid, so nothing is held yet.'
+              : `${money(depositDue - depositPaid)} still to come before every place is held.`}
+          </p>
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* A family asking for help with the fee gets the top of the page.

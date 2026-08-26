@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import LodgingBoard from './LodgingBoard';
+import EventFilter from '@/components/EventFilter';
 
 export const metadata = { title: 'Rooms & Cabins — Staff Admin' };
 
@@ -25,8 +25,9 @@ export default async function LodgingPage({ searchParams }) {
     .order('starts_on');
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const showPast = params?.past === '1';
-  const visible = (events ?? []).filter((e) => showPast || (e.ends_on ?? '9999') >= cutoff);
+  // Current-and-upcoming decides what the page OPENS on; EventFilter reaches
+  // everything else by search, so no page-level "show past" toggle any more.
+  const visible = (events ?? []).filter((e) => (e.ends_on ?? '9999') >= cutoff);
   const selectedId = params?.event || visible[0]?.id || null;
   const selected = (events ?? []).find((e) => e.id === selectedId) ?? null;
 
@@ -123,27 +124,16 @@ export default async function LodgingPage({ searchParams }) {
         nothing here until you publish.
       </p>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        {visible.map((e) => (
-          <Link
-            key={e.id}
-            href={`/admin/lodging?event=${e.id}${showPast ? '&past=1' : ''}`}
-            className={`rounded-full px-3 py-1 text-sm font-semibold ${
-              e.id === selectedId
-                ? 'bg-brand text-white'
-                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-            }`}
-          >
-            {e.name}
-          </Link>
-        ))}
-        <Link
-          href={`/admin/lodging?${selectedId ? `event=${selectedId}&` : ''}${showPast ? '' : 'past=1'}`}
-          className="text-sm text-brand underline ml-2"
-        >
-          {showPast ? 'Hide past events' : 'Show past events'}
-        </Link>
-      </div>
+      <EventFilter
+        events={(events ?? []).map((e) => ({
+          id: e.id,
+          name: e.name,
+          startsOn: e.starts_on,
+          endsOn: e.ends_on,
+        }))}
+        selected={selectedId}
+        basePath="/admin/lodging"
+      />
 
       {!selected ? (
         <p className="text-neutral-500">No events to show.</p>

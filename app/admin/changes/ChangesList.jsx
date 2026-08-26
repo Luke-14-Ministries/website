@@ -16,6 +16,28 @@ const SOURCE_LABEL = {
   person_consents: 'Permissions',
 };
 
+// Changes where being out of date can hurt somebody. Same list as the
+// SAFETY set in log_family_change() (0051) -- if the two ever drift, the
+// database is right and this is decoration.
+//
+// These are not "more important edits". They are edits a coordinator has to
+// carry somewhere: onto the nurse's list, into a buddy's briefing, into the
+// medication plan. Amber says work outstanding; this says work outstanding
+// that somebody could be harmed by ignoring, which is the one thing on this
+// platform that earns red.
+export const SAFETY_FIELDS = new Set([
+  'has_seizures',
+  'seizure_detail',
+  'has_rescue_medication',
+  'rescue_medication_detail',
+  'has_allergies',
+  'allergy_detail',
+  'medications',
+]);
+
+export const isSafety = (c) =>
+  c.source === 'person_support' && SAFETY_FIELDS.has(c.field);
+
 const FIELD_LABEL = {
   first_name: 'First name',
   last_name: 'Last name',
@@ -68,6 +90,10 @@ export default function ChangesList({ groups }) {
   // long, and a header you can fold away lets staff work family by family.
   // Groups start OPEN -- unreviewed changes are exactly what the page is for.
   const [collapsed, setCollapsed] = useState(() => new Set());
+  // "Just show me the medical ones" — the question a coordinator arrives with
+  // when they are about to brief the nurse, and one this queue could not
+  // answer (25 Aug).
+  const [medicalOnly, setMedicalOnly] = useState(false);
   const toggleGroup = (id) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -95,6 +121,13 @@ export default function ChangesList({ groups }) {
     );
   }
 
+  const medicalCount = groups.reduce((n, g) => n + g.changes.filter(isSafety).length, 0);
+  const shown = medicalOnly
+    ? groups
+        .map((g) => ({ ...g, changes: g.changes.filter(isSafety) }))
+        .filter((g) => g.changes.length > 0)
+    : groups;
+
   return (
     <div className="space-y-6">
       {error && (
@@ -102,7 +135,26 @@ export default function ChangesList({ groups }) {
           {error}
         </p>
       )}
-      {groups.map((g) => (
+
+      {medicalCount > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+          <span className="font-bold text-red-900">
+            {medicalCount} medical {medicalCount === 1 ? 'change' : 'changes'} unreviewed
+          </span>
+          <span className="text-red-900">
+            Seizures, rescue medication, allergies and medications — the nurse&rsquo;s list and
+            the buddy briefings are built from these.
+          </span>
+          <button
+            onClick={() => setMedicalOnly((v) => !v)}
+            className="ml-auto rounded-full border border-red-300 bg-white px-3 py-1 font-semibold text-red-800 hover:bg-red-100"
+          >
+            {medicalOnly ? 'Show everything' : 'Show only these'}
+          </button>
+        </div>
+      )}
+
+      {shown.map((g) => (
         <div key={g.householdId ?? 'unknown'} className="rounded-lg bg-white border border-neutral-200 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-5 py-3">
             <button
@@ -122,6 +174,14 @@ export default function ChangesList({ groups }) {
               <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
                 {g.changes.length} unreviewed
               </span>
+              {/* Visible while the household is COLLAPSED, which is the only
+                  time it matters: otherwise a medical change can sit folded
+                  inside a household nobody expands. */}
+              {g.changes.some(isSafety) && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">
+                  {g.changes.filter(isSafety).length} medical
+                </span>
+              )}
             </button>
             <button
               onClick={() => review(g.householdId, g.changes.map((c) => c.id))}
@@ -133,12 +193,33 @@ export default function ChangesList({ groups }) {
           </div>
           {!collapsed.has(g.householdId) && (
           <ul className="divide-y divide-neutral-100">
-            {g.changes.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+            {/* Medical-safety edits first within each household, and marked.
+                A seizure plan changing and a ZIP code changing are both "one
+                unreviewed item" to this queue, and they are not the same
+                errand: one gets carried to the nurse and the buddy, the other
+                gets glanced at. Ordering by consequence rather than by clock
+                is what makes the list act like a to-do rather than a feed. */}
+            {[...g.changes]
+              .sort((a, b) => (isSafety(b) ? 1 : 0) - (isSafety(a) ? 1 : 0))
+              .map((c) => (
+              <li
+                key={c.id}
+                className={`flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm ${
+                  isSafety(c) ? 'bg-red-50/60' : ''
+                }`}
+              >
                 <div className="min-w-0">
                   <p>
                     {c.person && <span className="font-semibold">{c.person} · </span>}
                     <span className="font-semibold">{FIELD_LABEL[c.field] ?? c.field}</span>
+                    {isSafety(c) && (
+                      <span
+                        className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800"
+                        title="Medical safety — the nurse, the buddy and the medication plan are built from this"
+                      >
+                        medical
+                      </span>
+                    )}
                     <span className="ml-2 text-xs text-neutral-400">
                       {SOURCE_LABEL[c.source] ?? c.source}
                     </span>

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import HouseholdManager from './HouseholdManager';
 import BackBar from '@/components/BackBar';
+import BackLink from '@/components/BackLink';
 
 export const metadata = { title: 'Manage Household — Luke 14 Ministries' };
 
@@ -106,9 +107,7 @@ export default async function ManageHouseholdPage() {
       <div className="container-site max-w-3xl mx-auto">
         <div className="flex flex-wrap items-baseline justify-between gap-3 mb-2">
           <h1 className="text-3xl font-bold">Manage Household</h1>
-          <Link href="/account/dashboard/" className="text-brand font-semibold text-sm">
-            ← Back to dashboard
-          </Link>
+          <BackLink />
         </div>
         <p className="text-neutral-600 mb-8">
           Keep your family&rsquo;s details current — camp staff see whatever is saved here. Each

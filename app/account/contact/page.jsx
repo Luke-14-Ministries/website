@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import ContactManager from './ContactManager';
+import BackLink from '@/components/BackLink';
 
 export const metadata = { title: 'My Contact Info & Preferences — Luke 14 Ministries' };
 
@@ -24,9 +25,7 @@ export default async function ContactPage() {
       <div className="container-site max-w-2xl mx-auto">
         <div className="flex flex-wrap items-baseline justify-between gap-3 mb-2">
           <h1 className="text-3xl font-bold">My Contact Info &amp; Preferences</h1>
-          <Link href="/account/dashboard/" className="text-brand font-semibold text-sm">
-            ← Back to dashboard
-          </Link>
+          <BackLink />
         </div>
         <p className="text-neutral-600 mb-8">
           These are your own account details. Your family&rsquo;s shared contact info — the

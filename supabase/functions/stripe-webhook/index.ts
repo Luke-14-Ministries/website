@@ -67,6 +67,13 @@ Deno.serve(async (req) => {
     const paymentIntentId =
       typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id;
 
+    // Who actually paid, as Stripe has them at this moment. Captured once here
+    // and written onto the payment row, because a family can change their
+    // contact email afterwards and then nothing joins our record to Stripe's
+    // -- which is precisely what happened in testing (see migration 0054).
+    const payerEmail = s.customer_details?.email ?? s.customer_email ?? null;
+    const payerName = s.customer_details?.name ?? null;
+
     // ---- Donations take their own path: the gifts table, and a deductible
     // receipt with the 501(c)(3) acknowledgment language. ----
     if (md.gift === '1') {
@@ -82,11 +89,11 @@ Deno.serve(async (req) => {
         gStatus = 'succeeded';
         gReceived = gToday;
       }
-      const donorEmail = s.customer_details?.email ?? s.customer_email ?? null;
+      const donorEmail = payerEmail;
       const { error: gErr } = await admin.from('gifts').upsert(
         {
           profile_id: md.profile_id || null,
-          donor_name: s.customer_details?.name ?? null,
+          donor_name: payerName,
           email: donorEmail,
           amount_cents: base,
           fund: md.fund || 'General Operating Fund',
@@ -182,6 +189,10 @@ Deno.serve(async (req) => {
         status,
         received_on,
         stripe_payment_intent_id: paymentIntentId,
+        // Frozen at the moment of payment. See migration 0054: the household's
+        // current email answers "who are they now", never "who paid this".
+        payer_email: payerEmail,
+        payer_name: payerName,
         note,
       },
       { onConflict: 'stripe_payment_intent_id' }
@@ -198,7 +209,7 @@ Deno.serve(async (req) => {
     if (status !== 'failed') {
       try {
         const resendKey = Deno.env.get('RESEND_API_KEY');
-        const to = s.customer_details?.email ?? s.customer_email;
+        const to = payerEmail;
         if (resendKey && to) {
           const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
           const eventName = md.event_name ?? 'Event registration';

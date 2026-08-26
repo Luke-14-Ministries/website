@@ -1174,6 +1174,37 @@ function PaymentsCard({ registrationId, payments, stripeBase = '' }) {
               </span>
             </div>
 
+            {/* Who paid, as recorded at the time. A family can change their
+                contact email afterwards -- one did, and the Stripe record was
+                then unmatchable by hand (26 Aug). This is the frozen copy
+                (migration 0054), so it is allowed to disagree with the
+                household's current details: both are true. */}
+            <div className="mt-0.5 text-xs text-neutral-500">
+              {p.payer_name || p.payer_email ? (
+                <>
+                  Paid by{' '}
+                  {p.payer_name && <span>{p.payer_name}</span>}
+                  {p.payer_name && p.payer_email && ' · '}
+                  {p.payer_email && <span className="select-all">{p.payer_email}</span>}
+                </>
+              ) : (
+                <span className="italic">Payer not recorded — this payment predates that record.</span>
+              )}
+              {p.stripe_payment_intent_id && stripeBase && (
+                <>
+                  {' '}·{' '}
+                  <a
+                    href={`${stripeBase}/payments/${p.stripe_payment_intent_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand underline"
+                  >
+                    open in Stripe ↗
+                  </a>
+                </>
+              )}
+            </div>
+
             {p.refunds.length > 0 && (
               <ul className="mt-2 ml-4 space-y-1 border-l-2 border-neutral-100 pl-3 text-sm">
                 {p.refunds.map((r) => (

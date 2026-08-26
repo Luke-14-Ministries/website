@@ -23,7 +23,7 @@ export async function GET(request) {
   const [{ data: pays }, { data: regs }, { data: balances }] = await Promise.all([
     supabase
       .from('payments')
-      .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note')
+      .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note, payer_email, payer_name, stripe_payment_intent_id')
       .order('created_at'),
     supabase.from('registrations').select('id, events ( id, name, starts_on, ends_on ), households ( display_name )'),
     supabase
@@ -52,8 +52,14 @@ export async function GET(request) {
     );
   }
 
+  // Payer and Stripe reference are here for reconciliation: this CSV is what
+  // gets laid beside a Stripe export or a bank statement, and the household
+  // name alone cannot match a row when the family has since changed their
+  // email (26 Aug -- see migration 0054). Payer is the frozen snapshot from
+  // the time of payment, so it is allowed to differ from Household.
   const rows = [
-    ['Date', 'Household', 'Event', 'Amount', 'Fee cover', 'Method', 'Status', 'Note'],
+    ['Date', 'Household', 'Event', 'Amount', 'Fee cover', 'Method', 'Status',
+     'Paid by', 'Payer email', 'Stripe reference', 'Note'],
   ];
   // Same event scope as the Event Payments page: '' = upcoming + recent
   // (90 days each way), 'upcoming', 'recent', 'all', or one event's id.
@@ -83,6 +89,9 @@ export async function GET(request) {
       ((p.fee_cover_cents ?? 0) / 100).toFixed(2),
       p.method ?? '',
       p.status ?? '',
+      p.payer_name ?? '',
+      p.payer_email ?? '',
+      p.stripe_payment_intent_id ?? '',
       p.note ?? '',
     ]);
   }

@@ -176,7 +176,7 @@ export default async function RegistrationDetailPage({ params }) {
   const [{ data: paymentRows }, { data: refundRows }] = await Promise.all([
     supabase
       .from('payments')
-      .select('id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note, stripe_payment_intent_id')
+      .select('id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note, stripe_payment_intent_id, payer_email, payer_name')
       .eq('registration_id', id)
       .order('created_at', { ascending: false }),
     supabase

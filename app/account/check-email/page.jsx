@@ -39,8 +39,12 @@ export default async function CheckEmailPage({ searchParams }) {
               sending domain's reputation for everyone after them. */}
           <p className="mt-4 text-neutral-600 text-sm">
             If it&rsquo;s in spam: mark it <strong>&ldquo;Not junk&rdquo;</strong>{' '}
+            {/* The DOMAIN, not one address. Mail reaches families from camp@
+                (confirmations, receipts), giving@ (gift receipts) and info@,
+                and naming one of them safelists a third of what we send. Every
+                mail client accepts a domain in its safe-senders list. */}
             and add{' '}
-            <strong className="break-words">registration@luke14ministries.net</strong>{' '}
+            <strong className="break-words">@luke14ministries.net</strong>{' '}
             to your contacts or safe senders. That keeps our emails &mdash;
             receipts, reminders, statements &mdash; out of spam for good.
           </p>

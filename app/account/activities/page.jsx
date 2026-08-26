@@ -129,9 +129,9 @@ export default async function ActivitiesPage() {
                 Put a name down for anything that appeals, even if you are not sure it will
                 work.
               </span>{' '}
-              A wheelchair is not a reason to miss the river or the climbing wall — camp has
-              other seating for rafting, and people are hoisted up the wall. Ask, and staff
-              will work out the how.
+              Camp has done this before — there is a great deal of support on hand, and staff
+              can usually accommodate a wide range of needs. Any questions or concerns, just
+              ask.
             </p>
             <div className="space-y-10">
               {sections.map((s) => (

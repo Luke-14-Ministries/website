@@ -661,15 +661,27 @@ export default async function DashboardPage({ searchParams }) {
                     depositCents > 0 && nothingPaid && (bal?.balance_cents ?? 0) > 0;
                   const owes = (bal?.balance_cents ?? 0) > 0;
 
-                  const status = depositDue
-                    ? { text: `${money(depositCents)} deposit due`, tone: 'amber' }
-                    : owes
-                      ? { text: `${money(bal.balance_cents)} balance`, tone: 'amber' }
-                      : clearing > 0
-                        ? { text: 'Clearing the bank', tone: 'neutral' }
-                        : bal
-                          ? { text: 'Paid in full', tone: 'green' }
-                          : null;
+                  // The balance pill comes first on EVERY card that owes
+                  // anything, so the same slot always answers the same
+                  // question and three cards can be read down the page. The
+                  // deposit is a second pill rather than a replacement: it is
+                  // a different fact -- what is being asked for right now --
+                  // and swapping one for the other made "$1,400 balance" and
+                  // "$50 deposit due" look like the same measurement taken on
+                  // two registrations (flagged 26 Aug: "not wrong, just
+                  // inconsistent").
+                  const status = owes
+                    ? [
+                        { text: `${money(bal.balance_cents)} balance`, tone: 'amber' },
+                        ...(depositDue
+                          ? [{ text: `${money(depositCents)} deposit due now`, tone: 'ask' }]
+                          : []),
+                      ]
+                    : clearing > 0
+                      ? [{ text: 'Clearing the bank', tone: 'neutral' }]
+                      : bal
+                        ? [{ text: 'Paid in full', tone: 'green' }]
+                        : null;
 
                   // Open by default when something is outstanding, or when
                   // there is only one registration (nothing to tidy away).
@@ -923,6 +935,14 @@ export default async function DashboardPage({ searchParams }) {
                         );
                       })()}
 
+                      {/* Two rows, not one wrapping row, because these are two
+                          different errands and the wrap point was deciding the
+                          grouping for us (flagged 26 Aug). Money first: what a
+                          family owes, how to ask for help with it, and the
+                          statement that shows the arithmetic. Then the
+                          registration itself: who is coming, what they will do,
+                          what has been signed. Explicit rows keep the pairs
+                          together at any width. */}
                       <div className="mt-4 flex flex-wrap items-center gap-3">
                         <PayPanel
                           registrationId={r.id}
@@ -931,12 +951,16 @@ export default async function DashboardPage({ searchParams }) {
                           pendingCents={pendingByReg.get(r.id)}
                           paidCents={balByReg.get(r.id)?.paid_cents}
                         />
+                        {/* Offered plainly beside Pay rather than hidden behind
+                            "having trouble?" — the ministry raises money for
+                            this, and a link people have to hunt for is one most
+                            families will not click. */}
                         <Link
-                          href={`/register/family/?event=${r.events?.id ?? ''}`}
-                          title="Opens your saved registration so you can make changes."
+                          href={`/account/scholarship/${r.id}`}
+                          title="Ask for help with the fee. It will not affect anyone's place."
                           className="btn-outline !py-2"
                         >
-                          Edit Registration
+                          Request help with the fee
                         </Link>
                         <Link
                           href={`/account/statement/${r.id}`}
@@ -945,10 +969,16 @@ export default async function DashboardPage({ searchParams }) {
                         >
                           Statement
                         </Link>
-                        {/* Offered plainly beside the other actions rather than
-                            hidden behind "having trouble?" — the ministry
-                            raises money for this, and a link people have to
-                            hunt for is one most families will not click. */}
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <Link
+                          href={`/register/family/?event=${r.events?.id ?? ''}`}
+                          title="Opens your saved registration so you can make changes."
+                          className="btn-outline !py-2"
+                        >
+                          Edit Registration
+                        </Link>
                         {/* Activities live on their own page: a family with
                             three people and eleven activities is more screen
                             than a dashboard card should carry. */}
@@ -958,13 +988,6 @@ export default async function DashboardPage({ searchParams }) {
                           className="btn-outline !py-2"
                         >
                           Choose activities
-                        </Link>
-                        <Link
-                          href={`/account/scholarship/${r.id}`}
-                          title="Ask for help with the fee. It will not affect anyone's place."
-                          className="btn-outline !py-2"
-                        >
-                          Request help with the fee
                         </Link>
                         {/* Agreements are event things, so the primary route
                             to them lives with the event (flagged 24 Aug); the

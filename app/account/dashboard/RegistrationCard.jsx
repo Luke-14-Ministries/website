@@ -31,18 +31,29 @@ export default function RegistrationCard({
   past = false,
   peopleLabel,
   totalLabel,
-  status,          // { text, tone } | null — what this registration still wants
+  // One or more pills. An array, because a registration can be two things at
+  // once -- owing a balance AND still needing its deposit -- and squeezing
+  // both into one pill made the same slot mean different things on different
+  // cards: "$1,400 balance" beside "$50 deposit due" invites the reader to
+  // compare two numbers that are not comparable (flagged 26 Aug).
+  status,          // [{ text, tone }] | { text, tone } | null
   defaultOpen = false,
   children,
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  const toneClass =
-    status?.tone === 'amber'
+  const pills = (Array.isArray(status) ? status : status ? [status] : []).filter(Boolean);
+
+  const toneClass = (tone) =>
+    tone === 'amber'
       ? 'bg-amber-100 text-amber-800'
-      : status?.tone === 'green'
-        ? 'bg-green-100 text-green-800'
-        : 'bg-neutral-100 text-neutral-600';
+      : tone === 'ask'
+        // The immediate ask, not just a fact about the account. Solid, so it
+        // reads as the thing to act on when it sits beside the balance.
+        ? 'bg-amber-500 text-white'
+        : tone === 'green'
+          ? 'bg-green-100 text-green-800'
+          : 'bg-neutral-100 text-neutral-600';
 
   return (
     <div className="rounded border border-neutral-200">
@@ -70,11 +81,14 @@ export default function RegistrationCard({
               past
             </span>
           )}
-          {status && (
-            <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${toneClass}`}>
-              {status.text}
+          {pills.map((p, i) => (
+            <span
+              key={i}
+              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${toneClass(p.tone)}`}
+            >
+              {p.text}
             </span>
-          )}
+          ))}
         </span>
         <span className="flex items-center gap-3 text-sm text-neutral-600">
           <span>

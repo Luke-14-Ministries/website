@@ -33,6 +33,24 @@ Deno.serve(async (req) => {
   if (!stripeKey) return fail('config', 'STRIPE_SECRET_KEY is not set', 500);
   if (!webhookSecret) return fail('config', 'STRIPE_WEBHOOK_SECRET is not set', 500);
 
+  // WHO THE MAIL COMES FROM, as configuration rather than code.
+  //
+  // This has moved three times in two days -- registration@ -> camp@ ->
+  // registration@ -- and the staff decision on sender identity is still open
+  // (Staff Questions section 6). Every move so far has cost a redeploy of a
+  // function that also records money, which is a poor trade for changing a
+  // string. Set RECEIPT_FROM or GIFT_FROM in Edge Function Secrets and the
+  // next change takes effect without touching this file.
+  //
+  // The defaults are the current answer, so an unset secret is not a failure.
+  // Both addresses must sit on a domain verified in Resend -- Resend signs for
+  // the whole of luke14ministries.net, and a From address does not need a
+  // mailbox behind it. A mailbox only matters for replies.
+  const RECEIPT_FROM =
+    Deno.env.get('RECEIPT_FROM') ?? 'Luke 14 Ministries <registration@luke14ministries.net>';
+  const GIFT_FROM =
+    Deno.env.get('GIFT_FROM') ?? 'Luke 14 Ministries <giving@luke14ministries.net>';
+
   const stripe = new Stripe(stripeKey);
   const admin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -138,7 +156,8 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 // Gift receipts come from giving@ -- a password-less M365
                 // distribution group, so donor replies reach the giving team.
-                from: 'Luke 14 Ministries <giving@luke14ministries.net>',
+                // A donation is not a registration and never shares its sender.
+                from: GIFT_FROM,
                 to: [donorEmail],
                 subject: received
                   ? `Donation receipt: ${dollars(base)} — thank you!`
@@ -252,10 +271,14 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              // Event receipts come from camp@ -- a real, monitored M365 mailbox,
-              // so a family hitting Reply reaches an actual person (registration@
-              // did not exist in M365 and replies bounced).
-              from: 'Luke 14 Ministries <camp@luke14ministries.net>',
+              // Event receipts come from registration@, like the confirmation
+              // that precedes them: paying for camp is part of registering, and
+              // a family should not have to work out which of three senders to
+              // reply to about one registration. registration@ forwards into
+              // the info@ shared mailbox, which is also the address printed in
+              // this email's own footer -- so the reply-to and the stated
+              // contact are the same person.
+              from: RECEIPT_FROM,
               to: [to],
               subject,
               html,

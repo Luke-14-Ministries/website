@@ -165,7 +165,7 @@ export default async function RegistrationDetailPage({ params }) {
   // what is still owed. Full payment history stays on Event Payments.
   const { data: balanceRow } = await supabase
     .from('registration_balances')
-    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents')
+    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents, refund_pending_cents')
     .eq('registration_id', id)
     .maybeSingle();
 
@@ -181,7 +181,9 @@ export default async function RegistrationDetailPage({ params }) {
       .order('created_at', { ascending: false }),
     supabase
       .from('payment_refunds')
-      .select('id, payment_id, amount_cents, fee_cover_cents, status, reason, method, refunded_on, created_at')
+      .select(
+        'id, payment_id, amount_cents, fee_cover_cents, status, reason, method, refunded_on, created_at, stripe_refund_id'
+      )
       .eq('registration_id', id)
       .order('created_at', { ascending: false }),
   ]);
@@ -205,6 +207,13 @@ export default async function RegistrationDetailPage({ params }) {
       isStripe: Boolean(p.stripe_payment_intent_id),
     };
   });
+
+  // Where to look this up in Stripe. Derived from the key's own prefix rather
+  // than configured separately, because a hardcoded /test/ link is wrong the
+  // day the ministry goes live and nobody would notice until they clicked it.
+  const stripeBase = (process.env.STRIPE_SECRET_KEY ?? '').startsWith('sk_live')
+    ? 'https://dashboard.stripe.com'
+    : 'https://dashboard.stripe.com/test';
 
   const [{ data: consentRows }, { data: sigRows }] = await Promise.all([
     peopleIds.length
@@ -271,6 +280,7 @@ export default async function RegistrationDetailPage({ params }) {
       signatures={signatures}
       balance={balanceRow}
       payments={payments}
+      stripeBase={stripeBase}
       scholarshipRequests={scholarshipRequests}
     />
   );

@@ -332,7 +332,9 @@ export default async function DashboardPage({ searchParams }) {
   const { data: balances } = regIds.length
     ? await supabase
         .from('registration_balances')
-        .select('registration_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents')
+        .select(
+          'registration_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents, refund_pending_cents'
+        )
         .in('registration_id', regIds)
     : { data: [] };
   const balByReg = new Map((balances ?? []).map((b) => [b.registration_id, b]));
@@ -859,6 +861,16 @@ export default async function DashboardPage({ searchParams }) {
                               <span className="text-neutral-500">Paid</span>
                               <span>−{money(b.paid_cents)}</span>
                             </div>
+                            {/* Beside the balance, never inside it (0053). A
+                                refund that has not landed is not money the
+                                family has back, and it must not quietly turn
+                                into something they owe. */}
+                            {(b.refund_pending_cents ?? 0) > 0 && (
+                              <div className="flex justify-between py-0.5 text-amber-800">
+                                <span>Refund on its way</span>
+                                <span>{money(b.refund_pending_cents)}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between py-0.5 border-t border-neutral-200 font-semibold">
                               <span>{bal < 0 ? 'Credit' : 'Balance'}</span>
                               <span className={bal < 0 ? 'text-green-700' : bal > 0 ? 'text-amber-700' : ''}>

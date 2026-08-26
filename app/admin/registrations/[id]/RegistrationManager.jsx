@@ -1112,7 +1112,7 @@ function FamilyMessages({ registrationId, messages }) {
 // makes sense -- Event Payments knows balances, not transactions. Partial is
 // the normal case (one child withdraws from three), so the amount box opens
 // pre-filled with everything still refundable and is freely editable down.
-function PaymentsCard({ registrationId, payments }) {
+function PaymentsCard({ registrationId, payments, stripeBase = '' }) {
   const [openFor, setOpenFor] = useState(null);
 
   if (payments.length === 0) {
@@ -1187,6 +1187,33 @@ function PaymentsCard({ registrationId, payments }) {
                         {r.status}
                       </span>
                     )}
+                    {/* Proof it reached Stripe, and the way to go and look
+                        (26 Aug: "no indication of any handshake"). It HAD
+                        reached Stripe — the id was recorded and never shown,
+                        so there was no way to check and no reason to believe
+                        it had worked.
+
+                        Bank refunds get a `pyr_` id with no page of its own,
+                        so the link goes to the PAYMENT, where Stripe lists its
+                        refunds. */}
+                    {r.stripe_refund_id && (
+                      <span className="block text-xs text-neutral-500">
+                        Sent to Stripe ·{' '}
+                        {p.stripe_payment_intent_id && stripeBase ? (
+                          <a
+                            href={`${stripeBase}/payments/${p.stripe_payment_intent_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-brand underline"
+                          >
+                            open this payment in Stripe ↗
+                          </a>
+                        ) : (
+                          'see the payment in Stripe'
+                        )}
+                        <span className="ml-1 font-mono select-all">{r.stripe_refund_id}</span>
+                      </span>
+                    )}
                   </li>
                 ))}
                 {p.refundableCents > 0 && (
@@ -1242,6 +1269,17 @@ function RefundForm({ registrationId, payment, onDone }) {
     });
   }
 
+  // Why the button will not go, in the words a registrar needs. Computed once
+  // so the tooltip, the line under the button and the disabled state can never
+  // tell three different stories.
+  const blockedBecause = !reason.trim()
+    ? 'Add a reason first — a refund nobody can explain next year is worse than no refund.'
+    : cents < 1
+      ? 'Enter an amount to refund.'
+      : cents > payment.refundableCents
+        ? `That is more than the ${money(payment.refundableCents)} still refundable on this payment.`
+        : '';
+
   return (
     <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-4">
       <p className="text-sm font-semibold text-amber-900">
@@ -1249,7 +1287,7 @@ function RefundForm({ registrationId, payment, onDone }) {
       </p>
       <p className="mt-0.5 text-xs text-amber-800">
         {payment.isStripe
-          ? 'This goes to Stripe now and back to the card or bank account it came from — usually visible to the family in 5–10 days.'
+          ? 'Pressing Refund sends this to Stripe straight away, and it goes back to the card or bank account it came from. Stripe usually shows it to the family within 5–10 days; the reference appears here as soon as it is accepted.'
           : 'This records a refund the ministry pays by check or cash. Nothing is sent anywhere automatically.'}
       </p>
 
@@ -1290,13 +1328,17 @@ function RefundForm({ registrationId, payment, onDone }) {
 
       <label className="mt-3 block">
         <span className="block text-xs font-semibold text-neutral-600 mb-0.5">
-          Reason (recorded, and visible to the family)
+          Reason <span className="text-red-700">(required)</span>
+          <span className="font-normal"> — recorded, and visible to the family</span>
         </span>
         <input
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Withdrew from Week 1 — family illness"
-          className="w-full rounded border border-neutral-300 px-2 py-1 bg-white"
+          aria-required="true"
+          className={`w-full rounded border px-2 py-1 bg-white ${
+            reason.trim() ? 'border-neutral-300' : 'border-red-300'
+          }`}
         />
       </label>
 
@@ -1307,10 +1349,15 @@ function RefundForm({ registrationId, payment, onDone }) {
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
+        {/* A greyed button that will not say why is the whole complaint in
+            13.2 and 13.4 (26 Aug). The reason is named on the button's own
+            tooltip AND in a line beneath it — a tooltip alone fails on the
+            phones and tablets staff actually use. */}
         <button
           type="button"
           onClick={submit}
-          disabled={pending || cents < 1 || cents > payment.refundableCents || !reason.trim()}
+          disabled={pending || Boolean(blockedBecause)}
+          title={blockedBecause || `Refund ${money(cents + feeCents)}`}
           className="btn-primary !py-1.5 text-sm disabled:opacity-50"
         >
           {pending ? 'Refunding…' : `Refund ${money(cents + feeCents)}`}
@@ -1318,6 +1365,9 @@ function RefundForm({ registrationId, payment, onDone }) {
         <button type="button" onClick={onDone} disabled={pending} className="text-sm underline">
           Cancel
         </button>
+        {blockedBecause && !pending && (
+          <span className="text-xs font-semibold text-amber-900">{blockedBecause}</span>
+        )}
       </div>
     </div>
   );
@@ -1332,6 +1382,7 @@ export default function RegistrationManager({
   signatures = [],
   balance = null,
   payments = [],
+  stripeBase = '',
 }) {
   const parts = registration.participants ?? [];
   const total = parts.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
@@ -1402,6 +1453,18 @@ export default function RegistrationManager({
                   ? `Credit ${money(-balance.balance_cents)}`
                   : `Balance ${money(balance.balance_cents)}`}
               </span>
+              {/* Its own clause, outside the balance (0053). A refund in
+                  flight used to be subtracted from what the family had paid,
+                  so the ministry could be holding all their money while the
+                  page asked for more. */}
+              {(balance.refund_pending_cents ?? 0) > 0 && (
+                <>
+                  {' · '}
+                  <span className="font-semibold text-amber-700">
+                    {money(balance.refund_pending_cents)} refund on its way
+                  </span>
+                </>
+              )}
             </>
           )}{' '}
         </span>
@@ -1464,7 +1527,11 @@ export default function RegistrationManager({
 
         <AgreementsCard signatures={signatures} />
 
-        <PaymentsCard registrationId={registration.id} payments={payments} />
+        <PaymentsCard
+          registrationId={registration.id}
+          payments={payments}
+          stripeBase={stripeBase}
+        />
 
         <Panel title="People on this week" count={parts.length}>
           <p className="text-sm text-neutral-500 mb-2">

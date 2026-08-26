@@ -139,14 +139,35 @@ export default function CheckinList({ rows }) {
                   : 'btn-primary !py-2.5'
               }
             >
-              {pendingId === r.id
-                ? '…'
-                : r.checkedInAt
-                  ? `Arrived ✓ ${new Date(r.checkedInAt).toLocaleTimeString('en-US', {
+              {/* Time AND date (25 Aug). A camp week runs several days and
+                  people arrive across them — "Arrived ✓ 4:12 PM" on the
+                  Thursday of a Monday-to-Friday week does not say which day,
+                  and that is exactly the question asked when someone is
+                  looking for a person. The date is smaller because the time is
+                  what is usually wanted; the day is what is occasionally
+                  needed. */}
+              {pendingId === r.id ? (
+                '…'
+              ) : r.checkedInAt ? (
+                <span className="flex flex-col items-center leading-tight">
+                  <span>
+                    Arrived ✓{' '}
+                    {new Date(r.checkedInAt).toLocaleTimeString('en-US', {
                       hour: 'numeric',
                       minute: '2-digit',
-                    })}`
-                  : 'Check in'}
+                    })}
+                  </span>
+                  <span className="text-xs font-normal opacity-75">
+                    {new Date(r.checkedInAt).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                </span>
+              ) : (
+                'Check in'
+              )}
             </button>
           </li>
         ))}

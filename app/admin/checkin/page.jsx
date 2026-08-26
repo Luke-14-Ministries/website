@@ -18,12 +18,42 @@ export default async function CheckinPage({ searchParams }) {
   if (!staff) redirect('/account/?next=/admin/checkin/');
   if (!can(staff, 'door')) redirect('/admin');
 
+  // Parsed by parts, never through new Date(iso): a date-only string is UTC
+  // midnight and renders as the day before in every US timezone.
+  const fmtRange = (a, b) => {
+    const one = (iso) => {
+      if (!iso) return '';
+      const [y, m, d] = String(iso).split('-').map(Number);
+      if (!y) return '';
+      return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    };
+    const from = one(a);
+    const to = one(b);
+    return from ? `${from}${to && to !== from ? `–${to}` : ''}` : '';
+  };
+
   const supabase = await createClient();
   const { data: events } = await supabase
     .from('events')
     .select('id, name, starts_on, ends_on, medical_contact_name, medical_contact_phone')
     .order('starts_on');
-  const eventsList = events ?? [];
+  // Check-In deliberately keeps a pill row rather than the searchable picker:
+  // it is used standing at a door on a phone, and typing is the wrong
+  // interaction there. But it had no date bounds at all, so every event the
+  // ministry has ever run was a pill. Same two edges as everywhere else
+  // (25 Aug): a 30-day grace behind, twelve months ahead.
+  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const horizon = new Date();
+  horizon.setFullYear(horizon.getFullYear() + 1);
+  const horizonISO = horizon.toISOString().slice(0, 10);
+  const eventsList = (events ?? []).filter(
+    (e) =>
+      (e.ends_on ?? e.starts_on ?? '9999') >= cutoff &&
+      (e.starts_on ?? e.ends_on ?? '0000') <= horizonISO
+  );
   const eventId =
     typeof params?.event === 'string' && eventsList.some((e) => e.id === params.event)
       ? params.event
@@ -163,7 +193,16 @@ export default async function CheckinPage({ searchParams }) {
                   : 'border-neutral-300 text-neutral-700 hover:border-brand'
               }`}
             >
-              {ev.name}
+              {/* The dates on the pill: at a door, "Week 1" and "Week 2" look
+                  identical until you can see which week is which. */}
+              <span className="flex flex-col leading-tight">
+                <span>{ev.name}</span>
+                {ev.starts_on && (
+                  <span className="text-xs font-normal opacity-75">
+                    {fmtRange(ev.starts_on, ev.ends_on)}
+                  </span>
+                )}
+              </span>
             </Link>
           ))}
         </div>

@@ -27,7 +27,15 @@ export default async function LodgingPage({ searchParams }) {
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   // Current-and-upcoming decides what the page OPENS on; EventFilter reaches
   // everything else by search, so no page-level "show past" toggle any more.
-  const visible = (events ?? []).filter((e) => (e.ends_on ?? '9999') >= cutoff);
+  // Same twelve-month horizon the pill row uses (EventFilter), so the event
+  // this page OPENS on is always one that has a pill. Without it a week booked
+  // three years out would be selected by default and appear nowhere.
+  const horizon = new Date();
+  horizon.setFullYear(horizon.getFullYear() + 1);
+  const horizonISO = horizon.toISOString().slice(0, 10);
+  const visible = (events ?? []).filter(
+    (e) => (e.ends_on ?? '9999') >= cutoff && (e.starts_on ?? '0000') <= horizonISO
+  );
   const selectedId = params?.event || visible[0]?.id || null;
   const selected = (events ?? []).find((e) => e.id === selectedId) ?? null;
 

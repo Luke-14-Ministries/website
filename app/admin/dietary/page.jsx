@@ -61,7 +61,14 @@ export default async function DietaryPage({ searchParams }) {
   const showPast = false;
   const q = typeof params?.q === 'string' ? params.q.trim().toLowerCase() : '';
   const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const isCurrent = (ev) => (ev.ends_on ?? ev.starts_on ?? '') >= cutoff;
+  // Same twelve-month horizon the pill row uses (EventFilter), so the event
+  // this page OPENS on is always one that has a pill. Without it a week booked
+  // three years out would be selected by default and appear nowhere.
+  const horizon = new Date();
+  horizon.setFullYear(horizon.getFullYear() + 1);
+  const horizonISO = horizon.toISOString().slice(0, 10);
+  const isCurrent = (ev) =>
+    (ev.ends_on ?? ev.starts_on ?? '') >= cutoff && (ev.starts_on ?? '0000') <= horizonISO;
   const visibleEvents = (events ?? []).filter((ev) => {
     if (eventFilter) return ev.id === eventFilter;
     return showPast || isCurrent(ev);

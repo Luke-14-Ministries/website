@@ -11,8 +11,9 @@
 //
 // The split is by what the two lists are FOR. Current and upcoming events are
 // a handful and are the reason you opened the page, so they are pills: no
-// clicks, no reading. Past events are an archive that only grows, and you
-// arrive at one knowing roughly what you want — so they get a search box.
+// clicks, no reading. Everything else — finished events, and anything booked
+// more than a year out — is an archive that only grows, and you arrive at one
+// knowing roughly what you want, so it gets a search box.
 //
 // Every event stays reachable either way. Nothing is hidden in the database;
 // this is about which few are one click away.
@@ -20,12 +21,26 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-// The same 30-day grace every staff page already used: a week that finished
-// last Tuesday is still live work.
+// "Current" has two edges, not one.
+//
+// BEHIND: a 30-day grace, the same one every staff page already used — a week
+// that finished last Tuesday is still live work.
+//
+// AHEAD: twelve months (agreed 25 Aug). Without it, an event booked three
+// years out sits in the pill row from the day it is created, and a row meant
+// to say "what is happening now" slowly becomes a list of everything.
+// Anything further off is still one search away.
 const cutoffISO = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+const horizonISO = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+};
 
-export function isCurrentEvent(e, cutoff = cutoffISO()) {
-  return (e.endsOn ?? e.startsOn ?? '9999') >= cutoff;
+export function isCurrentEvent(e, cutoff = cutoffISO(), horizon = horizonISO()) {
+  const ends = e.endsOn ?? e.startsOn ?? '9999';
+  const starts = e.startsOn ?? e.endsOn ?? '0000';
+  return ends >= cutoff && starts <= horizon;
 }
 
 export default function EventFilter({
@@ -56,17 +71,19 @@ export default function EventFilter({
   const boxRef = useRef(null);
 
   const cutoff = cutoffISO();
+  const horizon = horizonISO();
   // In search mode there is no pill row at all, so every event goes into the
   // one list -- current ones first, because those are what people want.
   const searchOnly = mode === 'search';
-  const current = searchOnly ? [] : events.filter((e) => isCurrentEvent(e, cutoff));
+  const current = searchOnly ? [] : events.filter((e) => isCurrentEvent(e, cutoff, horizon));
   const past = searchOnly
     ? [...events].sort(
         (a, b) =>
-          (isCurrentEvent(b, cutoff) ? 1 : 0) - (isCurrentEvent(a, cutoff) ? 1 : 0) ||
+          (isCurrentEvent(b, cutoff, horizon) ? 1 : 0) -
+            (isCurrentEvent(a, cutoff, horizon) ? 1 : 0) ||
           String(b.startsOn ?? '').localeCompare(String(a.startsOn ?? ''))
       )
-    : events.filter((e) => !isCurrentEvent(e, cutoff));
+    : events.filter((e) => !isCurrentEvent(e, cutoff, horizon));
 
   const choose = (id) => {
     if (onSelect) {
@@ -104,7 +121,9 @@ export default function EventFilter({
     <div className="mb-6">
       <div className="flex flex-wrap items-center gap-2">
         <span className="sr-only">{label}</span>
-        {allowAll && (
+        {/* In search mode "all" lives pinned at the top of the list, so a
+            standalone pill beside it is the same control twice (25 Aug). */}
+        {allowAll && !searchOnly && (
           <button
             type="button"
             onClick={() => choose(null)}
@@ -134,7 +153,7 @@ export default function EventFilter({
 
         {!searchOnly && current.length === 0 && past.length > 0 && (
           <span className="text-sm text-neutral-500">
-            Nothing current — pick a past event to look back at.
+            Nothing current — pick an event from the list.
           </span>
         )}
 
@@ -154,7 +173,7 @@ export default function EventFilter({
                 ? selectedPast.name
                 : searchOnly
                   ? allLabel
-                  : `Past events (${past.length})`}
+                  : `Other events (${past.length})`}
               <span aria-hidden className="ml-1.5 text-xs">
                 ▾
               </span>

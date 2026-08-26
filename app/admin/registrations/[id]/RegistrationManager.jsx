@@ -31,6 +31,47 @@ const TSHIRT_SIZES = [
   'Adult S', 'Adult M', 'Adult L', 'Adult XL', 'Adult 2XL', 'Adult 3XL',
 ];
 
+// A card that folds.
+//
+// Asked for 25 Aug: a registrar arriving to check ONE thing reads past
+// household details, agreements, payments and a people list to reach it.
+// Open by default, because most visits want most of the page — this is about
+// getting things out of the way, not hiding them.
+//
+// Deliberately NOT remembered between visits. A card someone folded in June
+// staying folded in July is how a registrar stops seeing the payments panel
+// and never notices they have stopped.
+function Panel({ title, count = null, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 rounded-lg px-6 py-4 text-left hover:bg-neutral-50"
+      >
+        <span className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className={`text-xs text-neutral-400 transition-transform ${open ? 'rotate-90' : ''}`}
+          >
+            ▶
+          </span>
+          <span className="text-lg font-bold">{title}</span>
+          {count != null && (
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold text-neutral-600">
+              {count}
+            </span>
+          )}
+        </span>
+        <span className="text-xs text-neutral-400">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && <div className="border-t border-neutral-100 px-6 pb-6 pt-4">{children}</div>}
+    </div>
+  );
+}
+
 const SIGNER_ROLE_LABEL = {
   // "for themselves" was a mis-caption, not just terse: the option it
   // renders says "myself and my household", so a release covering a whole
@@ -1017,8 +1058,7 @@ function FamilyMessages({ registrationId, messages }) {
   }
 
   return (
-    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-      <h2 className="text-lg font-bold mb-1">Notes to the family</h2>
+    <Panel title="Notes to the family" count={messages.length || null}>
       <p className="text-sm text-neutral-500 mb-3">
         Shown on the family&rsquo;s dashboard under this registration — e.g. &ldquo;We added a
         $100 scholarship credit to your registration on 8/17.&rdquo; For staff-only notes, use
@@ -1054,7 +1094,7 @@ function FamilyMessages({ registrationId, messages }) {
         </button>
       </div>
       <ErrorNote>{error}</ErrorNote>
-    </div>
+    </Panel>
   );
 }
 
@@ -1078,8 +1118,7 @@ function PaymentsCard({ registrationId, payments }) {
   }
 
   return (
-    <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-      <h2 className="text-lg font-bold mb-1">Payments</h2>
+    <Panel title="Payments" count={payments.length}>
       <p className="text-sm text-neutral-500 mb-4">
         Refunds go back against the payment they came from. Card and bank payments are
         refunded through Stripe here; checks and cash are recorded here and paid by the
@@ -1156,7 +1195,7 @@ function PaymentsCard({ registrationId, payments }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Panel>
   );
 }
 
@@ -1415,8 +1454,7 @@ export default function RegistrationManager({
 
         <PaymentsCard registrationId={registration.id} payments={payments} />
 
-        <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-          <h2 className="text-lg font-bold mb-1">People on this week</h2>
+        <Panel title="People on this week" count={parts.length}>
           <p className="text-sm text-neutral-500 mb-2">
             Change a status to move someone off &ldquo;submitted — pending review.&rdquo;
           </p>
@@ -1511,15 +1549,14 @@ export default function RegistrationManager({
               </ul>
             </div>
           )}
-        </div>
+        </Panel>
 
         <FamilyMessages registrationId={registration.id} messages={familyMessages} />
 
         {registration.family_notes && (
-          <div className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6">
-            <h2 className="text-lg font-bold mb-2">Notes from the family</h2>
+          <Panel title="Notes from the family">
             <p className="text-sm text-neutral-700 whitespace-pre-wrap">{registration.family_notes}</p>
-          </div>
+          </Panel>
         )}
       </div>
     </div>

@@ -109,7 +109,12 @@ export default async function RostersPage() {
       </p>
 
       <RosterTable
-        events={(events ?? []).map((e) => ({ id: e.id, name: e.name }))}
+        events={(events ?? []).map((e) => ({
+          id: e.id,
+          name: e.name,
+          startsOn: e.starts_on,
+          endsOn: e.ends_on,
+        }))}
         rows={rows}
       />
     </div>

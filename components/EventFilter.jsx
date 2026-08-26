@@ -40,6 +40,15 @@ export default function EventFilter({
   // that clears the selection rather than picking one.
   allowAll = false,
   allLabel = 'All current events',
+  // 'pills'  — current events as pills, past behind a search box.
+  // 'search' — everything in one searchable list, "all" pinned at the top.
+  //            Rosters wants this: it is a table filter over every event the
+  //            ministry has ever run, and a row of pills for that is a wall
+  //            (25 Aug).
+  mode = 'pills',
+  // Client-state pages (Rosters filters in the browser, not the URL) pass this
+  // and nothing navigates.
+  onSelect = null,
 }) {
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -47,8 +56,25 @@ export default function EventFilter({
   const boxRef = useRef(null);
 
   const cutoff = cutoffISO();
-  const current = events.filter((e) => isCurrentEvent(e, cutoff));
-  const past = events.filter((e) => !isCurrentEvent(e, cutoff));
+  // In search mode there is no pill row at all, so every event goes into the
+  // one list -- current ones first, because those are what people want.
+  const searchOnly = mode === 'search';
+  const current = searchOnly ? [] : events.filter((e) => isCurrentEvent(e, cutoff));
+  const past = searchOnly
+    ? [...events].sort(
+        (a, b) =>
+          (isCurrentEvent(b, cutoff) ? 1 : 0) - (isCurrentEvent(a, cutoff) ? 1 : 0) ||
+          String(b.startsOn ?? '').localeCompare(String(a.startsOn ?? ''))
+      )
+    : events.filter((e) => !isCurrentEvent(e, cutoff));
+
+  const choose = (id) => {
+    if (onSelect) {
+      onSelect(id ?? '');
+      return;
+    }
+    router.push(href(id));
+  };
 
   const href = (id) => {
     const p = new URLSearchParams();
@@ -81,7 +107,7 @@ export default function EventFilter({
         {allowAll && (
           <button
             type="button"
-            onClick={() => router.push(href(null))}
+            onClick={() => choose(null)}
             className={`rounded-full px-3 py-1 text-sm font-semibold ${
               !selected
                 ? 'bg-brand text-white'
@@ -95,7 +121,7 @@ export default function EventFilter({
           <button
             key={e.id}
             type="button"
-            onClick={() => router.push(href(e.id))}
+            onClick={() => choose(e.id)}
             className={`rounded-full px-3 py-1 text-sm font-semibold ${
               e.id === selected
                 ? 'bg-brand text-white'
@@ -106,7 +132,7 @@ export default function EventFilter({
           </button>
         ))}
 
-        {current.length === 0 && past.length > 0 && (
+        {!searchOnly && current.length === 0 && past.length > 0 && (
           <span className="text-sm text-neutral-500">
             Nothing current — pick a past event to look back at.
           </span>
@@ -124,7 +150,11 @@ export default function EventFilter({
                   : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
               }`}
             >
-              {selectedPast ? selectedPast.name : `Past events (${past.length})`}
+              {selectedPast
+                ? selectedPast.name
+                : searchOnly
+                  ? allLabel
+                  : `Past events (${past.length})`}
               <span aria-hidden className="ml-1.5 text-xs">
                 ▾
               </span>
@@ -140,6 +170,22 @@ export default function EventFilter({
                   className="w-full rounded border border-neutral-300 px-2 py-1 text-sm"
                 />
                 <ul className="mt-2 max-h-64 overflow-y-auto">
+                  {searchOnly && allowAll && (
+                    <li className="border-b border-neutral-100 pb-1 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false);
+                          choose(null);
+                        }}
+                        className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 ${
+                          !selected ? 'font-bold text-brand' : ''
+                        }`}
+                      >
+                        {allLabel}
+                      </button>
+                    </li>
+                  )}
                   {matches.length === 0 ? (
                     <li className="px-2 py-2 text-sm text-neutral-500">
                       Nothing matches &ldquo;{q}&rdquo;.
@@ -151,7 +197,7 @@ export default function EventFilter({
                           type="button"
                           onClick={() => {
                             setOpen(false);
-                            router.push(href(e.id));
+                            choose(e.id);
                           }}
                           className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 ${
                             e.id === selected ? 'font-bold text-brand' : ''
@@ -172,7 +218,7 @@ export default function EventFilter({
                     type="button"
                     onClick={() => {
                       setOpen(false);
-                      router.push(href(current[0]?.id ?? null));
+                      choose(current[0]?.id ?? null);
                     }}
                     className="mt-2 w-full rounded px-2 py-1 text-left text-sm text-neutral-600 underline"
                   >

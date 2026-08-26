@@ -14,7 +14,38 @@ import {
   updateActivity,
   deleteActivity,
   setActivityActive,
+  createSlot,
+  deleteSlot,
 } from './actions';
+
+// Wall-clock, formatted as people say it. No timezone maths anywhere in this
+// file, by design (0052): these are times AT CAMP, stored as a date and two
+// times of day, and the moment anything converts them a boarding time is an
+// hour out at the dock.
+const fmtDay = (iso) => {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).split('-').map(Number);
+  if (!y) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+export const fmtTime = (t) => {
+  if (!t) return '';
+  const [h, min] = String(t).split(':').map(Number);
+  if (Number.isNaN(h)) return t;
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return min ? `${hh}:${String(min).padStart(2, '0')}${ampm}` : `${hh}${ampm}`;
+};
+
+export const slotLabel = (s) =>
+  `${fmtDay(s.slot_date)} ${fmtTime(s.start_time)}–${fmtTime(s.end_time)}${
+    s.label ? ` · ${s.label}` : ''
+  }`;
 
 const input = 'w-full rounded border border-neutral-300 px-2 py-1 text-sm';
 const label = 'block text-xs font-semibold text-neutral-700 mb-0.5';
@@ -341,6 +372,132 @@ export function ActivityCard({
           leaving them in the tree but invisible puts focusable fields where a
           keyboard user cannot see them. */}
       {open && <div className="border-t border-neutral-200 px-5 pb-5 pt-4">{children}</div>}
+    </div>
+  );
+}
+
+// The sittings an activity runs in.
+//
+// Only shown for sign-up activities: an interest list has no times to hold, and
+// offering them would imply a booking that is not being made. Once ANY slot
+// exists, the database requires every signup to name one (0052) — so adding
+// the first time to an activity people have already joined is a real change,
+// and the panel says so.
+export function SlotEditor({ activity, slots = [] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState('');
+  const blank = { date: '', start: '', end: '', capacity: '', label: '' };
+  const [f, setF] = useState(blank);
+  const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  if (activity.booking_mode !== 'signup') {
+    return (
+      <p className="mt-3 text-xs text-neutral-500">
+        Times are for sign-up activities. This one is an interest list — set it to
+        &ldquo;Sign-up&rdquo; above if it runs in sittings.
+      </p>
+    );
+  }
+
+  function run(fn) {
+    setError('');
+    start(async () => {
+      const res = await fn();
+      if (!res.ok) setError(res.error);
+      else {
+        setF(blank);
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <h4 className="text-sm font-bold">Times</h4>
+      <p className="mt-0.5 text-xs text-neutral-500">
+        For activities that run in sittings — the 2 o&rsquo;clock boat, chair 3. Times are as
+        they are at camp; nothing is adjusted for where you are sitting.
+      </p>
+
+      {slots.length === 0 ? (
+        <p className="mt-3 text-sm text-neutral-500">
+          No times yet — families just put their name on the activity.
+          {' '}
+          <span className="text-neutral-600">
+            Adding the first one will require everyone to choose a time, including anyone
+            already signed up.
+          </span>
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-1">
+          {slots.map((s) => (
+            <li
+              key={s.id}
+              className="flex flex-wrap items-center gap-2 rounded border border-neutral-200 px-3 py-1.5 text-sm"
+            >
+              <span className="font-medium">{slotLabel(s)}</span>
+              <span className="text-xs text-neutral-500">
+                {s.capacity == null ? 'no limit' : `${s.taken ?? 0} of ${s.capacity}`}
+              </span>
+              <button
+                onClick={() => {
+                  if (!confirm(`Remove ${slotLabel(s)}?`)) return;
+                  run(() => deleteSlot(s.id));
+                }}
+                disabled={pending}
+                className="ml-auto text-xs font-semibold text-red-700 underline disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-5">
+        <label className="text-xs">
+          <span className="block font-semibold text-neutral-700 mb-0.5">Day</span>
+          <input type="date" className={input} value={f.date} onChange={set('date')} />
+        </label>
+        <label className="text-xs">
+          <span className="block font-semibold text-neutral-700 mb-0.5">From</span>
+          <input type="time" className={input} value={f.start} onChange={set('start')} />
+        </label>
+        <label className="text-xs">
+          <span className="block font-semibold text-neutral-700 mb-0.5">To</span>
+          <input type="time" className={input} value={f.end} onChange={set('end')} />
+        </label>
+        <label className="text-xs">
+          <span className="block font-semibold text-neutral-700 mb-0.5">Places</span>
+          <input
+            className={input}
+            inputMode="numeric"
+            value={f.capacity}
+            onChange={set('capacity')}
+            placeholder="no limit"
+          />
+        </label>
+        <label className="text-xs">
+          <span className="block font-semibold text-neutral-700 mb-0.5">Name (optional)</span>
+          <input
+            className={input}
+            value={f.label}
+            onChange={set('label')}
+            placeholder="Boat 1"
+          />
+        </label>
+      </div>
+
+      {error && <p className="mt-2 text-sm font-semibold text-red-700">{error}</p>}
+
+      <button
+        onClick={() => run(() => createSlot(activity.id, f))}
+        disabled={pending}
+        className="mt-3 btn-outline !py-1.5 text-sm disabled:opacity-50"
+      >
+        {pending ? 'Adding…' : 'Add this time'}
+      </button>
     </div>
   );
 }

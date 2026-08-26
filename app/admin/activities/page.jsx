@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { ActivityEditor, AddActivity, ActivityCard } from './ActivityEditor';
+import { ActivityEditor, AddActivity, ActivityCard, SlotEditor, slotLabel } from './ActivityEditor';
 import EventFilter from '@/components/EventFilter';
 
 export const metadata = { title: 'Activities — Staff Admin' };
@@ -57,13 +57,24 @@ export default async function AdminActivitiesPage({ searchParams }) {
 
   const activityIds = (activities ?? []).map((a) => a.id);
 
+  // Sittings, and how full each is. Ordered by the guard's own index so the
+  // day reads in order.
+  const { data: slotRows } = activityIds.length
+    ? await supabase
+        .from('activity_slots')
+        .select('id, activity_id, slot_date, start_time, end_time, label, capacity')
+        .in('activity_id', activityIds)
+        .order('slot_date')
+        .order('start_time')
+    : { data: [] };
+
   // Staff RLS on activity_signups is is_staff(), so this reads everyone --
   // which is the point of the page.
   const { data: signups } = activityIds.length
     ? await supabase
         .from('activity_signups')
         .select(
-          `activity_id, status, waiver_acknowledged_at, added_source,
+          `activity_id, slot_id, status, waiver_acknowledged_at, added_source,
            registration_participants ( id, camp_role,
              people ( first_name, last_name ),
              registrations ( households ( display_name ) ) )`
@@ -71,11 +82,24 @@ export default async function AdminActivitiesPage({ searchParams }) {
         .in('activity_id', activityIds)
     : { data: [] };
 
+  const takenBySlot = new Map();
+  for (const g of signups ?? []) {
+    if (g.status === 'cancelled' || !g.slot_id) continue;
+    takenBySlot.set(g.slot_id, (takenBySlot.get(g.slot_id) ?? 0) + 1);
+  }
+  const slotsByActivity = new Map();
+  for (const sl of slotRows ?? []) {
+    if (!slotsByActivity.has(sl.activity_id)) slotsByActivity.set(sl.activity_id, []);
+    slotsByActivity.get(sl.activity_id).push({ ...sl, taken: takenBySlot.get(sl.id) ?? 0 });
+  }
+  const slotById = new Map((slotRows ?? []).map((sl) => [sl.id, sl]));
+
   const byActivity = new Map();
   for (const s of signups ?? []) {
     if (s.status === 'cancelled') continue;
     if (!byActivity.has(s.activity_id)) byActivity.set(s.activity_id, []);
     byActivity.get(s.activity_id).push({
+      slotId: s.slot_id,
       name: `${s.registration_participants?.people?.first_name ?? ''} ${
         s.registration_participants?.people?.last_name ?? ''
       }`.trim(),
@@ -152,6 +176,14 @@ export default async function AdminActivitiesPage({ searchParams }) {
                     {people.map((p, i) => (
                       <li key={i} className="flex items-center gap-2 text-sm">
                         <span className="font-medium">{p.name}</span>
+                        {/* Which boat. Without it this list answers "how many"
+                            and not "who is on the 2 o'clock", which is the
+                            question the day is actually run from. */}
+                        {p.slotId && slotById.get(p.slotId) && (
+                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-semibold text-neutral-700">
+                            {slotLabel(slotById.get(p.slotId))}
+                          </span>
+                        )}
                         <span className="text-neutral-500">{p.household}</span>
                         {p.status === 'interested' && (
                           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
@@ -181,6 +213,8 @@ export default async function AdminActivitiesPage({ searchParams }) {
                     ))}
                   </ul>
                 )}
+
+                <SlotEditor activity={a} slots={slotsByActivity.get(a.id) ?? []} />
 
                 <ActivityEditor activity={a} />
               </ActivityCard>

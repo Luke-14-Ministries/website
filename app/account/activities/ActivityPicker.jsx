@@ -12,6 +12,11 @@
 //               page is stale.
 //   appointment a specific slot. Treated as signup here until slots are
 //               actually scheduled (activity_slots is seeded per event).
+//
+// SITTINGS (0052). A sign-up activity may run in sittings -- the pontoon goes
+// out four times on the Tuesday. Where it does, the tick is not enough: the
+// database refuses a signup with no time, because a place nobody can roster is
+// not a place. So ticking reveals the times, and choosing one is what saves.
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -36,20 +41,33 @@ function ActivityRow({ person, activity }) {
 
   const existing = person.choices[activity.id] ?? null;
   const isOn = existing?.status === 'interested' || existing?.status === 'signed_up';
+  const slots = activity.slots ?? [];
+  const hasSlots = slots.length > 0;
+  const [slotId, setSlotId] = useState(existing?.slot_id ?? '');
+  const chosenSlot = slots.find((sl) => sl.id === (existing?.slot_id ?? slotId)) ?? null;
   const needsProvider = Boolean(activity.provider_url || activity.provider_name);
   const [ack, setAck] = useState(Boolean(existing?.waiver_acknowledged_at));
 
   const wantStatus = activity.booking_mode === 'interest' ? 'interested' : 'signed_up';
   const full = activity.placesLeft === 0 && !isOn;
 
-  function toggle(next) {
+  function toggle(next, nextSlot = slotId) {
     setError('');
+    // Ticking an activity that runs in sittings does not book anything yet --
+    // it opens the times. Saving without one would be refused by the database
+    // anyway; asking first is kinder than bouncing them.
+    if (next && hasSlots && !nextSlot) {
+      setSlotId('');
+      setError('');
+      return;
+    }
     start(async () => {
       const res = await setActivityChoice({
         participantId: person.participantId,
         activityId: activity.id,
         status: next ? wantStatus : 'cancelled',
         acknowledgeWaiver: ack,
+        slotId: next ? nextSlot : null,
       });
       if (!res.ok) {
         setError(res.error);
@@ -104,6 +122,52 @@ function ActivityRow({ person, activity }) {
           )}
         </span>
       </div>
+
+      {/* The times. Shown once the activity is ticked (or already booked),
+          because until then there is nothing to put a time on. Each says how
+          many places are left, the way the activity itself does. */}
+      {hasSlots && (isOn || slotId !== '' || error) && (
+        <fieldset className="mt-2 ml-7">
+          <legend className="text-sm font-semibold">
+            {isOn ? 'Time' : 'Choose a time'}
+          </legend>
+          <div className="mt-1 space-y-1">
+            {slots.map((sl) => {
+              const left = sl.capacity == null ? null : Math.max(0, sl.capacity - (sl.taken ?? 0));
+              const mine = existing?.slot_id === sl.id;
+              const soldOut = left === 0 && !mine;
+              return (
+                <label
+                  key={sl.id}
+                  className={`flex items-center gap-2 rounded border px-3 py-1.5 text-sm ${
+                    mine ? 'border-brand bg-brand-light font-semibold' : 'border-neutral-200'
+                  } ${soldOut ? 'opacity-60' : 'cursor-pointer'}`}
+                >
+                  <input
+                    type="radio"
+                    name={`slot-${person.participantId}-${activity.id}`}
+                    checked={mine || slotId === sl.id}
+                    disabled={pending || soldOut}
+                    onChange={() => {
+                      setSlotId(sl.id);
+                      toggle(true, sl.id);
+                    }}
+                  />
+                  <span>{sl.label_text}</span>
+                  <span className="ml-auto text-xs text-neutral-500">
+                    {left == null ? '' : soldOut ? 'full' : `${left} left`}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {chosenSlot && isOn && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Booked on {chosenSlot.label_text}. Pick another to move.
+            </p>
+          )}
+        </fieldset>
+      )}
 
       {/* The acknowledgement, shown only where it applies and only while it
           still needs giving. It records that we TOLD them -- never that a

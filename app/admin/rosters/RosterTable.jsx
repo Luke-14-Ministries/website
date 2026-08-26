@@ -5,6 +5,7 @@
 // active filters so the export matches the screen.
 
 import { useMemo, useState } from 'react';
+import EventFilter from '@/components/EventFilter';
 
 const ROLE_LABEL = {
   camper: 'Camper',
@@ -150,14 +151,24 @@ export default function RosterTable({ events, rows }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <select value={fEvent} onChange={(e) => setFEvent(e.target.value)} className={selectCls}>
-          <option value="">All events</option>
-          {events.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
+        {/* The same picker the other staff pages use, in its search-only
+            shape: this is a filter over every event the ministry has ever run,
+            so a pill row would be a wall and a plain <select> gives you no way
+            to type "2025". "All events" is pinned at the top of the list
+            (25 Aug). */}
+        <EventFilter
+          events={events.map((e) => ({
+            id: e.id,
+            name: e.name,
+            startsOn: e.startsOn ?? e.starts_on ?? '',
+            endsOn: e.endsOn ?? e.ends_on ?? '',
+          }))}
+          selected={fEvent || null}
+          mode="search"
+          allowAll
+          allLabel="All events"
+          onSelect={(id) => setFEvent(id)}
+        />
         <select value={fRole} onChange={(e) => setFRole(e.target.value)} className={selectCls}>
           <option value="">All roles</option>
           {Object.entries(ROLE_LABEL).map(([v, l]) => (

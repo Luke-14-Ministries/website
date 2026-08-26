@@ -533,76 +533,6 @@ export default async function DashboardPage({ searchParams }) {
           </div>
         )}
 
-        {/* The support profiles registration promises. One card, one row per
-            person attending, so the promise made at the end of the wizard has
-            somewhere to land. */}
-        {attendingPeople.length > 0 && (
-          <SupportDetailsCard
-            allDone={allDetailsDone}
-            count={attendingPeople.length}
-          >
-            <h2 className="text-xl font-bold">Support details</h2>
-            <p className="mt-1 text-sm text-neutral-600">
-              A short form for each person attending — allergies, medications, what helps on
-              a hard day, and an emergency contact. Most of it is optional, but please fill
-              in what applies: staff use these to plan support, meals and medical cover.
-            </p>
-            <ul className="mt-4 divide-y divide-neutral-100">
-              {attendingPeople.map((p) => {
-                const started = supportStatus.get(p.id) === 'started';
-                return (
-                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <span className="min-w-0">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{p.name}</span>
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            started
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {started ? 'Details on file' : 'Not started'}
-                        </span>
-                      </span>
-                      <span className="mt-0.5 block text-xs text-neutral-500">
-                        {ROLE_LABEL[p.role] ?? p.role}
-                        {p.eventName ? ` · ${p.eventName}` : ''}
-                      </span>
-                    </span>
-                    <Link
-                      href={`/account/details/${p.id}/`}
-                      className={started ? 'btn-outline !py-1.5 text-sm' : 'btn-primary !py-1.5 text-sm'}
-                    >
-                      {started ? 'Review or update' : 'Fill it in'}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </SupportDetailsCard>
-        )}
-
-        {/* Staff door -- only when this login is also active staff. */}
-        {staff && (
-          <div className="mb-8 rounded-lg border border-brand/30 bg-brand-light p-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-brand-dark">
-                You also have staff access{' '}
-                <span className="text-neutral-700">
-                  [{staff.title || STAFF_ROLE_LABEL[staff.role] || staff.role}
-                  {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
-                </span>
-              </p>
-              <p className="text-sm text-neutral-600">
-                This page is your own family view; the staff area is where you see everyone.
-              </p>
-            </div>
-            <Link href="/admin" className="btn-primary !py-2 shrink-0">
-              Go to Staff Area
-            </Link>
-          </div>
-        )}
 
         {/* items-start keeps each card hugging its own content instead of
             stretching to its row's tallest neighbor (no empty white space). */}
@@ -1113,6 +1043,86 @@ export default async function DashboardPage({ searchParams }) {
             </ul>
           </div>
         </div>
+
+        {/* Order, revisited 25 Aug. This page opened with a form-filling
+            prompt, then an aside for the handful of people who are also staff,
+            and only then the registrations — so the thing every family comes
+            here for was third.
+
+            Registrations first. Support details after, because it IS a
+            to-do and belongs where to-dos go — under the thing it is about,
+            not in front of it. The staff door last: it is relevant to a
+            handful of accounts and to none of them urgently. */}
+        {/* The support profiles registration promises. One card, one row per
+            person attending, so the promise made at the end of the wizard has
+            somewhere to land. */}
+        {attendingPeople.length > 0 && (
+          <SupportDetailsCard
+            allDone={allDetailsDone}
+            count={attendingPeople.length}
+          >
+            <h2 className="text-xl font-bold">Support details</h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              A short form for each person attending — allergies, medications, what helps on
+              a hard day, and an emergency contact. Most of it is optional, but please fill
+              in what applies: staff use these to plan support, meals and medical cover.
+            </p>
+            <ul className="mt-4 divide-y divide-neutral-100">
+              {attendingPeople.map((p) => {
+                const started = supportStatus.get(p.id) === 'started';
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{p.name}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            started
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {started ? 'Details on file' : 'Not started'}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        {ROLE_LABEL[p.role] ?? p.role}
+                        {p.eventName ? ` · ${p.eventName}` : ''}
+                      </span>
+                    </span>
+                    <Link
+                      href={`/account/details/${p.id}/`}
+                      className={started ? 'btn-outline !py-1.5 text-sm' : 'btn-primary !py-1.5 text-sm'}
+                    >
+                      {started ? 'Review or update' : 'Fill it in'}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </SupportDetailsCard>
+        )}
+
+        {/* Staff door -- only when this login is also active staff. */}
+        {staff && (
+          <div className="mb-8 rounded-lg border border-brand/30 bg-brand-light p-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-brand-dark">
+                You also have staff access{' '}
+                <span className="text-neutral-700">
+                  [{staff.title || STAFF_ROLE_LABEL[staff.role] || staff.role}
+                  {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
+                </span>
+              </p>
+              <p className="text-sm text-neutral-600">
+                This page is your own family view; the staff area is where you see everyone.
+              </p>
+            </div>
+            <Link href="/admin" className="btn-primary !py-2 shrink-0">
+              Go to Staff Area
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   );

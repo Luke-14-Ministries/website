@@ -60,16 +60,54 @@ export default async function ActivitiesPage() {
   const { data: signupRows } = participantIds.length
     ? await supabase
         .from('activity_signups')
-        .select('registration_participant_id, activity_id, status, waiver_acknowledged_at')
+        .select('registration_participant_id, activity_id, slot_id, status, waiver_acknowledged_at')
         .in('registration_participant_id', participantIds)
     : { data: [] };
 
   // How full each activity is. The function returns counts only -- a family
   // cannot read other families' signups, and does not need to.
   const takenByActivity = new Map();
+  // Sittings, with counts only -- same rule as the activity availability
+  // above: a family sees how many places are left, never who is in them.
+  const slotsByActivity = new Map();
+  const fmtDay = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = String(iso).split('-').map(Number);
+    if (!y) return iso;
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+  const fmtTime = (t) => {
+    if (!t) return '';
+    const [h, min] = String(t).split(':').map(Number);
+    if (Number.isNaN(h)) return t;
+    const ampm = h >= 12 ? 'pm' : 'am';
+    const hh = h % 12 === 0 ? 12 : h % 12;
+    return min ? `${hh}:${String(min).padStart(2, '0')}${ampm}` : `${hh}${ampm}`;
+  };
+
   for (const eventId of eventIds) {
-    const { data: avail } = await supabase.rpc('activity_availability', { p_event_id: eventId });
+    const [{ data: avail }, { data: slotAvail }] = await Promise.all([
+      supabase.rpc('activity_availability', { p_event_id: eventId }),
+      supabase.rpc('activity_slot_availability', { p_event_id: eventId }),
+    ]);
     for (const row of avail ?? []) takenByActivity.set(row.activity_id, row.taken);
+    for (const row of slotAvail ?? []) {
+      if (!slotsByActivity.has(row.activity_id)) slotsByActivity.set(row.activity_id, []);
+      slotsByActivity.get(row.activity_id).push({
+        id: row.slot_id,
+        capacity: row.capacity,
+        taken: row.taken,
+        // Formatted once, on the server, so every surface says the time the
+        // same way and no client does date maths on a wall-clock value.
+        label_text: `${fmtDay(row.slot_date)}, ${fmtTime(row.start_time)}–${fmtTime(
+          row.end_time
+        )}${row.label ? ` · ${row.label}` : ''}`,
+      });
+    }
   }
 
   const chosen = new Map();
@@ -85,6 +123,7 @@ export default async function ActivitiesPage() {
           ...a,
           taken: takenByActivity.get(a.id) ?? 0,
           placesLeft: a.capacity == null ? null : Math.max(0, a.capacity - (takenByActivity.get(a.id) ?? 0)),
+          slots: slotsByActivity.get(a.id) ?? [],
         }));
       const people = (r.registration_participants ?? [])
         .filter((p) => p.status !== 'cancelled')

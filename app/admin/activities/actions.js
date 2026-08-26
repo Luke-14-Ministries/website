@@ -186,3 +186,88 @@ function revalidateAll() {
   revalidatePath('/admin/activities');
   revalidatePath('/account/activities');
 }
+
+// ---------------------------------------------------------------------------
+// Time slots (0052). The pontoon goes out four times on the Tuesday; the salon
+// takes one person at a time. "Who is on the 2 o'clock boat" is the question
+// the day is run from, and it had no home.
+//
+// Times are WALL-CLOCK AT CAMP -- a date and two times of day, stored as such.
+// Nothing converts between zones, which is the point: a coordinator setting up
+// from Mountain time is describing 2pm at camp, and a boarding time an hour out
+// is discovered at the dock.
+
+const HHMM = /^([01]?\d|2[0-3]):[0-5]\d$/;
+
+export async function createSlot(activityId, input) {
+  const { error: authError } = await requireCoordinator();
+  if (authError) return { ok: false, error: authError };
+  if (!activityId) return { ok: false, error: 'Which activity?' };
+
+  const date = String(input?.date ?? '').trim();
+  const start = String(input?.start ?? '').trim();
+  const end = String(input?.end ?? '').trim();
+  if (!date) return { ok: false, error: 'Which day?' };
+  if (!HHMM.test(start) || !HHMM.test(end)) {
+    return { ok: false, error: 'Give a start and end time.' };
+  }
+  if (end <= start) return { ok: false, error: 'The end time is before the start time.' };
+
+  let capacity = null;
+  if (String(input?.capacity ?? '').trim() !== '') {
+    const n = Number.parseInt(String(input.capacity).replace(/[^0-9-]/g, ''), 10);
+    if (Number.isNaN(n) || n < 1) {
+      return { ok: false, error: 'Places has to be 1 or more, or blank for no limit.' };
+    }
+    capacity = n;
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('activity_slots').insert({
+    activity_id: activityId,
+    slot_date: date,
+    start_time: start,
+    end_time: end,
+    label: String(input?.label ?? '').trim() || null,
+    capacity,
+  });
+  if (error) {
+    console.error('createSlot:', error.message);
+    return { ok: false, error: 'That time could not be added.' };
+  }
+
+  revalidateAll();
+  return { ok: true };
+}
+
+export async function deleteSlot(slotId) {
+  const { error: authError } = await requireCoordinator();
+  if (authError) return { ok: false, error: authError };
+  if (!slotId) return { ok: false, error: 'Which time?' };
+
+  const supabase = await createClient();
+
+  // Refused while anyone is on it. Deleting would either orphan them onto the
+  // activity with no time (which the 0052 guard forbids) or take their signup
+  // with it -- and a family whose booking vanished is told by nothing.
+  const { count } = await supabase
+    .from('activity_signups')
+    .select('id', { count: 'exact', head: true })
+    .eq('slot_id', slotId)
+    .neq('status', 'cancelled');
+
+  if ((count ?? 0) > 0) {
+    return {
+      ok: false,
+      error: `${count} ${
+        count === 1 ? 'person is' : 'people are'
+      } booked on this time. Move them to another time first — they cannot be left on the activity with no time.`,
+    };
+  }
+
+  const { error } = await supabase.from('activity_slots').delete().eq('id', slotId);
+  if (error) return { ok: false, error: 'That time could not be removed.' };
+
+  revalidateAll();
+  return { ok: true };
+}

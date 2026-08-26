@@ -18,7 +18,16 @@ import { createClient } from '@/lib/supabase/server';
 //   signed_up   -- a place is taken. Counts against capacity.
 //   cancelled   -- they had one and gave it back. Kept rather than deleted so
 //                  staff can see a place was released, not that it never was.
-export async function setActivityChoice({ participantId, activityId, status, acknowledgeWaiver }) {
+export async function setActivityChoice({
+  participantId,
+  activityId,
+  status,
+  acknowledgeWaiver,
+  // Which sitting (0052). Null for activities that do not run in sittings; the
+  // database refuses a null on one that does, so this cannot be forgotten
+  // quietly.
+  slotId = null,
+}) {
   if (!participantId || !activityId) {
     return { ok: false, error: 'Something is missing — please refresh and try again.' };
   }
@@ -62,6 +71,7 @@ export async function setActivityChoice({ participantId, activityId, status, ack
     registration_participant_id: participantId,
     activity_id: activityId,
     status,
+    slot_id: status === 'cancelled' ? null : slotId || null,
     added_source: 'family',
     waiver_acknowledged_at:
       status === 'signed_up' && needsAck && acknowledgeWaiver ? new Date().toISOString() : null,
@@ -75,6 +85,17 @@ export async function setActivityChoice({ participantId, activityId, status, ack
 
   if (error) {
     // The capacity trigger speaks SQL; a family should not have to.
+    // The two slot guards from 0052 speak SQL; a family should not have to.
+    if (/choose a time/i.test(error.message)) {
+      return { ok: false, error: 'Please choose a time for this one.' };
+    }
+    if (/that time is full/i.test(error.message)) {
+      return {
+        ok: false,
+        error:
+          'That time filled up while you were choosing. Pick another — or email info@luke14ministries.net and staff will see whether they can make room.',
+      };
+    }
     if (/activity full/i.test(error.message)) {
       return {
         ok: false,

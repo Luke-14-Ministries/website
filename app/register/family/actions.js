@@ -163,7 +163,7 @@ export async function submitFamilyRegistration(payload) {
     const origin = host ? `${proto}://${host}` : '';
     const { data: ev } = await supabase
       .from('events')
-      .select('name')
+      .select('name, deposit_cents')
       .eq('id', eventId)
       .maybeSingle();
     const to = (family.email || '').trim() || user.email;
@@ -173,6 +173,7 @@ export async function submitFamilyRegistration(payload) {
         eventName: ev.name,
         saved: data?.saved ?? mapped.length,
         isUpdate: Boolean(payload?.isUpdate),
+        depositCents: ev?.deposit_cents ?? 0,
       });
       await sendEmail({ to, subject, html });
     }

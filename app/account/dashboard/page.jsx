@@ -625,11 +625,30 @@ export default async function DashboardPage({ searchParams }) {
 
         {!allDetailsDone && supportCard}
 
-        {/* items-start keeps each card hugging its own content instead of
-            stretching to its row's tallest neighbor (no empty white space). */}
+        {/* TWO COLUMNS, NOT FOUR CELLS.
+            This was one 3-column grid holding four cards in row order, which
+            put My Account Settings in row 2 -- and row 2 cannot begin until the
+            tall Registrations card in row 1 ends. The result was a column of
+            white space under My Household and the settings card stranded most
+            of a screen below it (26 Aug). items-start stops a card stretching;
+            it cannot stop a row starting late.
+
+            Each side is now its own flex column, so the right-hand cards stack
+            against each other instead of against a row boundary. order-* still
+            drives the donor-first swap, and now does it within a column.
+
+            The wrappers are `contents` below lg, which removes them from
+            layout entirely so all four cards are direct grid children again on
+            a phone. That matters: on one narrow column the old reading order
+            was Registrations, Household, Giving, Settings, and wrapping would
+            have pushed Household below Giving -- demoting "your people" under
+            "your money" on the screen most families will actually use. With
+            display:contents the order-* classes still place all four, so the
+            phone keeps the order it had and only the wide layout changes. */}
         <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+          <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-span-2">
           {/* Registrations -- real */}
-          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2 ${donorFirst ? 'order-3' : 'order-1'}`}>
+          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-3' : 'order-1'}`}>
             <h2 className="text-xl font-bold mb-4">My Registrations</h2>
 
             {regs.length === 0 ? (
@@ -1022,6 +1041,65 @@ export default async function DashboardPage({ searchParams }) {
             )}
           </div>
 
+          {/* Giving -- real history, giving-first for donors */}
+          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-1' : 'order-3'}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-xl font-bold">My Giving</h2>
+              {givenTotal > 0 && (
+                <span className="text-sm text-neutral-600">
+                  Total given: <strong>{money(givenTotal)}</strong>
+                </span>
+              )}
+            </div>
+
+            {myGifts.length === 0 ? (
+              <p className="text-neutral-500">
+                No gifts on record for this account yet. When you give online while logged
+                in, your gifts and receipts appear here.
+              </p>
+            ) : (
+              <ul className="divide-y divide-neutral-100 text-sm mb-2">
+                {myGifts.map((g, i) => {
+                  const [label, cls] = PAY_STATUS[g.status] ?? PAY_STATUS.pending;
+                  return (
+                    <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <span className="text-neutral-700">
+                        {(g.received_on ?? (g.created_at || '').slice(0, 10)) || ''} ·{' '}
+                        <span className="font-semibold">{money(g.amount_cents)}</span>
+                        <span className="text-neutral-500"> — {g.fund}</span>
+                      </span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
+                        {label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <p className="mt-3 text-sm text-neutral-600">
+              Luke 14 Ministries is a registered <strong>501(c)(3)</strong> nonprofit
+              organization, and <strong>donations are tax-deductible</strong> to the extent
+              allowed by law. (Event registration payments — camp, retreats, and the like — are not; they cover
+              event costs such as food, lodging, and activities.)
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {/* Same destination as the header's Donate button, and that is
+                  deliberate: this one completes the giving card's story ("your
+                  history, and here is where a new gift goes"), while the header
+                  button serves people anywhere on the site. One consistent
+                  label, logged in or not, donor or not. */}
+              <Link href="/donate" className="btn-gold !py-2">
+                Make a New Gift
+              </Link>
+              <SoonButton>Manage Recurring Gift</SoonButton>
+              <SoonButton>Download Giving Statement</SoonButton>
+            </div>
+          </div>
+
+          </div>
+
+          <div className="contents lg:flex lg:flex-col lg:gap-6">
           {/* Household -- real */}
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-4' : 'order-2'}`}>
             <h2 className="text-xl font-bold mb-4">My Household</h2>
@@ -1086,62 +1164,6 @@ export default async function DashboardPage({ searchParams }) {
             </div>
           </div>
 
-          {/* Giving -- real history, giving-first for donors */}
-          <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 lg:col-span-2 ${donorFirst ? 'order-1' : 'order-3'}`}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-              <h2 className="text-xl font-bold">My Giving</h2>
-              {givenTotal > 0 && (
-                <span className="text-sm text-neutral-600">
-                  Total given: <strong>{money(givenTotal)}</strong>
-                </span>
-              )}
-            </div>
-
-            {myGifts.length === 0 ? (
-              <p className="text-neutral-500">
-                No gifts on record for this account yet. When you give online while logged
-                in, your gifts and receipts appear here.
-              </p>
-            ) : (
-              <ul className="divide-y divide-neutral-100 text-sm mb-2">
-                {myGifts.map((g, i) => {
-                  const [label, cls] = PAY_STATUS[g.status] ?? PAY_STATUS.pending;
-                  return (
-                    <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                      <span className="text-neutral-700">
-                        {(g.received_on ?? (g.created_at || '').slice(0, 10)) || ''} ·{' '}
-                        <span className="font-semibold">{money(g.amount_cents)}</span>
-                        <span className="text-neutral-500"> — {g.fund}</span>
-                      </span>
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
-                        {label}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-
-            <p className="mt-3 text-sm text-neutral-600">
-              Luke 14 Ministries is a registered <strong>501(c)(3)</strong> nonprofit
-              organization, and <strong>donations are tax-deductible</strong> to the extent
-              allowed by law. (Event registration payments — camp, retreats, and the like — are not; they cover
-              event costs such as food, lodging, and activities.)
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              {/* Same destination as the header's Donate button, and that is
-                  deliberate: this one completes the giving card's story ("your
-                  history, and here is where a new gift goes"), while the header
-                  button serves people anywhere on the site. One consistent
-                  label, logged in or not, donor or not. */}
-              <Link href="/donate" className="btn-gold !py-2">
-                Make a New Gift
-              </Link>
-              <SoonButton>Manage Recurring Gift</SoonButton>
-              <SoonButton>Download Giving Statement</SoonButton>
-            </div>
-          </div>
-
           {/* Account settings -- change password works today */}
           <div className={`rounded-lg bg-white border border-neutral-200 shadow-sm p-6 ${donorFirst ? 'order-2' : 'order-4'}`}>
             <h2 className="text-xl font-bold mb-4">My Account Settings</h2>
@@ -1176,6 +1198,7 @@ export default async function DashboardPage({ searchParams }) {
                 Payment methods
               </li>
             </ul>
+          </div>
           </div>
         </div>
 

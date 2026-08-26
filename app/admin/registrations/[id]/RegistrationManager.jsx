@@ -1213,6 +1213,12 @@ function PaymentsCard({ registrationId, payments, stripeBase = '' }) {
                     {(r.fee_cover_cents ?? 0) > 0 && ` + ${money(r.fee_cover_cents)} fee`}
                     {' '}· {(r.refunded_on ?? r.created_at ?? '').slice(0, 10)}
                     {' '}· <span className="italic">{r.reason || 'no reason recorded'}</span>
+                    {/* `reason` is written for the family -- it is printed on
+                        their dashboard. `note` is where a refund that arrived
+                        from outside this screen explains itself, so staff need
+                        it here or a Stripe-dashboard refund looks like one of
+                        ours. */}
+                    {r.note && <span className="block text-xs text-neutral-500">{r.note}</span>}
                     {r.status !== 'succeeded' && (
                       <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
                         {r.status}

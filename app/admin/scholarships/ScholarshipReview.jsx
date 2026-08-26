@@ -203,13 +203,19 @@ export default function ScholarshipReview({ row, showRegistrationLink = false })
                 className="block text-xs font-semibold text-neutral-700 mb-1"
                 htmlFor={`note-${row.participantId}`}
               >
-                Note <span className="font-normal text-neutral-500">— required to decline, optional on an award. Staff only; the family does not see it.</span>
+                {/* The old placeholder read "approved by Larry 26 Aug", which
+                    taught registrars to type a name and a date that the record
+                    already holds -- reviewed_by and reviewed_at are stamped on
+                    the decision and printed on the answered card. Typed dates
+                    also go stale and can be wrong; the stamp cannot. So the
+                    note is for the one thing nothing else captures: WHY. */}
+                Note <span className="font-normal text-neutral-500">— required to decline, optional on an award. Your name and the date are saved automatically, so use this to say <em>why</em>. Staff only; the family does not see it.</span>
               </label>
               <input
                 id={`note-${row.participantId}`}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="e.g. Board hardship fund, approved by Larry 26 Aug"
+                placeholder="e.g. Board hardship fund; spoke with the family by phone"
                 className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
               />
             </div>

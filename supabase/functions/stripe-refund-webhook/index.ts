@@ -33,6 +33,11 @@
 // and our own staff-issued refunds converge on a single row. It deliberately
 // does NOT overwrite `reason` or `note` on a row that already exists: those
 // hold a registrar's own words, which are worth more than Stripe's enum.
+//
+// GRANTS: service_role bypasses RLS but NOT table GRANTs. payment_refunds had
+// none until migration 0054, so every delivery was refused at the table while
+// this function dutifully returned 200 -- silent from both ends. If a future
+// edge function writes nothing and reports nothing, check GRANTs first.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import Stripe from 'npm:stripe';
@@ -175,9 +180,13 @@ Deno.serve(async (req) => {
           fee_cover_cents: 0,
           status,
           method: 'stripe',
-          // Said plainly, because this is exactly the row a registrar will
-          // find surprising: it appeared without anyone using our screen.
-          reason: 'Refunded in Stripe',
+          // `reason` is printed on the FAMILY's dashboard, so it is written
+          // for them: they do not know the ministry uses Stripe and should not
+          // learn it from a refund line (26 Aug). The fact that this row
+          // appeared without anyone using our screen -- which is exactly what a
+          // registrar will find surprising -- lives in `note` just below, and
+          // the staff view prints that.
+          reason: 'Refund issued by camp staff',
           note: `Recorded automatically from Stripe (${r.reason ?? 'no reason given'}).`,
           stripe_refund_id: r.id,
           refunded_on: ministryToday(),

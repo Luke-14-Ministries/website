@@ -809,6 +809,17 @@ export default async function DashboardPage({ searchParams }) {
                                     {rf.reason && (
                                       <span className="text-neutral-500"> — {rf.reason}</span>
                                     )}
+                                    {/* Where the money actually goes, in the
+                                        family's terms. They do not know or care
+                                        that the ministry uses Stripe (26 Aug);
+                                        they care that $10 is coming back and
+                                        roughly when, so that they do not ring up
+                                        on day two. */}
+                                    <span className="block text-xs text-neutral-500">
+                                      {rf.status === 'succeeded'
+                                        ? 'Sent back to the card or bank account you paid from.'
+                                        : 'On its way back to the card or bank account you paid from — this usually takes a few days.'}
+                                    </span>
                                   </span>
                                   <span
                                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${

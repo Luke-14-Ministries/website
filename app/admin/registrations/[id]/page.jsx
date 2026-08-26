@@ -182,7 +182,7 @@ export default async function RegistrationDetailPage({ params }) {
     supabase
       .from('payment_refunds')
       .select(
-        'id, payment_id, amount_cents, fee_cover_cents, status, reason, method, refunded_on, created_at, stripe_refund_id'
+        'id, payment_id, amount_cents, fee_cover_cents, status, reason, note, method, refunded_on, created_at, stripe_refund_id'
       )
       .eq('registration_id', id)
       .order('created_at', { ascending: false }),

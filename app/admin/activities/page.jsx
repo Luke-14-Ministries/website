@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { ActivityEditor, AddActivity } from './ActivityEditor';
 
 export const metadata = { title: 'Activities — Staff Admin' };
 
@@ -11,10 +12,12 @@ const MODE_LABEL = {
   appointment: 'By appointment',
 };
 
-// Who is doing what, per event. Read-only for now, deliberately: staff asked
-// for activity signups so they could PLAN -- know the numbers, ring the
-// stable, print a list. Creating and editing activities is the Setup work,
-// which is lower priority than knowing who signed up for the ones that exist.
+// Who is doing what, per event -- and, since 25 Aug, what is on offer at all.
+//
+// This was read-only on the reasoning that staff wanted the numbers, not the
+// setup. Testing put that straight: camp changes what it offers, and "ask the
+// web admin to activate the zip line" is not a process. Coordinators add,
+// edit, turn off and remove activities here now.
 export default async function AdminActivitiesPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
@@ -38,7 +41,9 @@ export default async function AdminActivitiesPage({ searchParams }) {
   const { data: activities } = selected
     ? await supabase
         .from('activities')
-        .select('id, name, description, booking_mode, capacity, provider_name, provider_url, active')
+        .select(
+          'id, name, description, booking_mode, capacity, provider_name, provider_url, active, sort_order'
+        )
         .eq('event_id', selected)
         // Inactive last. Staff see activities families cannot (that is the
         // point of the "not open" badge), but interleaving them made the two
@@ -85,8 +90,8 @@ export default async function AdminActivitiesPage({ searchParams }) {
     <div>
       <h2 className="text-xl font-bold mb-1">Activities</h2>
       <p className="text-sm text-neutral-500 mb-4">
-        What each family has chosen. Numbers here are what to give the stable, the boat, and
-        the outfitter.
+        What is on offer for each event, and who has chosen it. Numbers here are what to give
+        the stable, the boat, and the outfitter.
       </p>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
@@ -112,7 +117,9 @@ export default async function AdminActivitiesPage({ searchParams }) {
       </div>
 
       {(activities ?? []).length === 0 ? (
-        <p className="text-neutral-500">No activities are set up for this event yet.</p>
+        <p className="text-neutral-500 mb-4">
+          Nothing is on offer for this event yet — add the first one below.
+        </p>
       ) : (
         <div className="space-y-4">
           {(activities ?? []).map((a) => {
@@ -143,6 +150,15 @@ export default async function AdminActivitiesPage({ searchParams }) {
                     )}
                   </span>
                 </div>
+
+                {/* What the family actually reads. Its absence here is what
+                    made this page and the family wizard look like two
+                    different lists (25 Aug, reported twice): the wizard leads
+                    with the description and staff could not see it at all, so
+                    the same activity read as two different things. */}
+                {a.description && (
+                  <p className="mt-1 text-sm text-neutral-600">{a.description}</p>
+                )}
 
                 {a.provider_name && (
                   <p className="mt-1 text-sm text-amber-800">
@@ -187,9 +203,20 @@ export default async function AdminActivitiesPage({ searchParams }) {
                     ))}
                   </ul>
                 )}
+
+                <ActivityEditor activity={a} />
               </div>
             );
           })}
+        </div>
+      )}
+
+      {selected && (
+        <div className="mt-6">
+          <AddActivity
+            eventId={selected}
+            eventName={visibleEvents.find((e) => e.id === selected)?.name}
+          />
         </div>
       )}
     </div>

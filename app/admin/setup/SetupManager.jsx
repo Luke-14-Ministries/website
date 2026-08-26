@@ -7,7 +7,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateEventRegistration } from './actions';
+import { updateEventRegistration, updateEventDetails } from './actions';
 
 const money = (cents) =>
   cents == null ? '—' : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}`;
@@ -46,6 +46,38 @@ function EventRow({ e }) {
   const [closes, setCloses] = useState(isoToLocal(e.closesAt));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null); // { ok, message }
+
+  // The event's own facts, behind a disclosure. Kept apart from the
+  // registration window above deliberately: opening and closing registration
+  // is a weekly act, and changing the DATE of camp is not. Putting them on one
+  // row invites the second while doing the first.
+  const [editing, setEditing] = useState(false);
+  const [startsOn, setStartsOn] = useState(e.startsOn ?? '');
+  const [endsOn, setEndsOn] = useState(e.endsOn ?? '');
+  const [capacity, setCapacity] = useState(e.capacity == null ? '' : String(e.capacity));
+  const [fee, setFee] = useState(e.feeCents == null ? '' : (e.feeCents / 100).toFixed(2));
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [detailNotice, setDetailNotice] = useState(null);
+
+  function saveDetails() {
+    setDetailBusy(true);
+    setDetailNotice(null);
+    start(async () => {
+      const res = await updateEventDetails(e.id, {
+        startsOn,
+        endsOn,
+        capacity,
+        feeDollars: fee,
+      });
+      setDetailBusy(false);
+      setDetailNotice(
+        res.ok
+          ? { ok: true, message: 'Saved. The public pages and the registration form use this now.' }
+          : { ok: false, message: res.error }
+      );
+      if (res.ok) router.refresh();
+    });
+  }
 
   const dirty =
     published !== e.published ||
@@ -157,6 +189,106 @@ function EventRow({ e }) {
         >
           {notice.message}
         </p>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setEditing((v) => !v)}
+        className="mt-3 text-sm font-semibold text-brand underline"
+      >
+        {editing ? 'Close event details' : 'Edit dates, capacity and price'}
+      </button>
+
+      {editing && (
+        <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="text-sm">
+              <span className="block font-semibold text-neutral-700 mb-0.5">First day</span>
+              <input
+                type="date"
+                value={startsOn}
+                onChange={(ev) => setStartsOn(ev.target.value)}
+                className="w-full rounded border border-neutral-300 px-2 py-1"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Last day</span>
+              <input
+                type="date"
+                value={endsOn}
+                onChange={(ev) => setEndsOn(ev.target.value)}
+                className="w-full rounded border border-neutral-300 px-2 py-1"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Places</span>
+              <input
+                inputMode="numeric"
+                value={capacity}
+                onChange={(ev) => setCapacity(ev.target.value)}
+                placeholder="no limit"
+                className="w-full rounded border border-neutral-300 px-2 py-1"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Price ($/person)</span>
+              <input
+                inputMode="decimal"
+                value={fee}
+                onChange={(ev) => setFee(ev.target.value)}
+                className="w-full rounded border border-neutral-300 px-2 py-1"
+              />
+            </label>
+          </div>
+
+          {/* Said plainly, because the alternative behaviour is the one people
+              assume: changing a price here does NOT re-price anyone already
+              registered. Their fee was copied onto their row when they signed
+              up and every balance and statement is built from it. */}
+          <p className="mt-2 text-xs text-neutral-600">
+            A new price applies to <strong>future</strong> registrations. People already
+            registered keep the fee they signed up at — change an individual on their
+            registration if that is what you mean. Capacity cannot be set below the number
+            already registered.
+          </p>
+
+          {detailNotice && (
+            <p
+              className={`mt-2 rounded border px-3 py-2 text-sm ${
+                detailNotice.ok
+                  ? 'border-green-300 bg-green-50 text-green-800'
+                  : 'border-red-300 bg-red-50 text-red-800'
+              }`}
+            >
+              {detailNotice.message}
+            </p>
+          )}
+
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={saveDetails}
+              disabled={detailBusy}
+              className="btn-primary !py-1.5 text-sm disabled:opacity-40"
+            >
+              {detailBusy ? 'Saving…' : 'Save event details'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStartsOn(e.startsOn ?? '');
+                setEndsOn(e.endsOn ?? '');
+                setCapacity(e.capacity == null ? '' : String(e.capacity));
+                setFee(e.feeCents == null ? '' : (e.feeCents / 100).toFixed(2));
+                setDetailNotice(null);
+              }}
+              disabled={detailBusy}
+              className="text-sm text-neutral-600 underline"
+            >
+              Undo my changes
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

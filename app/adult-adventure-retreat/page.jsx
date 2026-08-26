@@ -59,7 +59,15 @@ export default function AdultAdventureRetreatPage() {
                     evergreen, and a returning family cannot tell whether they
                     are looking at this year's retreat or last year's page
                     nobody updated (25 Aug). */}
-                <Fact label="Dates">Oct 29 &ndash; Nov 1, 2026</Fact>
+                {/* The year on its own line. As one string it wrapped as
+                    "Oct 29 – Nov / 1, 2026" in the four-column grid, which
+                    breaks the date across the dash and reads as two dates
+                    (25 Aug). */}
+                <Fact label="Dates">
+                  <span className="whitespace-nowrap">Oct 29 &ndash; Nov 1</span>
+                  <br />
+                  2026
+                </Fact>
                 <Fact label="Arrival">6:00 PM Thursday</Fact>
                 <Fact label="Cost">$480 per person</Fact>
                 <Fact label="Spots">Limited to 30</Fact>

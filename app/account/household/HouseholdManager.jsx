@@ -57,14 +57,33 @@ export default function HouseholdManager({
     patch(key, { busy: true, saved: false, error: '' });
     start(async () => {
       const res = await fn();
-      patch(key, { busy: false, saved: !!res.ok, error: res.ok ? '' : res.error });
+      patch(key, {
+        busy: false,
+        saved: !!res.ok,
+        dirty: res.ok ? false : true,
+        error: res.ok ? '' : res.error,
+      });
       router.refresh();
     });
   }
 
   // Uncontrolled inputs, so dirty-tracking listens at the form: any input
   // event inside the card means it no longer matches what was saved.
-  const markDirty = (key) => () => patch(key, { saved: false });
+  const markDirty = (key) => () => patch(key, { saved: false, dirty: true });
+
+  // Put a card back the way it was found. The inputs are uncontrolled, so the
+  // browser's own form.reset() restores every defaultValue the server sent --
+  // no shadow copy of the data to keep in step.
+  //
+  // Asked for 25 Aug, and the reason is the identity lock: someone starts
+  // renaming a person who turns out to be on a registration, the save is
+  // refused, and they are left holding half-typed changes with no way back but
+  // retyping what was there. A refusal has to leave a way out.
+  const revert = (key) => (ev) => {
+    const form = ev.currentTarget.form;
+    if (form) form.reset();
+    patch(key, { saved: false, dirty: false, error: '' });
+  };
 
   // Fields tidy themselves on blur, exactly like the wizard's -- same helpers,
   // same rule (only reformat what is unambiguously the expected shape).
@@ -203,6 +222,16 @@ export default function HouseholdManager({
             label="Save household info"
             className="!py-2"
           />
+          {(state.hh?.dirty || state.hh?.error) && (
+            <button
+              type="button"
+              onClick={revert('hh')}
+              disabled={state.hh?.busy}
+              className="text-sm font-semibold text-brand underline disabled:opacity-50"
+            >
+              Cancel changes
+            </button>
+          )}
           {state.hh?.error && <span className="text-sm text-red-700">{state.hh.error}</span>}
         </div>
       </form>
@@ -355,6 +384,16 @@ export default function HouseholdManager({
                 saved={state[m.id]?.saved}
                 className="!py-2"
               />
+              {(state[m.id]?.dirty || state[m.id]?.error) && (
+                <button
+                  type="button"
+                  onClick={revert(m.id)}
+                  disabled={state[m.id]?.busy}
+                  className="text-sm font-semibold text-brand underline disabled:opacity-50"
+                >
+                  Cancel changes
+                </button>
+              )}
               {/* Removal is quiet and to the side -- it is the rare action,
                   and the server refuses it for anyone on a registration or
                   serving as the primary contact, explaining why. */}

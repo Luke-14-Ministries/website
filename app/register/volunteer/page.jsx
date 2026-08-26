@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import VolunteerApplication from './VolunteerApplication';
+import BackBar from '@/components/BackBar';
 
 export const metadata = { title: 'Volunteer — Luke 14 Ministries' };
 
@@ -209,6 +210,8 @@ export default async function VolunteerPage() {
             &larr; Back to my dashboard
           </Link>
         </p>
+
+        <BackBar />
       </div>
     </section>
   );

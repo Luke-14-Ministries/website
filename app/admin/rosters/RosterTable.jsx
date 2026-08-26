@@ -308,11 +308,22 @@ export default function RosterTable({ events, rows }) {
                         its words rather than hiding them in a tooltip: a note
                         a family wrote is the sort of thing that has to be
                         READ, not discovered. */}
+                    {/* A link that opens, not a block that sits there: a
+                        family's note can run to several paragraphs, and a
+                        roster of forty rows each carrying an open paragraph is
+                        unreadable (25 Aug). Amber marks that one EXISTS, which
+                        is the thing a scan needs to show; the words are one
+                        click away. <details> rather than state — one row's
+                        note has nothing to do with any other's. */}
                     {r.familyNote && (
-                      <div className="mt-1 max-w-[22rem] rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
-                        <span className="font-semibold">Note from the family:</span>{' '}
-                        {r.familyNote}
-                      </div>
+                      <details className="mt-1 max-w-[22rem]">
+                        <summary className="cursor-pointer rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900 marker:text-amber-700">
+                          Note from the family
+                        </summary>
+                        <p className="mt-1 whitespace-pre-wrap rounded border border-amber-200 bg-amber-50/60 px-2 py-1 text-xs text-amber-900">
+                          {r.familyNote}
+                        </p>
+                      </details>
                     )}
                   </td>
                   <td className="px-4 py-2">{r.person}</td>

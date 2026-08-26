@@ -141,9 +141,39 @@ export default function BuddyBoard({
     // actually work in, and it made a normal decision sound like a workaround).
     // It still takes an explicit yes, because it is more often a slip.
     const existing = byCamper.get(camper.participantId) ?? [];
+
+    // The same volunteer with the same camper twice is not a judgement call,
+    // it is a double entry. Refused outright (25 Aug) -- there is no reading
+    // of it that means anything.
+    if (existing.some((a) => a.buddyParticipantId === volunteer.participantId)) {
+      setError(`${volunteer.name} is already paired with ${camper.name}.`);
+      return;
+    }
+
     if (existing.length > 0) {
       const ok = window.confirm(
         `${camper.name} already has a buddy assigned.\n\nAdd ${volunteer.name} as a second buddy?\n\nSome campers do need more than one — say yes if that is the case here. If you meant to swap buddies, remove the first pairing instead.`
+      );
+      if (!ok) return;
+    }
+
+    // One volunteer, two campers. Allowed -- lower-need campers are
+    // deliberately paired two to a buddy -- but it has to be deliberate, and
+    // until now nothing said it was happening (25 Aug). Naming who else they
+    // already have is the whole point: two easy pairings is a plan, an easy
+    // one plus a demanding one usually is not.
+    const alreadyBuddyFor = campers.filter(
+      (c) =>
+        c.participantId !== camper.participantId &&
+        (byCamper.get(c.participantId) ?? []).some(
+          (a) => a.buddyParticipantId === volunteer.participantId
+        )
+    );
+    if (alreadyBuddyFor.length > 0) {
+      const ok = window.confirm(
+        `${volunteer.name} is already buddy to ${alreadyBuddyFor
+          .map((c) => c.name)
+          .join(', ')}.\n\nAlso pair them with ${camper.name}?\n\nOne buddy to two campers is fine when both need light support — worth a look at what each of them needs before saying yes.`
       );
       if (!ok) return;
     }

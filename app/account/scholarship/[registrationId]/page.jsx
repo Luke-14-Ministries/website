@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import ScholarshipForm from './ScholarshipForm';
+import BackBar from '@/components/BackBar';
 
 export const metadata = { title: 'Scholarship Request — Luke 14 Ministries' };
 
@@ -126,6 +127,8 @@ export default async function ScholarshipPage({ params }) {
         <p className="text-center text-sm text-neutral-500 mt-8">
           Questions about paying? Email camp@luke14ministries.net or call the office.
         </p>
+
+        <BackBar />
       </div>
     </section>
   );

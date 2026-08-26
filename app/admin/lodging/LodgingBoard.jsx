@@ -89,6 +89,10 @@ export default function LodgingBoard({
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
   const [placing, setPlacing] = useState(null); // participantId being placed
+  // A whole household in hand, rather than one person. The two are mutually
+  // exclusive — picking either clears the other — so a room only ever offers
+  // one "place … here" button and it always says what it will do.
+  const [placingGroup, setPlacingGroup] = useState(null); // [person] | null
 
   const peopleById = useMemo(
     () => new Map(people.map((p) => [p.participantId, p])),
@@ -156,6 +160,42 @@ export default function LodgingBoard({
   // the building: a lodge holding forty people is not a mixed room.
   function occupantsOf(lodgingId) {
     return byLodging.get(lodgingId) ?? [];
+  }
+
+  // Place a whole family in one move (25 Aug). Camp places families together
+  // by default, so the unit a coordinator picks up is the family -- doing it
+  // one person at a time is four chances to put someone in the wrong room.
+  //
+  // If they do not all fit, this does NOT part-fill the room and leave the
+  // rest stranded. It says how many fit and hands the choice back, because
+  // which three of the four go in the room is a decision about people, and
+  // whoever knows them should make it.
+  function doAssignGroup(group, lodging) {
+    setError('');
+    const occ = occupancyOf(lodging);
+    const room = lodging.capacity == null ? Infinity : lodging.capacity - occ;
+    if (room < group.length) {
+      window.alert(
+        `${lodging.name} has room for ${room === 1 ? '1 more person' : `${room} more people`}, and this family has ${group.length}.\n\nPlace the ones who fit individually, and put the rest next door — or use a bigger room.`
+      );
+      return;
+    }
+    start(async () => {
+      for (const person of group) {
+        const res = await assignLodging({
+          participantId: person.participantId,
+          lodgingId: lodging.id,
+        });
+        if (!res.ok) {
+          setError(res.error);
+          router.refresh();
+          return;
+        }
+      }
+      setPlacingGroup(null);
+      setPlacing(null);
+      router.refresh();
+    });
   }
 
   function doAssign(person, lodging) {
@@ -324,6 +364,16 @@ export default function LodgingBoard({
             </ul>
           )}
 
+          {placingGroup && placingGroup.length > 0 && (
+            <button
+              onClick={() => doAssignGroup(placingGroup, lodging)}
+              disabled={pending}
+              className="mt-3 btn-primary !py-1 text-xs"
+            >
+              Place all {placingGroup.length} of the {placingGroup[0]?.household} here
+            </button>
+          )}
+
           {placing && !here.some((p) => p.participantId === placing) && (
             <button
               onClick={() => doAssign(peopleById.get(placing), lodging)}
@@ -395,6 +445,20 @@ export default function LodgingBoard({
         {/* Selecting a placed person happens down in their room, far from
             this card, so say plainly what is in hand — otherwise the only
             feedback is a button caption changing somewhere off screen. */}
+        {placingGroup && placingGroup.length > 0 && (
+          <p className="mt-2 rounded border border-brand bg-brand-light px-3 py-2 text-sm">
+            Placing the whole{' '}
+            <span className="font-semibold">{placingGroup[0]?.household}</span> household —{' '}
+            {placingGroup.length} people. Choose a room below.{' '}
+            <button
+              onClick={() => setPlacingGroup(null)}
+              className="underline font-semibold"
+            >
+              Never mind
+            </button>
+          </p>
+        )}
+
         {placing && placedIds.has(placing) && (
           <p className="mt-2 rounded border border-brand bg-brand-light px-3 py-2 text-sm">
             Moving <span className="font-semibold">{peopleById.get(placing)?.name}</span> —
@@ -418,15 +482,36 @@ export default function LodgingBoard({
             </p>
             {unplacedByHousehold.map(([householdName, group]) => (
             <div key={householdName} className="mt-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">
-              {householdName}
-              {group.length > 1 && ` · ${group.length} people`}
+            <p className="flex flex-wrap items-baseline gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
+              <span>
+                {householdName}
+                {group.length > 1 && ` · ${group.length} people`}
+              </span>
+              {group.length > 1 && (
+                <button
+                  onClick={() => {
+                    setPlacing(null);
+                    setPlacingGroup((cur) =>
+                      cur && cur[0]?.household === householdName ? null : group
+                    );
+                  }}
+                  disabled={pending}
+                  className="font-semibold normal-case tracking-normal text-brand underline disabled:opacity-50"
+                >
+                  {placingGroup && placingGroup[0]?.household === householdName
+                    ? 'choosing a room for all of them…'
+                    : 'place all together'}
+                </button>
+              )}
             </p>
             <ul className="mt-1 grid gap-1 sm:grid-cols-2">
               {group.map((p) => (
                 <li key={p.participantId}>
                   <button
-                    onClick={() => setPlacing(p.participantId)}
+                    onClick={() => {
+                      setPlacingGroup(null);
+                      setPlacing(p.participantId);
+                    }}
                     disabled={pending}
                     className={`flex w-full flex-wrap items-center gap-2 rounded border px-3 py-2 text-left text-sm disabled:opacity-50 ${
                       placing === p.participantId

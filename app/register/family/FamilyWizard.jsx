@@ -1173,8 +1173,20 @@ export default function FamilyWizard({
         </div>
       </div>
 
+      {/* This used to say "ask at camp@luke14ministries.net" -- written before
+          the scholarship request existed in the site. It sent a family off to
+          compose an email for something the platform now handles, and put the
+          burden of asking on the person least likely to want to (26 Aug).
+
+          The reassurance stays where it is, because THIS is the moment it is
+          needed: someone looking at $495 and wondering whether to carry on.
+          Only the instruction changes -- and it now says the asking happens
+          after submitting, so nobody stops here believing they must sort the
+          money out first. */}
       <p className="text-center text-sm text-neutral-500 pb-2">
-        Scholarships are available — ask at camp@luke14ministries.net.
+        Cost shouldn&rsquo;t decide this. Submit your registration, then use
+        &ldquo;Request help with the fee&rdquo; on your dashboard &mdash; asking
+        does not affect anyone&rsquo;s place.
         {isUpdate
           ? ' Updating replaces your saved answers for this session; people are matched by name and date of birth, so nobody is duplicated.'
           : ''}

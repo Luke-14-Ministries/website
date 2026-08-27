@@ -356,8 +356,16 @@ export default function VolunteerManager({ groups }) {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Volunteers</h2>
-      <p className="text-sm text-neutral-500 mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-xl font-bold mb-1">Volunteers</h2>
+        {/* Ordering checks is a batch job, not a per-person one -- Checkr's
+            bulk upload takes a whole list at once -- so it gets its own screen
+            rather than a button on every row. */}
+        <Link href="/admin/volunteers/screening" className="btn-outline !py-2 shrink-0">
+          Background screening
+        </Link>
+      </div>
+      <p className="text-sm text-neutral-500 mb-6 max-w-prose">
         Everyone registered with the Volunteer role, with their application and background-check
         record. The check paperwork itself lives in the restricted SharePoint folder — only the
         yes/no and dates are recorded here.

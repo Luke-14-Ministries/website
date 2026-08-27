@@ -11,10 +11,8 @@ Luke 14 Ministries is a disability ministry in Morristown, Tennessee — a regis
 This repository is the ministry's public website **and**, from Phase 1 onward, its own camp
 registration platform.
 
-The reason the platform is being built rather than bought: Campsite costs the ministry roughly
-**7.4% all-in** — a 6% transaction rate *plus* a flat platform fee of about $249/month, and on the
-ministry's volume the fixed half is the larger half. Replacing that is the entire financial case.
-The 6%-only figure quoted in older documents is retired; see `DECISIONS.md`, 2026-08-05. Vendors are
+The reason the platform is being built rather than bought: the ministry currently pays
+**Campsite 6% on every transaction**. Replacing that is the entire financial case. Vendors are
 used only where they carry real risk we should not: payments (Stripe), database and auth
 (Supabase), hosting (Vercel), DNS and edge protection (Cloudflare), identity and documents
 (Microsoft 365).
@@ -32,14 +30,12 @@ The working checklist is `DO-THIS-NEXT.md` (SharePoint, `02 Accounts and Setup`)
 
 ---
 
-## Where things stand — 26 August 2026
+## Where things stand — 17 August 2026
 
 **The database is live.** Migration `0001_core_schema.sql` has been run against the Supabase
-project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). As of 26 August 2026 the live schema holds
-**44 base tables, 3 views and 103 row-level-security policies**, self-check passed.
-`supabase/migrations/rls_test.sql` is the harness — it seeds **six personas** (two families, three
-staff at different access levels, and the camp doctor) plus an unauthenticated visitor, runs **41
-assertions** against them and reports `ALL CHECKS PASSED` against real Postgres. **Never edit 0001; it has been run.** New work
+project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). 34 tables, 75 row-level-security policies,
+self-check passed. `supabase/migrations/rls_test.sql` is the harness — it seeds seven personas and
+reports `ALL CHECKS PASSED` against real Postgres. **Never edit 0001; it has been run.** New work
 goes in `0002_*.sql`.
 
 **Authentication works end to end**, proven against the live database: sign-up → confirmation email
@@ -55,8 +51,8 @@ already handles both shapes — and the old blocker is gone: **custom SMTP is se
 sends through Resend from `camp@luke14ministries.net`), so template edits are now allowed. Making
 that template switch is an open, unblocked task.
 
-**Update, 26 August 2026 — the platform is built and in staff testing.** Migrations run through
-`0055` (never edit a migration that has been run; new work goes in the next number). Working end
+**Update, 17 August 2026 — the platform is built and in staff testing.** Migrations run through
+`0017` (never edit a migration that has been run; new work goes in the next number). Working end
 to end in Stripe test mode: family accounts and household management (per-adult phones, linked
 caregivers), the registration wizard with true edit/update mode and tracked changes (staff review
 queue at /admin/changes; role changes on a confirmed person auto-flip to re-review), card + bank
@@ -73,28 +69,10 @@ errors in admin pages; `/account/*` "my data" queries must scope by household me
 explicitly, never rely on RLS alone (staff RLS is broad); PostgREST nested joins with two FKs to
 the same table are fragile — use separate simple lookups.
 
-**Done since that update:** the volunteer application (17 Aug); Turnstile on the public account
-forms (live on sign-up, login and password reset); and refunds end to end — `charge.refunded`
-handled by `supabase/functions/stripe-refund-webhook/`, per-family refunds through `refundPayment`
-in `app/admin/registrations/[id]/actions.js`, with the over-refund guard and the pending-refund
-accounting in migrations `0038`/`0044`/`0053`/`0054`.
-
-**Next, in order:**
-
-1. **Purge ALL test data** from the production project. Everything after this depends on it.
-2. **Live Stripe keys**, and **both** live-mode webhooks — `stripe-webhook` *and*
-   `stripe-refund-webhook`. Test-mode endpoints do not carry over; a missed refund webhook fails
-   silently (see migration `0054`).
-3. **Vercel Pro.** Required the moment live keys are in — Hobby is non-commercial only. See the
-   Hosting note below.
-4. **Spam protection on the contact and newsletter forms.** Turnstile covers the account forms
-   only; these two are still open.
-5. **The balance-reminder buttons in `app/admin/payments/page.jsx`** are still `disabled`
-   placeholders — "Email balance reminders (all shown)" and "Email selected families" render but
-   do nothing.
-
-**Still mock:** the contact form discards submissions, and the newsletter page links out to a
-Google Form.
+**Next, in order:** structured staff testing (test-households workbook), the volunteer
+application, Turnstile on public forms, `charge.refunded` webhook handling + wiring the payments
+page's placeholder actions (email balance reminders, per-family refund), purge ALL test data,
+then live Stripe keys. **Still mock:** the contact form discards submissions.
 
 ---
 
@@ -207,19 +185,9 @@ These are the ministry's rules, agreed at board level. Do not relax them for con
   holding family data gets RLS policies. A query that works because the app "wouldn't ask for
   that row" is not secured.
 - **No real family data in the preview.** It is a mock-up, and mock-ups leak.
-- **No Social Security number, and no report content, ever enters this system.** That is the
-  principle, and it holds. What is actually stored has grown: alongside
-  `background_check_on_file`, `background_check_date` and `expires_on`, migration `0029` added a
-  `volunteer_clearances` table with Checkr integration columns — `provider`,
-  `checkr_candidate_id`, `checkr_invitation_id`, `checkr_report_id`, `checkr_package`,
-  `checkr_status`, `adjudication`, `invitation_sent_at`, `report_completed_at`, `last_synced_at`.
-  These are identifiers, a status and timestamps: pointers into Checkr, never the screening data
-  itself. Checkr's **hosted invitation** flow is what keeps it that way — the volunteer types
-  their SSN and date of birth into Checkr's own form, and we receive only pass/fail. It cannot
-  leak from us because we never have it. (`0029` is a placeholder: the columns are real, no API
-  key has been issued and nothing writes them yet.) The underlying paperwork still lives in a
-  permission-restricted SharePoint folder. Never in email, never in the app. A future flow that
-  would collect PII into this table is a board decision, not a pull request.
+- **Background-check paperwork never touches this system.** The database stores a boolean and a
+  date — `background_check_on_file`, `background_check_date`. The documents themselves live in a
+  permission-restricted SharePoint folder. Never in email, never in the app.
 - **Never paste a key, token, or camper's personal information into a Claude conversation.** A
   secret that appears in a transcript is compromised and must be rotated.
 - **Two-factor authentication on every account** — GitHub, Vercel, Supabase, Stripe, Microsoft.
@@ -250,16 +218,10 @@ These are the ministry's rules, agreed at board level. Do not relax them for con
 ## Phase roadmap (short form)
 
 - **Phase 0 — now.** Accounts, ownership, vault, register, governance. Mostly not code.
-- **Phase 1 — August sprint. Complete.** Removing `output: 'export'` (5 August), the Supabase
-  schema with RLS, family sign-up and login, the registration wizard writing to real storage, and
-  Stripe end to end in **test mode** with fake money — all shipped. See "Where things stand"
-  above, which is the authoritative account.
-- **Phase 2. Complete, and well past the original scope.** Rosters, payment status and the
-  background-check flag were the ask. Delivered instead: the full staff admin (rosters, check-in,
-  dietary and kitchen lists, medical, Event Payments with filtered CSVs, Giving, Staff & Access),
-  the change-review queue, scholarships and discounts, printable statements on letterhead,
-  refunds, cancellation requests, lodging assignments, activities with capacity guards, the
-  volunteer application, and Resend newsletters.
+- **Phase 1 — August sprint.** Removing `output: 'export'` is **done — 5 August 2026**. Still to
+  do: stand up the Supabase schema with RLS; family sign-up and login; wire the existing
+  registration form to real storage; Stripe in **test mode**, end to end, with fake money.
+- **Phase 2.** Admin views for staff: rosters, payment status, the background-check flag.
 - **Phase 3.** Review by real people on the preview URL. Still test keys, still no real families.
 - **Phase 4 — launch.** Vercel Pro, live Stripe keys, domain pointed, and all four preview
   switches reversed together. Board approval gates this phase.
@@ -292,9 +254,7 @@ Stripe switches to live keys.** Plan §8 has the full reasoning.
 
 ---
 
-*Last updated 26 August 2026 — schema at 44 tables / 3 views / 103 policies, migrations through
-`0055`, refunds live, Phases 1 and 2 complete.
-9 August 2026 — schema run, auth layer working.
+*Last updated 9 August 2026 — schema run, auth layer working.
 7 August 2026 — DNS verified (Squarespace, not WordPress).
 5 August 2026 — GitHub Pages retired, repository renamed to `website`,
 static-export config removed.*

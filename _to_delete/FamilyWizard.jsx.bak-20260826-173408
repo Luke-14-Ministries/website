@@ -481,8 +481,8 @@ export default function FamilyWizard({
             {/* Careful with the second sentence: the site does NOT know the
                 ministry's balance-due date, and "any time before the event"
                 was a promise nobody had authorised (flagged 24 Aug). Until
-                staff set a due date -- Staff Questions §3 (Events & pricing)
-                -- this says only what is certainly true. */}
+                staff set a due date -- Staff Questions §4 -- this says only
+                what is certainly true. */}
             <p className="mt-1 text-sm">
               The deposit is your family&rsquo;s commitment to come — and it lets the
               ministry book vendors and reserve locations with real numbers. You can pay

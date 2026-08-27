@@ -137,21 +137,56 @@ export async function markBatchOrdered(personIds, batch, reason = 'volunteer') {
 }
 
 // ---------------------------------------------------------------------------
-// Reconcile Checkr's results CSV.
+// Reconcile Checkr's results export.
 //
-// COLUMN-TOLERANT ON PURPOSE. Checkr's export has changed shape before and
-// differs between the Reports export and the billing usage file. Rather than
-// hard-code a header row that will drift, this finds the email column by
-// looking for a header containing "email" and the status by one containing
-// "status", and reports what it found. A parser that guesses wrong loudly is
-// recoverable; one that guesses wrong quietly writes nonsense into a
-// safeguarding record.
-const CLEAR_STATES = new Set(['clear', 'complete', 'completed', 'passed']);
-const OPEN_STATES = new Set(['pending', 'processing', 'invited', 'in progress']);
+// Written against a REAL export (27 Aug), not a guess, and two things in that
+// file would have caused real harm if this had shipped on assumptions.
+//
+// 1. STATUS IS NOT THE RESULT. Checkr's export has both `Status` and
+//    `Assessment`. `Status` says whether the report FINISHED -- it reads
+//    "complete" on every finished report, including one that came back
+//    "consider". `Assessment` is the verdict. Reading Status as the result
+//    would have marked a volunteer with a criminal-record hit as CLEARED, on a
+//    safeguarding record, silently. So: Status decides whether we have an
+//    answer yet; Assessment decides what the answer is.
+//
+// 2. "Candidate email" IS NOT ALWAYS THE CANDIDATE'S. In the sample export,
+//    two reports for a person named Steve Wayne Gillespie both carry
+//    ellen@luke14ministries.net -- the staff member who ordered them by hand.
+//    Matching on email alone would have tied someone else's background check
+//    to Ellen's record. Anything ordered through THIS screen carries the right
+//    address (invited_email, migration 0057), so email matching is exact for
+//    our own batches; older hand-ordered checks fall back to an exact
+//    full-name match, and the preview says which method was used so a person
+//    decides before anything is written.
+// 3. CHECKR'S WORDS ARE NOT OUR WORDS. checkr_status has been a constrained
+//    column since 0029 -- eight values the site chose. The real export's
+//    Assessment reads "review", which is not one of them, so writing it
+//    through would have failed the check constraint at the moment of import,
+//    with a message about a constraint, AFTER a preview that said the row was
+//    fine. So the verdict is mapped into our vocabulary here and Checkr's own
+//    word is kept verbatim in `assessment` (migration 0060).
+//
+//    Everything that means "a person must look at this" collapses to
+//    'consider'. That is not a loss: nothing about how the site behaves turns
+//    on the difference between "review" and "consider", and both mean nobody
+//    is cleared.
+const VERDICT_TO_STATUS = new Map([
+  ['clear', 'clear'],
+  ['consider', 'consider'],
+  ['review', 'consider'],
+  ['escalated', 'consider'],
+  ['pending', 'pending'],
+  ['processing', 'pending'],
+  ['in progress', 'pending'],
+  ['suspended', 'suspended'],
+  ['dispute', 'dispute'],
+  ['disputed', 'dispute'],
+  ['canceled', 'canceled'],
+  ['cancelled', 'canceled'],
+]);
 
 function parseCsv(text) {
-  // Small hand-rolled reader: Checkr quotes fields containing commas, and a
-  // dependency for this is not worth carrying.
   const rows = [];
   let row = [], field = '', quoted = false;
   for (let i = 0; i < text.length; i += 1) {
@@ -169,65 +204,236 @@ function parseCsv(text) {
   return rows.filter((r) => r.some((c) => c.trim() !== ''));
 }
 
+const norm = (v) => (v || '').trim().toLowerCase();
+const normName = (v) => (v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
 export async function importCheckrResults(csvText, { dryRun = true } = {}) {
   const staff = await getStaff();
   if (!can(staff, 'registrar')) return { ok: false, error: 'Not permitted.' };
+  if (!can(staff, 'background_checks')) return { ok: false, error: 'Not permitted.' };
 
   const rows = parseCsv(csvText || '');
   if (rows.length < 2) return { ok: false, error: 'That file has no rows in it.' };
 
-  const header = rows[0].map((h) => h.trim().toLowerCase());
-  const emailAt = header.findIndex((h) => h.includes('email'));
-  const statusAt = header.findIndex((h) => h.includes('status'));
-  const dateAt = header.findIndex((h) => h.includes('completed') || h.includes('date'));
-  const idAt = header.findIndex((h) => h.includes('report') && h.includes('id'));
+  // Column names are matched loosely so a change of case or spacing in
+  // Checkr's export does not break this -- but the columns themselves are
+  // named explicitly, because guessing which column meant "result" is the
+  // mistake this whole comment block exists to prevent.
+  const header = rows[0].map((h) => norm(h));
+  const at = (...names) => {
+    for (const n of names) {
+      const i = header.indexOf(n);
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+  const iEmail = at('candidate email', 'email');
+  const iName = at('candidate full name', 'candidate name');
+  const iAssess = at('assessment');
+  const iStatus = at('status', 'report status');
+  const iDone = at('completed at');
+  const iReport = at('report id');
+  const iCand = at('candidate id');
+  const iPackage = at('package');
+  const iAdj = at('adjudication');
+  const iOrderedBy = at('report ordered by');
+  const iSex = at('sex_offender_search', 'sex offender search');
 
-  if (emailAt === -1) {
+  // EVERY screening column, not just the sex-offender one. The ministry wants
+  // all flags (27 Aug): sexual offences are priority one, but a drink-driving
+  // or possession conviction is something they want the chance to address, and
+  // an overall "consider" does not say which search produced it.
+  //
+  // Found by shape rather than by a fixed list, because Checkr's screening set
+  // varies by package -- the two sample rows carry different ones. Anything
+  // ending in _search or _trace is a screening; the administrative columns are
+  // named explicitly above and skipped here.
+  const ADMIN_COLS = new Set([
+    'report id', 'candidate id', 'custom id', 'completed at', 'created at',
+    'estimated completion', 'candidate full name', 'candidate email',
+    'dl state', 'dl number', 'adjudicated at', 'adjudication',
+    'adjudicator email', 'assessment', 'assessment_status', 'package',
+    'status', 'geos', 'report ordered by', 'cost center',
+  ]);
+  const screeningCols = header
+    .map((h, i) => ({ h, i }))
+    .filter(({ h }) => h && !ADMIN_COLS.has(h) && (h.endsWith('_search') || h.endsWith('_trace')));
+
+  if (iEmail === -1 && iName === -1) {
     return {
       ok: false,
       error:
-        'No column with "email" in its heading, so results cannot be matched to anyone. ' +
-        `Headings found: ${header.join(', ')}`,
+        'This file has neither a candidate email nor a candidate name column, so results cannot ' +
+        `be matched to anyone. Headings found: ${header.join(', ')}`,
+    };
+  }
+  // A clearance row with provider 'checkr' and any status other than
+  // 'not_started' must carry a Checkr candidate id -- a constraint from 0029,
+  // and a good one: it is what makes a record traceable back to a report. A
+  // billing or usage export has no such column, and pasting one here would
+  // fail at the write with a constraint name rather than an explanation.
+  if (iCand === -1) {
+    return {
+      ok: false,
+      error:
+        'No "Candidate ID" column. This looks like a billing or usage export rather than the ' +
+        'Reports export — without a candidate id a result cannot be tied back to the report it ' +
+        'came from. Export from Checkr\u2019s Reports screen instead.',
+    };
+  }
+  if (iAssess === -1) {
+    return {
+      ok: false,
+      error:
+        'No "Assessment" column. That column holds the verdict (clear / consider); "Status" only ' +
+        'says whether the report finished. Refusing to import rather than guess which is which.',
     };
   }
 
   const supabase = await createClient();
   const { data: existing } = await supabase
     .from('person_clearances')
-    .select('person_id, invited_email, checkr_status, order_batch')
-    .not('invited_email', 'is', null);
+    .select('person_id, invited_email');
+  const { data: people } = await supabase
+    .from('people')
+    .select('id, first_name, last_name');
 
-  const byEmail = new Map((existing ?? []).map((r) => [normEmail(r.invited_email), r]));
+  const byEmail = new Map();
+  const haveRow = new Set();
+  for (const r of existing ?? []) {
+    haveRow.add(r.person_id);
+    if (r.invited_email) byEmail.set(norm(r.invited_email), r.person_id);
+  }
+  // Exact full-name match only, and only where the name is UNIQUE in the
+  // database. Two Steve Gillespies means no match and a line in the report --
+  // far better than tying a background check to the wrong person.
+  const nameCount = new Map();
+  const byName = new Map();
+  for (const p of people ?? []) {
+    const key = normName(`${p.first_name ?? ''} ${p.last_name ?? ''}`);
+    if (!key.trim()) continue;
+    nameCount.set(key, (nameCount.get(key) ?? 0) + 1);
+    byName.set(key, p.id);
+  }
 
+  // A word in the Assessment column that this importer has never seen is
+  // treated as "consider" -- the cautious direction -- but it is NOT treated
+  // silently. Checkr can add a verdict, and a new word quietly filed as
+  // "needs review" is fine; a new word quietly filed as "cleared" would not
+  // be, and the only way to keep that distinction honest is to say out loud
+  // which words were not recognised.
+  const unrecognised = new Set();
   const matched = [], unmatched = [], updates = [];
   for (const r of rows.slice(1)) {
-    const email = normEmail(r[emailAt]);
-    if (!email) continue;
-    const status = (statusAt === -1 ? '' : r[statusAt] || '').trim().toLowerCase();
-    const found = byEmail.get(email);
+    const email = iEmail === -1 ? '' : norm(r[iEmail]);
+    const orderedBy = iOrderedBy === -1 ? '' : norm(r[iOrderedBy]);
+    const fullName = iName === -1 ? '' : (r[iName] || '').trim();
+    const verdict = norm(r[iAssess]);
+    const reportState = iStatus === -1 ? 'complete' : norm(r[iStatus]);
 
-    if (!found) {
-      // Not an error. It is usually somebody ordered before this screen
-      // existed, or checked for another organisation entirely. Listed rather
-      // than swallowed so a coordinator can see the file was not all used.
-      unmatched.push({ email, status });
+    // WHOSE ADDRESS IS IN THE EMAIL COLUMN?
+    //
+    // On a check ordered by hand at Checkr, "Candidate email" holds the staff
+    // member who placed the order, not the person being screened. Both sample
+    // rows for Steve Wayne Gillespie carry ellen@luke14ministries.net, and
+    // "Report Ordered By" carries the same address. That equality is the tell,
+    // and it is worth acting on: Ellen is herself a volunteer, so matching on
+    // that address would have filed a stranger's criminal-record hit against
+    // HER safeguarding record -- a wrong answer that reads as a right one.
+    //
+    // Anything ordered through this screen carries the candidate's own address
+    // (invited_email, migration 0057), and the orderer is different, so real
+    // batches are unaffected.
+    const emailIsOrderers = !!email && email === orderedBy;
+    const nameKey = normName(fullName);
+    const nameId = nameKey && nameCount.get(nameKey) === 1 ? byName.get(nameKey) : undefined;
+
+    let personId = emailIsOrderers || !email ? undefined : byEmail.get(email);
+    let how = personId ? 'email' : null;
+
+    // Email says one person, name says another. There is no safe way to prefer
+    // one over the other, so neither wins -- the row is listed for a human.
+    if (personId && nameId && nameId !== personId) {
+      unmatched.push({
+        name: fullName || '(no name)',
+        email: email || '(no email)',
+        verdict,
+        why: 'the address on this row belongs to one person and the name to another — match it by hand',
+      });
+      continue;
+    }
+    if (!personId && nameId) { personId = nameId; how = 'name'; }
+
+    if (!personId) {
+      unmatched.push({
+        name: fullName || '(no name)',
+        email: email || '(no email)',
+        verdict,
+        why: nameKey && nameCount.get(nameKey) > 1
+          ? 'more than one person has that name — match it by hand'
+          : emailIsOrderers
+            ? 'the email on this row is the staff member who ordered it, not the candidate, and no unique person has that name'
+            : 'nobody in the system matches this name or address',
+      });
       continue;
     }
 
-    const cleared = CLEAR_STATES.has(status);
-    const open = OPEN_STATES.has(status);
+    // Finished? Then the verdict counts. Not finished? Still pending, whatever
+    // the Assessment column happens to say.
+    const finished = reportState === 'complete' || reportState === 'completed';
+    const mapped = VERDICT_TO_STATUS.get(verdict);
+    if (finished && mapped === undefined) unrecognised.add(verdict || '(blank)');
+    const cleared = finished && mapped === 'clear';
+    const status = finished ? mapped ?? 'consider' : 'pending';
     const completedOn =
-      (dateAt !== -1 && (r[dateAt] || '').trim().slice(0, 10)) ||
+      (iDone !== -1 && (r[iDone] || '').trim().slice(0, 10)) ||
       new Date().toISOString().slice(0, 10);
 
-    matched.push({ email, status, cleared });
+    // Verdict words only. What was found stays in the report in SharePoint.
+    const screenings = {};
+    for (const { h, i } of screeningCols) {
+      const v = norm(r[i]);
+      if (v) screenings[h] = v;
+    }
+    // Anything that is not a plain "clear" or an administrative "complete" is
+    // worth a person's eye, whichever search produced it.
+    const flagged = Object.entries(screenings)
+      .filter(([, v]) => v !== 'clear' && v !== 'complete')
+      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
+
+    matched.push({
+      name: fullName || email,
+      verdict: verdict || '(blank)',
+      reportState,
+      completedOn,
+      cleared,
+      how,
+      sexOffender: iSex === -1 ? '' : norm(r[iSex]),
+      screenings,
+      flagged,
+    });
+
     updates.push({
-      person_id: found.person_id,
-      checkr_status: cleared ? 'clear' : open ? 'pending' : status || 'consider',
-      checkr_report_id: idAt === -1 ? undefined : (r[idAt] || '').trim() || undefined,
-      // ONLY a clear result sets the flag staff act on. Anything else --
-      // "consider", a dispute, a blank -- leaves it alone and needs a person
-      // to look. Software must not adjudicate a background check.
+      _completedOn: completedOn,
+      _cleared: cleared,
+      person_id: personId,
+      provider: 'checkr',
+      checkr_status: status,
+      // Checkr's own word, unmapped. See 0060.
+      ...(verdict ? { assessment: verdict } : {}),
+      matched_by: how,
+      ...(iReport !== -1 && (r[iReport] || '').trim()
+        ? { checkr_report_id: (r[iReport] || '').trim() } : {}),
+      ...(iCand !== -1 && (r[iCand] || '').trim()
+        ? { checkr_candidate_id: (r[iCand] || '').trim() } : {}),
+      ...(iPackage !== -1 && (r[iPackage] || '').trim()
+        ? { checkr_package: (r[iPackage] || '').trim() } : {}),
+      ...(iAdj !== -1 && norm(r[iAdj]) ? { adjudication: norm(r[iAdj]) } : {}),
+      ...(iSex !== -1 && norm(r[iSex]) ? { sex_offender_result: norm(r[iSex]) } : {}),
+      ...(Object.keys(screenings).length ? { screening_results: screenings } : {}),
+      // ONLY a finished report with a clear assessment sets the flag staff act
+      // on. "consider", a dispute, a blank -- all leave it alone for a person
+      // to decide. Software must not adjudicate a background check.
       ...(cleared
         ? {
             background_check_on_file: true,
@@ -240,22 +446,71 @@ export async function importCheckrResults(csvText, { dryRun = true } = {}) {
     });
   }
 
-  // Always previewed before it is written. A safeguarding record is not the
-  // place to find out afterwards that a column meant something else.
+  // ONE REPORT PER PERSON, AND IT MUST BE THE CURRENT ONE.
+  //
+  // A person can appear more than once: Checkr keeps every report, and a
+  // re-check produces a second row. The sample export (27 Aug) has exactly
+  // this -- two reports for one candidate, the NEWER one "consider" and the
+  // older one "clear" -- and the newer one is listed FIRST. Applying updates in
+  // file order would have written the older clear report last and marked him
+  // cleared on the strength of a superseded result.
+  //
+  // So: the most recently COMPLETED report wins, whatever order the file is in.
+  // Where two share a completion date, the more cautious verdict wins -- a tie
+  // is not a reason to clear somebody.
+  const latest = new Map();
+  for (const u of updates) {
+    const prev = latest.get(u.person_id);
+    if (!prev) { latest.set(u.person_id, u); continue; }
+    const newer = u._completedOn > prev._completedOn;
+    const sameDayButStricter =
+      u._completedOn === prev._completedOn && prev._cleared && !u._cleared;
+    if (newer || sameDayButStricter) latest.set(u.person_id, u);
+  }
+  const finalUpdates = [...latest.values()];
+
+  // Say which rows lost, not just how many. `matched` and `updates` are built
+  // in the same pass and stay index-for-index, so the winning update objects
+  // identify the winning rows by reference. A count on its own ("2 matched,
+  // 1 applied") is the silent discrepancy this screen exists to prevent --
+  // the coordinator needs to see that the 12 Aug "clear" was set aside in
+  // favour of the 13 Aug "consider", and not wonder where a row went.
+  const keep = new Set(finalUpdates);
+  for (let i = 0; i < matched.length; i += 1) {
+    if (!keep.has(updates[i])) matched[i].superseded = true;
+  }
+  const superseded = matched.filter((m) => m.superseded).length;
+
   if (dryRun) {
-    return { ok: true, dryRun: true, matched, unmatched, willUpdate: updates.length };
+    return {
+      ok: true, dryRun: true, matched, unmatched, superseded,
+      unrecognised: [...unrecognised],
+      willUpdate: finalUpdates.length,
+      willClear: finalUpdates.filter((u) => u._cleared).length,
+      willCreate: finalUpdates.filter((u) => !haveRow.has(u.person_id)).length,
+      byName: matched.filter((m) => m.how === 'name').length,
+    };
   }
 
-  for (const u of updates) {
-    const { person_id, ...rest } = u;
-    const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+  // UPSERT, NOT UPDATE.
+  //
+  // A check ordered by hand at Checkr, before this screen existed, has no row
+  // here to update -- and an UPDATE that matches nothing is not an error. The
+  // import would have reported "3 updated" and written one. Upserting means a
+  // result always lands somewhere, and if the row is new the adult-only
+  // trigger (migration 0056) gets its say, loudly, instead of nothing
+  // happening quietly.
+  for (const u of finalUpdates) {
+    const { _completedOn, _cleared, ...row } = u;
     const { error } = await supabase
       .from('person_clearances')
-      .update(clean)
-      .eq('person_id', person_id);
+      .upsert(row, { onConflict: 'person_id' });
     if (error) return { ok: false, error: `${error.message} (stopped part-way)` };
   }
 
   revalidatePath('/admin/volunteers');
-  return { ok: true, dryRun: false, updated: updates.length, matched, unmatched };
+  return {
+    ok: true, dryRun: false, updated: finalUpdates.length, superseded, matched, unmatched,
+    unrecognised: [...unrecognised],
+  };
 }

@@ -224,9 +224,11 @@ export default function ScreeningBoard({ candidates }) {
       <section className="rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold">3 · Bring the results back</h2>
         <p className="mt-1 mb-3 max-w-prose text-sm text-neutral-500">
-          Export the reports from Checkr and paste the file here. Matching is on the
-          email address we sent, not the one on file today — so somebody who changes
-          their address between ordering and result still matches.
+          Export the reports from Checkr and paste the file here. Batches sent from this
+          screen match on the address we invited, so somebody who changes their email in
+          between still matches. Checks ordered by hand at Checkr carry the{' '}
+          <em>orderer&rsquo;s</em> address instead, so those match on name — and the preview
+          says which rows did that before anything is written.
         </p>
         <textarea
           value={csvText}
@@ -268,15 +270,100 @@ export default function ScreeningBoard({ candidates }) {
               <p className="font-semibold">
                 Matched {preview.matched.length}
                 {preview.dryRun ? ' — nothing written yet' : ''}
+                {preview.willClear != null && (
+                  <span className="font-normal text-neutral-600">
+                    {' '}· {preview.willClear} would be marked cleared
+                  </span>
+                )}
+                {preview.willCreate > 0 && (
+                  <span className="font-normal text-neutral-600">
+                    {' '}· {preview.willCreate} would start a new screening record
+                  </span>
+                )}
               </p>
+              {/* The arithmetic has to close. "Matched 2, applied 1" with no
+                  explanation is exactly the kind of quiet gap that makes
+                  somebody stop trusting the screen. */}
+              {/* A verdict word this importer has never seen is filed as
+                  "needs a person to look", which is the safe direction --
+                  but silently absorbing a word we do not understand is how a
+                  future Checkr change gets missed. Say it. */}
+              {preview.unrecognised?.length > 0 && (
+                <p className="mt-1 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+                  Checkr used {preview.unrecognised.length === 1 ? 'a verdict' : 'verdicts'} this
+                  screen has not seen before —{' '}
+                  <strong>{preview.unrecognised.join(', ')}</strong>. Those rows are being treated
+                  as <strong>needing review</strong>, so nobody is cleared on a word we cannot
+                  read. Worth telling whoever maintains the site.
+                </p>
+              )}
+              {preview.superseded > 0 && (
+                <p className="mt-1 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-blue-900">
+                  <strong>{preview.superseded}</strong>{' '}
+                  {preview.superseded === 1 ? 'row is' : 'rows are'} an{' '}
+                  <strong>older report</strong> for somebody who also has a newer one in this
+                  file. Checkr keeps every report, so a re-check appears twice. Only the most
+                  recent completed report counts — including when the older one is the kinder
+                  of the two.
+                </p>
+              )}
+              {preview.byName > 0 && (
+                <p className="mt-1 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+                  <strong>{preview.byName}</strong> matched on <strong>name</strong>, not on the
+                  address we sent. Checkr&rsquo;s export carries whoever ordered the check in the
+                  email column, so anything ordered by hand can only be matched by name — read
+                  those rows before applying.
+                </p>
+              )}
               <ul className="mt-1 space-y-0.5 text-neutral-700">
                 {preview.matched.map((m, i) => (
-                  <li key={i}>
-                    {m.email} —{' '}
-                    <span className={m.cleared ? 'text-green-800' : 'text-red-800 font-semibold'}>
-                      {m.status || 'no status in file'}
+                  <li key={i} className={m.superseded ? 'text-neutral-400' : undefined}>
+                    {m.name} —{' '}
+                    <span
+                      className={
+                        m.superseded
+                          ? 'line-through'
+                          : m.cleared
+                            ? 'text-green-800'
+                            : 'text-red-800 font-semibold'
+                      }
+                    >
+                      {m.verdict}
                     </span>
-                    {!m.cleared && ' · left for a person to look at'}
+                    {m.completedOn && (
+                      <span className="text-xs text-neutral-500"> · {m.completedOn}</span>
+                    )}
+                    {m.superseded && (
+                      <span className="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-semibold text-neutral-700">
+                        superseded by a newer report
+                      </span>
+                    )}
+                    {m.reportState && m.reportState !== 'complete' && (
+                      <span className="text-neutral-500"> · report {m.reportState}</span>
+                    )}
+                    {/* Every search that did not come back clear, named. An
+                        overall "consider" does not say which one, and the
+                        ministry wants all of them -- sexual offences first,
+                        but drink-driving or possession too, because those are
+                        things they may want to talk to somebody about. */}
+                    {m.flagged?.length > 0 && (
+                      <span
+                        className={`block pl-4 text-xs ${m.superseded ? 'text-neutral-400' : 'text-red-800'}`}
+                      >
+                        {m.flagged.join(' · ')}
+                      </span>
+                    )}
+                    {!m.superseded && m.flagged?.length === 0 && m.sexOffender === 'clear' && (
+                      <span className="block pl-4 text-xs text-neutral-500">
+                        all searches clear
+                      </span>
+                    )}
+                    {m.how === 'name' && (
+                      <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                        by name
+                      </span>
+                    )}
+                    {!m.cleared && !m.superseded && ' · left for a person to look at'}
                   </li>
                 ))}
               </ul>
@@ -289,14 +376,20 @@ export default function ScreeningBoard({ candidates }) {
                   import is visible rather than silent.
                 </p>
                 <ul className="mt-1 space-y-0.5">
-                  {preview.unmatched.map((m, i) => <li key={i}>{m.email}</li>)}
+                  {preview.unmatched.map((m, i) => (
+                    <li key={i}>
+                      {m.name} <span className="text-xs">({m.email})</span> — {m.why}
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
             <p className="text-xs text-neutral-500">
-              Only a clear result marks somebody cleared. Anything else — “consider”, a
-              dispute, a blank — is left alone for a person to decide. Software must not
-              adjudicate a background check.
+              Only a <strong>finished</strong> report with a <strong>clear</strong> assessment
+              marks somebody cleared. Checkr&rsquo;s “Status” column says whether the report
+              finished, not what it found — a report that came back “consider” still reads
+              “complete” there. Anything that is not a clear verdict is left alone for a person
+              to decide. Software must not adjudicate a background check.
             </p>
           </div>
         )}

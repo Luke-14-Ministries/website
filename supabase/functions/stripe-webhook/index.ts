@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     </table>
     ${received ? '' : `<p style="color:#8a6d1a;background:#fdf6e3;border:1px solid #f0e0b0;border-radius:6px;padding:10px 14px">Bank transfers take a few days to clear. A final receipt follows once it settles; nothing more is needed from you.</p>`}
     <p style="font-size:13px;color:#555">Your generosity helps families affected by disability find community and connection. Thank you.</p>
-    <p style="font-size:12px;color:#888">Luke 14 Ministries is a registered 501(c)(3) tax-exempt organization (EIN 82-2389397). Your donation is tax-deductible to the extent allowed by law, and no goods or services were provided in exchange for this contribution. Please keep this receipt for your records. Questions? <a href="mailto:info@luke14ministries.net" style="color:#14606a">info@luke14ministries.net</a> · (423) 748-4954.</p>
+    <p style="font-size:12px;color:#888">Luke 14 Ministries is a registered 501(c)(3) tax-exempt organization (EIN 82-2389397). Your donation is tax-deductible to the extent allowed by law, and no goods or services were provided in exchange for this contribution. Please keep this receipt for your records. Questions? <a href="mailto:giving@luke14ministries.net" style="color:#14606a">giving@luke14ministries.net</a> · (423) 748-4954.</p>
   </div>
 </div>`;
             const resp = await fetch('https://api.resend.com/emails', {
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
     </table>
     ${bankNote}
     <p style="font-size:13px;color:#555">Your payments and their status are always visible on your <a href="https://luke14-ministries.vercel.app/account/dashboard/" style="color:#14606a">family dashboard</a>.</p>
-    <p style="font-size:12px;color:#888">Registration payments for camp and other ministry events cover event costs (food, lodging, and activities) and are not tax-deductible. Questions? Email <a href="mailto:info@luke14ministries.net" style="color:#14606a">info@luke14ministries.net</a> or call (423) 748-4954.</p>
+    <p style="font-size:12px;color:#888">Registration payments for camp and other ministry events cover event costs (food, lodging, and activities) and are not tax-deductible. Questions? Email <a href="mailto:registration@luke14ministries.net" style="color:#14606a">registration@luke14ministries.net</a> or call (423) 748-4954.</p>
   </div>
 </div>`;
           const resp = await fetch('https://api.resend.com/emails', {
@@ -274,10 +274,12 @@ Deno.serve(async (req) => {
               // Event receipts come from registration@, like the confirmation
               // that precedes them: paying for camp is part of registering, and
               // a family should not have to work out which of three senders to
-              // reply to about one registration. registration@ forwards into
-              // the info@ shared mailbox, which is also the address printed in
-              // this email's own footer -- so the reply-to and the stated
-              // contact are the same person.
+              // reply to about one registration. registration@ is an alias on
+              // the single shared mailbox (primary info@), and since 27 Aug it
+              // is also the address printed in this email's own footer -- so
+              // the reply-to and the stated contact are the same place and the
+              // same people. camp@ used to be printed there; it is being let go
+              // rather than retired, because every alias lands in one box.
               from: RECEIPT_FROM,
               to: [to],
               subject,

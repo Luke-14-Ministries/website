@@ -104,7 +104,7 @@ export default async function MyStatementPage({ params }) {
         <p className="text-sm text-neutral-600 text-right">
           2348 W Andrew Johnson Hwy, #140 · Morristown, TN 37814
           <br />
-          camp@luke14ministries.net
+          registration@luke14ministries.net
         </p>
       </div>
 
@@ -244,7 +244,7 @@ export default async function MyStatementPage({ params }) {
         Registration payments for camp and other ministry events cover event costs (food, lodging,
         and activities) and are not tax-deductible. Payments marked &ldquo;clearing the bank&rdquo;
         are counted above and finish settling within a few days. Questions? Email
-        camp@luke14ministries.net or call (423) 748-4954.
+        registration@luke14ministries.net or call (423) 748-4954.
       </p>
     </div>
   );

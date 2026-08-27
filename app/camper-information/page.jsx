@@ -109,10 +109,10 @@ export default function CamperInformationPage() {
             each (limited number of rollaways available). If you will need a
             second room, please contact us at{' '}
             <a
-              href="mailto:camp@luke14ministries.net"
+              href="mailto:registration@luke14ministries.net"
               className="text-brand font-semibold underline"
             >
-              camp@luke14ministries.net
+              registration@luke14ministries.net
             </a>{' '}
             to discuss your specific situation.
           </p>
@@ -122,10 +122,10 @@ export default function CamperInformationPage() {
               inquiring about attending camp. Please go ahead and register or
               reach out to{' '}
               <a
-                href="mailto:camp@luke14ministries.net"
+                href="mailto:registration@luke14ministries.net"
                 className="text-brand font-semibold underline"
               >
-                camp@luke14ministries.net
+                registration@luke14ministries.net
               </a>{' '}
               if you have a question about scholarship money.
             </em>

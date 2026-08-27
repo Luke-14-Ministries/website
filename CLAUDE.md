@@ -52,7 +52,7 @@ browser. The account is still confirmed (Supabase verifies server-side before re
 recovery is simply to log in, which is why `/account/link-expired` leads with a Log In button. The
 real fix is switching the Supabase email templates to `token_hash` — `app/auth/callback/route.js`
 already handles both shapes — and the old blocker is gone: **custom SMTP is set up** (auth email
-sends through Resend from `camp@luke14ministries.net`), so template edits are now allowed. Making
+sends through Resend from `registration@luke14ministries.net`), so template edits are now allowed. Making
 that template switch is an open, unblocked task.
 
 **Update, 26 August 2026 — the platform is built and in staff testing.** Migrations run through

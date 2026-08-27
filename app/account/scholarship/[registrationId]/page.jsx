@@ -125,7 +125,7 @@ export default async function ScholarshipPage({ params }) {
         />
 
         <p className="text-center text-sm text-neutral-500 mt-8">
-          Questions about paying? Email camp@luke14ministries.net or call the office.
+          Questions about paying? Email registration@luke14ministries.net or call the office.
         </p>
 
         <BackBar />

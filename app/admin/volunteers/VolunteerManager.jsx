@@ -241,7 +241,7 @@ function VolunteerRow({ row, maySeeChecks }) {
             }`}
           >
             {!maySeeChecks
-              ? 'Background check — not shown to you'
+              ? 'Background check — hidden'
               : expired
                 ? `Background check expired ${clearance.expires_on}`
                 : cleared
@@ -352,9 +352,9 @@ function VolunteerRow({ row, maySeeChecks }) {
             />
           ) : (
             <p className="mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
-              Background-check records are a separate permission, and you do not have
-              it. This is not a fault — ask an administrator if you need it. Every grant
-              is recorded, including one somebody makes to themselves.
+              Background-check records are a separate permission. An administrator
+              can grant it. Every grant is recorded, including one somebody makes to
+              their own account.
             </p>
           )}
         </div>

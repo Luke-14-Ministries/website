@@ -37,7 +37,13 @@ export default async function StaffAccessPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Staff &amp; Access</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-xl font-bold mb-1">Staff &amp; Access</h2>
+        {/* The log is only worth keeping if somebody can read it. */}
+        <a href="/admin/staff/access-log" className="btn-outline !py-2 shrink-0">
+          Access changes
+        </a>
+      </div>
       <p className="text-sm text-neutral-500 mb-4">
         Who can do what. Each person holds <span className="font-semibold">one role</span> (what
         they do) plus optional <span className="font-semibold">need-to-know grants</span> — so one

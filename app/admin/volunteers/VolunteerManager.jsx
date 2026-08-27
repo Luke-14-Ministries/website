@@ -159,7 +159,7 @@ function CheckrPanel({ clearance, email }) {
   );
 }
 
-function VolunteerRow({ row }) {
+function VolunteerRow({ row, maySeeChecks }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   // Arriving from the roster (25 Aug). A staff member looking at a volunteer
@@ -225,19 +225,28 @@ function VolunteerRow({ row }) {
         <span className="flex flex-wrap items-center gap-2 text-xs">
           <span className={`rounded-full px-2.5 py-0.5 font-semibold ${chip[1]}`}>{chip[0]}</span>
           <span
+            /* "Not shown to you" must never wear the same grey as "none on
+               file". Someone glancing down this column has to be able to tell
+               "nobody checked this person" from "you are not allowed to know",
+               because acting on the first when it is really the second is how
+               an unscreened volunteer ends up cleared. */
             className={`rounded-full px-2.5 py-0.5 font-semibold ${
-              expired
-                ? 'bg-red-100 text-red-800'
-                : cleared
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-neutral-100 text-neutral-500'
+              !maySeeChecks
+                ? 'bg-blue-50 text-blue-800 italic'
+                : expired
+                  ? 'bg-red-100 text-red-800'
+                  : cleared
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-neutral-100 text-neutral-500'
             }`}
           >
-            {expired
-              ? `Background check expired ${clearance.expires_on}`
-              : cleared
-                ? `Background check on file${clearance?.background_check_date ? ` · ${clearance.background_check_date}` : ''}`
-                : 'No background check on file'}
+            {!maySeeChecks
+              ? 'Background check — not shown to you'
+              : expired
+                ? `Background check expired ${clearance.expires_on}`
+                : cleared
+                  ? `Background check on file${clearance?.background_check_date ? ` · ${clearance.background_check_date}` : ''}`
+                  : 'No background check on file'}
           </span>
           <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline !py-1 !px-3">
             {open ? 'Close' : 'Details'}
@@ -335,18 +344,26 @@ function VolunteerRow({ row }) {
           )}
           {error && <p className="mt-2 text-red-700 text-sm">{error}</p>}
 
-          <ClearanceEditor
-            personId={person?.id}
-            clearance={clearance}
-            email={person?.email || household?.email}
-          />
+          {maySeeChecks ? (
+            <ClearanceEditor
+              personId={person?.id}
+              clearance={clearance}
+              email={person?.email || household?.email}
+            />
+          ) : (
+            <p className="mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+              Background-check records are a separate permission, and you do not have
+              it. This is not a fault — ask an administrator if you need it. Every grant
+              is recorded, including one somebody makes to themselves.
+            </p>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export default function VolunteerManager({ groups }) {
+export default function VolunteerManager({ groups, maySeeChecks = false }) {
   const total = groups.reduce((s, g) => s + g.rows.length, 0);
   const needsReview = groups.reduce(
     (s, g) => s + g.rows.filter((r) => r.app?.status === 'applied').length,
@@ -361,9 +378,11 @@ export default function VolunteerManager({ groups }) {
         {/* Ordering checks is a batch job, not a per-person one -- Checkr's
             bulk upload takes a whole list at once -- so it gets its own screen
             rather than a button on every row. */}
-        <Link href="/admin/volunteers/screening" className="btn-outline !py-2 shrink-0">
-          Background screening
-        </Link>
+        {maySeeChecks && (
+          <Link href="/admin/volunteers/screening" className="btn-outline !py-2 shrink-0">
+            Background screening
+          </Link>
+        )}
       </div>
       <p className="text-sm text-neutral-500 mb-6 max-w-prose">
         Everyone registered with the Volunteer role, with their application and background-check
@@ -403,7 +422,7 @@ export default function VolunteerManager({ groups }) {
           </h3>
           <div>
             {g.rows.map((r) => (
-              <VolunteerRow key={r.participantId} row={r} />
+              <VolunteerRow key={r.participantId} row={r} maySeeChecks={maySeeChecks} />
             ))}
           </div>
         </div>

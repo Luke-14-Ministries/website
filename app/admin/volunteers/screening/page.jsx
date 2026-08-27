@@ -16,6 +16,9 @@ export default async function ScreeningPage() {
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/volunteers/screening/');
   if (!can(staff, 'registrar')) redirect('/admin');
+  // Ordering a check is at least as sensitive as reading the result, so it
+  // takes the same grant (migration 0058).
+  if (!can(staff, 'background_checks')) redirect('/admin/volunteers');
 
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);

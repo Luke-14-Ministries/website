@@ -30,6 +30,9 @@ export async function updateStaffMember(profileId, patch) {
   if (patch.title !== undefined) clean.title = String(patch.title).trim() || null;
   if (patch.can_view_sensitive !== undefined) clean.can_view_sensitive = !!patch.can_view_sensitive;
   if (patch.can_view_giving !== undefined) clean.can_view_giving = !!patch.can_view_giving;
+  if (patch.can_view_background_checks !== undefined) {
+    clean.can_view_background_checks = !!patch.can_view_background_checks;
+  }
   if (patch.active !== undefined) clean.active = !!patch.active;
 
   const supabase = await createClient();

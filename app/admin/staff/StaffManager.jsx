@@ -129,6 +129,23 @@ export default function StaffManager({ members, selfId }) {
             className="h-4 w-4"
           />
         </td>
+        <td className="px-4 py-3 text-center">
+          {/* Background checks -- a third explicit grant (migration 0058).
+              Separate from Sensitive because knowing somebody was screened, and
+              what came back, is a different kind of knowledge from knowing their
+              medical needs, and the people who need each are not the same set.
+              Every change here is written to staff_access_log with who did it,
+              including when that is the same person. */}
+          <input
+            type="checkbox"
+            checked={m.backgroundChecks}
+            disabled={busy}
+            onChange={(e) =>
+              patch(m.profileId, { can_view_background_checks: e.target.checked })
+            }
+            className="h-4 w-4"
+          />
+        </td>
         <td className="px-4 py-3 text-right">
           {m.active ? (
             <button
@@ -188,6 +205,7 @@ export default function StaffManager({ members, selfId }) {
             <th className="px-4 py-2 font-semibold">Role</th>
             <th className="px-4 py-2 font-semibold text-center">Sensitive</th>
             <th className="px-4 py-2 font-semibold text-center">Giving</th>
+            <th className="px-4 py-2 font-semibold text-center">Checks</th>
             <th className="px-4 py-2" />
           </tr>
         </thead>

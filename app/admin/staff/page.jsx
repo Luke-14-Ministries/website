@@ -17,7 +17,7 @@ export default async function StaffAccessPage() {
   const { data: rows } = await supabase
     .from('staff')
     .select(
-      'profile_id, role, title, can_view_sensitive, can_view_giving, active, profiles ( first_name, last_name )'
+      'profile_id, role, title, can_view_sensitive, can_view_giving, can_view_background_checks, active, profiles ( first_name, last_name )'
     )
     .order('active', { ascending: false })
     .order('role');
@@ -31,6 +31,7 @@ export default async function StaffAccessPage() {
     title: r.title ?? '',
     sensitive: r.can_view_sensitive === true,
     giving: r.can_view_giving === true,
+    backgroundChecks: r.can_view_background_checks === true,
     active: r.active === true,
   }));
 

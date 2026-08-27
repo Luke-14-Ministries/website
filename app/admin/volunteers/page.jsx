@@ -15,6 +15,12 @@ export default async function AdminVolunteersPage() {
   if (!staff) redirect('/account/?next=/admin/volunteers/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
+  // Background-check records are their own grant (migration 0058). A registrar
+  // without it still runs the volunteers page -- applications, review, the lot --
+  // and simply does not see clearance state. The rows are not fetched at all
+  // rather than fetched and hidden, so there is nothing to leak.
+  const maySeeChecks = can(staff, 'background_checks');
+
   const supabase = await createClient();
 
   const [{ data: regs }, { data: events }] = await Promise.all([
@@ -57,9 +63,9 @@ export default async function AdminVolunteersPage() {
           )
           .in('registration_participant_id', partIds)
       : Promise.resolve({ data: [] }),
-    personIds.length
+    personIds.length && maySeeChecks
       ? supabase
-          .from('volunteer_clearances')
+          .from('person_clearances')
           // Checkr columns are read but never written yet (migration 0029) --
           // the panel that shows them is a reviewable placeholder, not a
           // working integration.
@@ -105,5 +111,5 @@ export default async function AdminVolunteersPage() {
   const unassigned = rows.filter((r) => !(events ?? []).some((ev) => ev.id === r.eventId));
   if (unassigned.length) groups.push({ event: { id: 'none', name: 'Unassigned' }, rows: unassigned });
 
-  return <VolunteerManager groups={groups} />;
+  return <VolunteerManager groups={groups} maySeeChecks={maySeeChecks} />;
 }

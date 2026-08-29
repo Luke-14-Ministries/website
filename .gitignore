@@ -3,3 +3,9 @@ node_modules/
 out/
 .env*.local
 .DS_Store
+
+# The local junk drawer. device tooling cannot delete files, so anything
+# awaiting deletion is moved here instead -- it should never be committed.
+# (Four files were tracked here before this line existed: remove them with
+# `git rm -r --cached _to_delete` when convenient.)
+_to_delete/

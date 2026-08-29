@@ -26,6 +26,13 @@ const OPEN_KEY = 'l14_admin_nav_events_open';
 const BADGE_TONE = {
   '/admin/accounts': 'window',
   '/admin/payments': 'window',
+  // A program leader's own count is not a to-do list -- nobody can act on it
+  // and make it smaller. It answers "how big is my group?", which is the
+  // question they came for. Blue.
+  //
+  // Note what is NOT here: /admin/programs stays amber, because unplaced
+  // people ARE a queue -- place them and it reaches zero.
+  '/admin/my-program': 'window',
 };
 
 export default function AdminNav({ top, events, rest, badges = {}, badgeTitles = {} }) {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
+import { getProgramLeadership } from '@/lib/programs';
 import { createClient } from '@/lib/supabase/server';
 import AdminNav from './AdminNav';
 
@@ -40,6 +41,11 @@ const NAV = [
   { href: '/admin/activities', label: 'Activities', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/buddies', label: 'Buddy Assignments', need: 'coordinator', ready: true, group: 'events' },
   { href: '/admin/lodging', label: 'Rooms & Cabins', need: 'coordinator', ready: true, group: 'events' },
+  // Registrar rather than coordinator, deliberately: the write goes through
+  // registration_participants' UPDATE policy, which is is_registrar(). A
+  // coordinator offered this page would find Save did nothing and say
+  // nothing, which is the failure this project keeps meeting.
+  { href: '/admin/programs', label: 'Programs', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/cancellations', label: 'Cancellations', need: 'registrar', ready: true, group: 'events' },
   // "Scholarship Requests" wrapped to two lines, dropping its badge onto a
   // line of its own (25 Aug). Shortened to match its neighbours — Rosters,
@@ -56,9 +62,20 @@ const NAV = [
 ];
 
 export default async function AdminLayout({ children }) {
-  const staff = await getStaff();
-  // Not staff (or not signed in) -> bounce to login, then back here.
-  if (!staff) redirect('/account/?next=/admin/');
+  const [staff, leaderships] = await Promise.all([getStaff(), getProgramLeadership()]);
+
+  // TWO KINDS OF PERSON REACH THIS LAYOUT.
+  //
+  // Staff, who get the sidebar their role earns. And program leaders, who are
+  // not staff at all -- no row in `staff`, no role, no permissions -- but hold
+  // a grant naming one program at one event (migration 0061). A leader gets
+  // into the staff area because that is where a roster sensibly lives, and
+  // sees exactly one item in the navigation: their own program.
+  //
+  // Order matters below: a person who is BOTH staff and a named leader is
+  // treated as staff, because the wider view already contains the narrower one.
+  const isLeaderOnly = !staff && leaderships.length > 0;
+  if (!staff && !isLeaderOnly) redirect('/account/?next=/admin/');
 
   // Staff must have two-factor turned on before they can open the staff area,
   // because everything in here is other families' information. getAuthenticator-
@@ -66,6 +83,13 @@ export default async function AdminLayout({ children }) {
   // exists; anything else means no factor, so send them to set one up. This is
   // an enrolment gate, not a per-visit challenge -- the login form is what asks
   // for the code each time a staffer with a factor signs in.
+  //
+  // Program leaders are held to the SAME rule, and that is a decision rather
+  // than an accident: what they can see is a list of disabled children's first
+  // names, and a password alone is not enough of a door in front of that. It
+  // does mean a volunteer leader has to set up an authenticator app before
+  // their roster works, which is real friction at camp. If that proves too
+  // much, this is the one line to revisit -- but revisit it deliberately.
   const supabase = await createClient();
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (aal?.nextLevel !== 'aal2') {
@@ -74,16 +98,45 @@ export default async function AdminLayout({ children }) {
 
   // The person's own name, so the header shows clearly WHO is signed in --
   // not just their role and email.
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('first_name, last_name')
-    .eq('id', staff.userId)
-    .maybeSingle();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const viewerId = staff?.userId ?? user?.id ?? null;
+  const viewerEmail = staff?.email ?? user?.email ?? '';
+
+  const { data: profile } = viewerId
+    ? await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', viewerId)
+        .maybeSingle()
+    : { data: null };
   const fullName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
-    staff.email;
+    viewerEmail;
 
-  const items = NAV.filter((n) => can(staff, n.need));
+  // A leader's whole navigation. Not NAV filtered down -- built separately, so
+  // that adding a page to NAV can never accidentally hand it to a leader.
+  const items = isLeaderOnly
+    ? [{ href: '/admin/my-program', label: 'My Program', ready: true }]
+    : NAV.filter((n) => can(staff, n.need));
+
+  // The leader's own count: how many people are in their program(s). This is a
+  // BLUE badge, not amber, and the distinction is the one AdminNav documents --
+  // amber is a queue that drains when you act, blue is a number that just is.
+  // A leader has nothing to clear here; they are being told the size of their
+  // group, which is exactly the thing they want to know before Monday.
+  let myProgramCount = 0;
+  if (isLeaderOnly) {
+    for (const g of leaderships) {
+      const { count } = await supabase
+        .from('program_roster')
+        .select('participant_id', { count: 'exact', head: true })
+        .eq('program_id', g.programId)
+        .eq('event_id', g.eventId);
+      myProgramCount += count ?? 0;
+    }
+  }
 
   // A small attention dot on "Recent Changes" when unreviewed family edits
   // exist. Count only -- cheap head query; RLS scopes what this staffer may
@@ -96,13 +149,13 @@ export default async function AdminLayout({ children }) {
   let openScholarships = 0;
   let awaitingReview = 0;
   let campersWithoutBuddy = 0;
-  if (can(staff, 'admin')) {
+  if (staff && can(staff, 'admin')) {
     // Accounts created in the last 7 days -- the same amber treatment as the
     // review queues, so a burst of new signups is visible from any admin page.
     const { data: n } = await supabase.rpc('admin_recent_account_count', { p_days: 7 });
     recentAccounts = n ?? 0;
   }
-  if (can(staff, 'registrar')) {
+  if (staff && can(staff, 'registrar')) {
     const paymentsSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [
       { count: changesCount },
@@ -178,7 +231,7 @@ export default async function AdminLayout({ children }) {
   // participant, and the open ones are the rows with no end date. Scoped to
   // events that have not finished, so last year's camp cannot hold the badge
   // above zero for ever.
-  if (can(staff, 'coordinator')) {
+  if (staff && can(staff, 'coordinator')) {
     const today = new Date().toISOString().slice(0, 10);
     const [{ data: needBuddy }, { data: paired }] = await Promise.all([
       supabase
@@ -193,6 +246,25 @@ export default async function AdminLayout({ children }) {
     ]);
     const hasBuddy = new Set((paired ?? []).map((b) => b.camper_participant_id));
     campersWithoutBuddy = (needBuddy ?? []).filter((p) => !hasBuddy.has(p.id)).length;
+  }
+
+  // People on a roster for an event that has not finished, with no program
+  // yet. A queue that drains: place them and it goes to zero, which is why it
+  // is amber. Scoped to live events so last year's camp cannot hold it above
+  // zero for ever -- the same trap the buddy badge had to avoid.
+  let unplacedPeople = 0;
+  if (staff && can(staff, 'registrar')) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { count } = await supabase
+      .from('registration_participants')
+      .select('id, registrations!inner ( events!inner ( ends_on ) )', {
+        count: 'exact',
+        head: true,
+      })
+      .is('program_id', null)
+      .neq('status', 'cancelled')
+      .gte('registrations.events.ends_on', today);
+    unplacedPeople = count ?? 0;
   }
 
   return (
@@ -218,23 +290,29 @@ export default async function AdminLayout({ children }) {
           <h1 className="text-2xl font-bold">{fullName}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-brand-light text-brand-dark px-2.5 py-0.5 text-xs font-semibold">
-              {(ROLE_INFO[staff.role] ?? {}).label ?? staff.role}
+              {isLeaderOnly
+                ? 'Program Leader'
+                : (ROLE_INFO[staff.role] ?? {}).label ?? staff.role}
             </span>
-            {staff.can_view_sensitive && (
+            {staff?.can_view_sensitive && (
               <span className="rounded-full bg-neutral-200 text-neutral-700 px-2.5 py-0.5 text-xs font-semibold">
                 Sensitive access
               </span>
             )}
-            {staff.can_view_giving && (
+            {staff?.can_view_giving && (
               <span className="rounded-full bg-neutral-200 text-neutral-700 px-2.5 py-0.5 text-xs font-semibold">
                 Giving
               </span>
             )}
-            <span className="text-xs text-neutral-500">{staff.email}</span>
+            <span className="text-xs text-neutral-500">{viewerEmail}</span>
           </div>
           <p className="text-xs text-neutral-500 mt-1.5">
-            {(ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
-            {staff.can_view_sensitive ? ' Plus medical & support details.' : ''}
+            {isLeaderOnly
+              ? `You lead ${leaderships
+                  .map((l) => l.programName)
+                  .join(', ')} — you see who is in your program, and nothing else.`
+              : (ROLE_INFO[staff.role] ?? {}).blurb ?? 'Staff access.'}
+            {staff?.can_view_sensitive ? ' Plus medical & support details.' : ''}
           </p>
           </div>
 
@@ -270,6 +348,8 @@ export default async function AdminLayout({ children }) {
               '/admin/scholarships': openScholarships,
               '/admin/buddies': campersWithoutBuddy,
               '/admin/payments': recentPayments,
+              '/admin/programs': unplacedPeople,
+              '/admin/my-program': myProgramCount,
             }}
             badgeTitles={{
               '/admin': 'new sign-ups waiting to be confirmed or waitlisted',
@@ -278,6 +358,8 @@ export default async function AdminLayout({ children }) {
               '/admin/scholarships': 'families waiting on a decision about the fee',
               '/admin/buddies': 'campers who asked for a buddy and still have nobody',
               '/admin/payments': 'payments in the last 7 days',
+              '/admin/programs': 'people on a roster with no program yet',
+              '/admin/my-program': 'people in your program',
             }}
             />
           </div>

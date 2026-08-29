@@ -178,6 +178,24 @@ export default function IdleTimeout() {
     }
     init();
 
+    // NEVER call another Supabase method from inside this callback, and never
+    // make it async. Fixed 29 August 2026, after logins hung on the button.
+    //
+    // supabase-js serialises auth work behind a Web Lock held for the whole
+    // origin -- every tab of this site shares one. The callback runs WHILE that
+    // lock is held, so `init()` calling `getSession()` (and then a `staff`
+    // query, which fetches the access token by the same route) waited for a
+    // lock that could not be released until the callback returned. Meanwhile
+    // the login form's own next call -- the two-factor level check -- queued
+    // behind the same lock. Nothing errored: the button simply said
+    // "Logging in..." forever while the session sat there, already valid, which
+    // is why refreshing the page landed straight on the dashboard.
+    //
+    // It needed more than one tab of the site open to bite, which is exactly
+    // why it looked random and why a fresh browser never showed it.
+    //
+    // setTimeout(0) is the documented way out: let the callback return, the
+    // lock release, and do the work on the next turn of the event loop.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -188,12 +206,17 @@ export default function IdleTimeout() {
         // A fresh login IS activity, and it may be a different person on a
         // shared device — so clear any stamp left by the last one before init
         // reads it, or they would inherit somebody else's countdown.
+        // (Synchronous localStorage only: no Supabase call here.)
         if (session?.user?.id) writeLastActivity(session.user.id, Date.now());
-        init();
+        setTimeout(() => {
+          if (active) init();
+        }, 0);
       } else if (event === 'TOKEN_REFRESHED') {
         // NOT activity. A refresh happens on a timer with nobody present, and
         // treating it as presence is how a session lives forever.
-        init();
+        setTimeout(() => {
+          if (active) init();
+        }, 0);
       }
     });
 

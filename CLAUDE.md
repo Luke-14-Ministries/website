@@ -27,8 +27,8 @@ Two constraints shape every decision:
    availability drops sharply once the academic semester starts. Front-load. Do not start
    architectural rewrites in October.
 
-The full reasoning lives in `IMPLEMENTATION-PLAN.md` (SharePoint, `01 Plans and Decisions`).
-The working checklist is `DO-THIS-NEXT.md` (SharePoint, `02 Accounts and Setup`).
+The full reasoning lives in `IMPLEMENTATION-PLAN.md` (SharePoint, `01 Plans and Decisions\md files`).
+The working checklist is `DO-THIS-NEXT.md` (SharePoint, `02 Accounts and Setup\md files`).
 
 ---
 
@@ -282,8 +282,8 @@ Stripe switches to live keys.** Plan §8 has the full reasoning.
 
 ## Where the documentation lives
 
-- `IMPLEMENTATION-PLAN.md` — why, and the full phase plan. SharePoint, `01 Plans and Decisions`.
-- `DO-THIS-NEXT.md` — the ordered working checklist. SharePoint, `02 Accounts and Setup`.
+- `IMPLEMENTATION-PLAN.md` — why, and the full phase plan. SharePoint, `01 Plans and Decisions\md files`.
+- `DO-THIS-NEXT.md` — the ordered working checklist. SharePoint, `02 Accounts and Setup\md files`.
 - `Luke14-Account-Register.xlsx` — every account, who owns it, who the second admin is. No
   passwords, ever. SharePoint, `02 Accounts and Setup`.
 - Web-admin handbook — SharePoint, for the second admin.

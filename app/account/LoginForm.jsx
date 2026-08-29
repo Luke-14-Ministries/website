@@ -52,6 +52,31 @@ function writeTrustStore(store) {
   }
 }
 
+// A safety net, not a fix. The real cause of a hanging login was an auth
+// listener that awaited Supabase calls inside its own callback and deadlocked
+// the shared auth lock (see components/IdleTimeout.jsx, 29 August 2026). That
+// is fixed -- but a login that stalls forever with the button stuck on
+// "Logging in..." is a bad enough failure to be worth a second line of defence,
+// because the password step has ALREADY succeeded by the time these run.
+//
+// So: give the follow-up questions a few seconds. If one does not answer, carry
+// on rather than hanging. Nothing is skipped that matters -- the middleware
+// enforces two-factor on every protected page, so a session that should be at
+// aal2 and is not gets sent straight back here to finish the code step.
+async function withTimeout(promise, ms, fallback) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -190,17 +215,19 @@ export default function LoginForm() {
     // account WITHOUT two-factor (which is all of them until someone enrols),
     // nextLevel is 'aal1' and this whole branch is skipped -- so adding this
     // changes nothing for them.
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const { data: aal } = await withTimeout(
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      6000,
+      { data: null }
+    );
     if (aal?.nextLevel === 'aal2' && aal?.currentLevel !== 'aal2') {
       // Is this browser already trusted for this account? Look the local token
       // up server-side (RLS scopes the query to this user's own rows). Any
       // failure here just falls through to asking for the code -- never the
       // other way round.
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (await isTrustedBrowser(user)) {
+        const { data } = await withTimeout(supabase.auth.getUser(), 6000, { data: {} });
+        if (data?.user && (await isTrustedBrowser(data.user))) {
           finish();
           return;
         }

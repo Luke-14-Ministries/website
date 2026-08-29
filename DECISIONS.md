@@ -1298,3 +1298,20 @@ decision worth a header is worth three lines here on the same day, and a decisio
 migration is worth them more, not less. `CLAUDE.md` was corrected on the same day and had drifted
 in eight separate places over the same nineteen days, which is the second-order cost of a log
 nobody is writing to.
+
+---
+
+## 2026-08-29 — Stripe's agent and AI tooling was considered and declined
+
+Stripe's "Agents and AI" page was reviewed. Almost none of it applies: agentic commerce, product
+feeds, the Stripe Directory and LLM token billing are built for businesses whose *customers* are
+software. Ours are families. Nothing on the page solves a problem we currently have.
+
+Two items are parked rather than dismissed. The **Stripe CLI** (`stripe listen`, `stripe trigger`)
+would have shortened the refund-webhook hunt, where the endpoint returned 200 while failing
+silently, and it is the right way to prove live-mode webhooks at go-live without moving real money
+— a go-live note, not a task for now. The **Stripe MCP server** would need read-only, test-mode
+scoping before it went anywhere near this project, and offers nothing the dashboard doesn't.
+
+Revisit only if a concrete need appears. Vendor pages of this kind are written to make a small
+operation feel behind; being behind on something you have no use for is not a cost.

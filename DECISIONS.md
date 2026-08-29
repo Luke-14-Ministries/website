@@ -1315,3 +1315,26 @@ scoping before it went anywhere near this project, and offers nothing the dashbo
 
 Revisit only if a concrete need appears. Vendor pages of this kind are written to make a small
 operation feel behind; being behind on something you have no use for is not a cost.
+
+---
+
+## 2026-08-29 — Sending as an alias works after all, and the earlier entry was written too soon
+
+On 27 August this project concluded, in writing and in three places, that Exchange rewrites the From
+address on a shared mailbox to the mailbox's primary — so choosing `registration@` or `camp@` in the
+From dropdown would still arrive as `info@`. The tenant setting meant to allow it
+(`SendFromAliasEnabled`) had been turned on that morning and repeated tests showed no change. The
+conclusion was recorded as a design constraint: one outbound identity, treat it as the design.
+
+It was wrong. The setting took roughly **two days** to take effect. A test on 29 August arrived as
+**Luke 14 Ministries `<registration@luke14ministries.net>`**. Alias sending works; the display name
+stays *Luke 14 Ministries* either way, which is what we wanted — one voice, with the address saying
+which door a reply should come back through.
+
+Corrected in `lib/site.js`, the Web Admin Handbook §10.1 and the account register.
+
+**The generalisable part, which is why this is an entry and not just an edit.** A tenant change that
+has not propagated is indistinguishable from a tenant change that does not work. Two days of
+confident testing produced a confident, wrong, *written* conclusion — and a written conclusion is
+worse than no conclusion, because the next person inherits it as fact. When a setting is toggled and
+the behaviour does not change: wait a day, test again, and only then write down a limitation.

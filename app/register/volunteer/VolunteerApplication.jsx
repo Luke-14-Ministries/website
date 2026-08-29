@@ -168,8 +168,13 @@ export default function VolunteerApplication({
           <label className={label}>Home church (if any)</label>
           <input className={input} value={church} onChange={(e) => setChurch(e.target.value)} />
 
-          <label className={label}>A little about your faith (a sentence or two is plenty)</label>
-          <textarea className={input} rows={2} value={faith} onChange={(e) => setFaith(e.target.value)} />
+          {/* The cap "(a sentence or two is plenty)" was removed on 29 August 2026 at Lee Anne's
+              suggestion: it discouraged an answer we would often rather have in full. The box is
+              taller for the same reason -- a two-row box says "keep it short" even without the
+              words. These faith questions are on the VOLUNTEER application only; families and
+              campers never see them (confirmed by Larry, 29 Aug 2026). */}
+          <label className={label}>A little about your faith</label>
+          <textarea className={input} rows={4} value={faith} onChange={(e) => setFaith(e.target.value)} />
 
           <label className={label}>Skills you&rsquo;d bring (music, lifeguard, nursing, crafts…)</label>
           <textarea className={input} rows={2} value={skills} onChange={(e) => setSkills(e.target.value)} />

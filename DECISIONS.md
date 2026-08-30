@@ -1338,3 +1338,72 @@ has not propagated is indistinguishable from a tenant change that does not work.
 confident testing produced a confident, wrong, *written* conclusion — and a written conclusion is
 worse than no conclusion, because the next person inherits it as fact. When a setting is toggled and
 the behaviour does not change: wait a day, test again, and only then write down a limitation.
+
+---
+
+## 2026-08-29 — A program leader is not staff, and the view is the whole permission
+
+*Written 30 August, a day after the fact. Flagged as late rather than dated back: the entry above
+this one exists because a decision recorded late is recorded by someone who already knows how it
+turned out.*
+
+Camp needed the person running archery to know who is in archery. The obvious implementation — a
+fourth staff role — was rejected, because every role in `lib/staff.js` is a set of *table*
+permissions, and a leader who can select a participant row can select every column on it. "Which
+columns" was the entire question.
+
+So a program leader has **no row in `staff`**, no role, and none of the staff permissions. They
+hold a grant in `program_leaders` naming one program at one event, and that grant buys exactly one
+thing: the right to read `public.program_roster`, a view carrying names, ages, a buddy, and
+**flags** for allergies and support needs. None of the narrative columns — disabilities,
+medications, behaviour triggers — is in it, and none should be added. The intended failure mode is
+that a leader learns to ask the coordinator.
+
+An earlier draft of `0061` added a policy on `registration_participants`. It was removed. There is
+deliberately **no** new policy on `registration_participants`, `people` or `person_support`: a
+leader gets no direct read of any table, only the view.
+
+Two consequences worth knowing before touching this. A leader reaches `/admin`, which had been a
+staff-only area — `app/admin/layout.jsx` now builds their navigation *separately* rather than
+filtering `NAV` down, so that adding a page to `NAV` can never accidentally hand it to a leader.
+And leaders are held to the same two-factor enrolment rule as staff. That is real friction for a
+volunteer at camp, and it was chosen anyway: what is behind the door is a list of disabled
+children's first names, and a password alone is not enough of a door in front of that. If it
+proves too much, it is one line in the layout — but revisit it deliberately.
+
+---
+
+## 2026-08-30 — `program_roster` is a SECURITY DEFINER view, and the ERROR advisory is accepted
+
+Supabase's security advisor reports exactly one ERROR against this project:
+the view `public.program_roster` is defined with the SECURITY DEFINER property. It is accepted, and
+this entry is the answer somebody will want at go-live when they open that list and find a red row.
+
+**It has to be SECURITY DEFINER.** A program leader holds no read on
+`registration_participants`, `people` or `person_support` — that is the point of `0061`, decided
+in the entry above. A view running as the *invoker* would therefore return nothing to the only
+people it exists for.
+
+**The safety is the view's own row filter**, not the definer property:
+
+    where public.is_staff() or public.leads_program(rp.program_id, r.event_id)
+
+Staff see every program, a leader sees only the program they lead at the event they lead it at,
+and everyone else — including a signed-in family — sees nothing. The grant is `select` only, to
+`authenticated` and `service_role`.
+
+**Do not silence it by switching to `security_invoker = true`.** That would satisfy the advisor
+and empty every leader's roster, and it would do so with no error — the page would render, with
+nothing on it. This is the exact shape of failure this project keeps meeting, so it is written
+down here rather than left to be rediscovered.
+
+The advisor also reports 69 warnings: 68 `security_definer_function_executable` (the same category
+accepted on 2026-08-26, for the same reason) and `auth_leaked_password_protection`, which is a
+Pro-plan feature and arrives with the upgrade already planned for go-live — see `DO-THIS-NEXT.md`,
+which asks for the free-plan substitute (a longer minimum password) in the meantime.
+
+**The generalisable part.** An accepted advisory is only accepted if the acceptance is written
+down. The 26 August entry covered the warnings that existed *then*; this ERROR arrived three days
+later and would have read, to anyone opening the dashboard cold, as an unreviewed security hole in
+the newest code in the system. A vendor's warning list is a document other people read without us.
+

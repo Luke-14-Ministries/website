@@ -14,8 +14,29 @@ npm ci             # installs the exact tested versions; use this, not npm insta
 npm run dev        # http://localhost:3000
 ```
 
-Requires **Node.js 24 LTS**. New here? Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it
-covers setup, the everyday git workflow, project layout, and the security rules.
+Requires **Node.js 24 LTS** — the same major version Vercel builds with, which is deliberate:
+matching it locally is what stops "it built on my machine" from being a different answer to
+"it built on Vercel."
+
+**You also need `.env.local` before either command does anything useful.** This step was missing
+from these instructions until 30 August 2026, and its absence does not fail gracefully: the site
+compiles fine and then dies at the end of `npm run build` with
+`@supabase/ssr: Your project's URL and API key are required`, naming a Supabase settings page
+rather than the file you actually forgot. The fastest fix, which never puts a key on the
+clipboard or in a chat window:
+
+```bash
+npx vercel login
+npx vercel link          # pick the luke14-ministries project
+npx vercel env pull .env.local
+```
+
+Failing that, copy `.env.example` to `.env.local` and fill in the two `NEXT_PUBLIC_SUPABASE_*`
+values from the Supabase dashboard. Those two are safe in a browser by design — that is what the
+prefix means — and they are all a local build needs. `.env.local` is gitignored; keep it that way.
+
+New here? Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers setup, the everyday git
+workflow, project layout, and the security rules.
 
 ## How it deploys
 

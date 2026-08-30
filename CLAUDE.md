@@ -32,11 +32,13 @@ The working checklist is `DO-THIS-NEXT.md` (SharePoint, `02 Accounts and Setup\m
 
 ---
 
-## Where things stand — 26 August 2026
+## Where things stand — 30 August 2026
 
 **The database is live.** Migration `0001_core_schema.sql` has been run against the Supabase
-project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). As of 26 August 2026 the live schema holds
-**44 base tables, 3 views and 103 row-level-security policies**, self-check passed.
+project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). Queried directly on 30 August 2026 rather
+than remembered, the live schema holds **47 base tables, 5 views and 108 row-level-security
+policies**, with **RLS enabled on all 47 of the 47 tables** and 40 functions in `public`.
+Self-check passed.
 `supabase/migrations/rls_test.sql` is the harness — it seeds **six personas** (two families, three
 staff at different access levels, and the camp doctor) plus an unauthenticated visitor, runs **41
 assertions** against them and reports `ALL CHECKS PASSED` against real Postgres. **Never edit 0001; it has been run.** New work
@@ -55,8 +57,14 @@ already handles both shapes — and the old blocker is gone: **custom SMTP is se
 sends through Resend from `registration@luke14ministries.net`), so template edits are now allowed. Making
 that template switch is an open, unblocked task.
 
-**Update, 26 August 2026 — the platform is built and in staff testing.** Migrations run through
-`0055` (never edit a migration that has been run; new work goes in the next number). Working end
+**Update, 26 August 2026 — the platform is built and in staff testing.** Migrations now run
+through `0061` (never edit a migration that has been run; new work goes in the next number).
+Checked on 30 August against the live ledger: the repository and production agree, with no
+applied migration missing from `supabase/migrations/`. Two caveats about that ledger, so nobody
+reads drift into it. It begins at `0012` — `0001`–`0011` were applied before the CLI ledger was
+in use. And four repository files were applied as more than one entry each (`0023`, `0028`,
+`0032`, and `0059`, whose second half is recorded as `all_screening_verdicts`), so the ledger
+carries 54 rows for 50 files. Both are expected; neither is a missing migration. Working end
 to end in Stripe test mode: family accounts and household management (per-adult phones, linked
 caregivers), the registration wizard with true edit/update mode and tracked changes (staff review
 queue at /admin/changes; role changes on a confirmed person auto-flip to re-review), card + bank
@@ -79,6 +87,12 @@ handled by `supabase/functions/stripe-refund-webhook/`, per-family refunds throu
 in `app/admin/registrations/[id]/actions.js`, with the over-refund guard and the pending-refund
 accounting in migrations `0038`/`0044`/`0053`/`0054`.
 
+**Built since, 27–29 August — six migrations the paragraph above predates.** Background screening
+stopped being a placeholder (`0056`–`0060`): `person_clearances`, screening batches, background
+checks as their own staff permission with every grant recorded in an audit log, the result detail
+learned from a real Checkr export, and a translation layer between Checkr's vocabulary and ours.
+Then `0061`, which is the one to read before touching access control — see the next section.
+
 **Next, in order:**
 
 1. **Purge ALL test data** from the production project. Everything after this depends on it.
@@ -92,6 +106,29 @@ accounting in migrations `0038`/`0044`/`0053`/`0054`.
 5. **The balance-reminder buttons in `app/admin/payments/page.jsx`** are still `disabled`
    placeholders — "Email balance reminders (all shown)" and "Email selected families" render but
    do nothing.
+
+### Program leaders are not staff — a second kind of person now reaches `/admin`
+
+Added 29 August in migration `0061`, and easy to miss: a **program leader** has **no row in
+`staff`**, no role, and none of the permissions in `lib/staff.js`. Reading that file alone would
+tell you they do not exist. What they have is a grant in `program_leaders` naming one program at
+one event, and the only thing it buys is the right to read the `program_roster` **view**, filtered
+to that program.
+
+Three things follow, and all three are deliberate:
+
+- **The view is the permission.** `program_roster` carries names, ages, a buddy, and *flags* for
+  allergies and support needs — never the narrative columns. `0061` deliberately adds **no** policy
+  to `registration_participants`, `people` or `person_support`: an earlier draft did, and it was
+  removed, because a leader who can select the participant row can select every column on it.
+- **`program_roster` is a `SECURITY DEFINER` view, and that is intended.** It has to be, since a
+  leader holds no read on the tables underneath. It is safe because the view's own
+  `where public.is_staff() or public.leads_program(...)` is the row filter. Supabase's advisor
+  reports this as its one ERROR-level finding; the entry accepting it is in `DECISIONS.md`,
+  30 August. Do not "fix" it by switching it to `SECURITY INVOKER` — that silently empties every
+  leader's roster.
+- **Leaders are held to the two-factor rule too**, in `app/admin/layout.jsx`. That is a decision,
+  not an oversight: what they see is a list of disabled children's first names.
 
 **Still mock:** the contact form discards submissions, and the newsletter page links out to a
 Google Form.
@@ -216,8 +253,14 @@ These are the ministry's rules, agreed at board level. Do not relax them for con
   These are identifiers, a status and timestamps: pointers into Checkr, never the screening data
   itself. Checkr's **hosted invitation** flow is what keeps it that way — the volunteer types
   their SSN and date of birth into Checkr's own form, and we receive only pass/fail. It cannot
-  leak from us because we never have it. (`0029` is a placeholder: the columns are real, no API
-  key has been issued and nothing writes them yet.) The underlying paperwork still lives in a
+  leak from us because we never have it. **`0029` was a placeholder and no longer is** — corrected
+  30 August, having said "nothing writes them yet" for four days after it stopped being true.
+  `0056`–`0060` built the flow out and `app/admin/volunteers/screening/actions.js` writes
+  `person_clearances` today: `provider`, `checkr_status`, `checkr_report_id`,
+  `checkr_candidate_id`, `checkr_package`, and a `screening_results` jsonb holding one verdict
+  WORD per screening. The guarantee is unchanged and is the reason the file-based flow was chosen
+  over the API — verdict words and pointers, never report content, and no SSN at any point. The
+  underlying paperwork still lives in a
   permission-restricted SharePoint folder. Never in email, never in the app. A future flow that
   would collect PII into this table is a board decision, not a pull request.
 - **Never paste a key, token, or camper's personal information into a Claude conversation.** A
@@ -240,6 +283,22 @@ These are the ministry's rules, agreed at board level. Do not relax them for con
   (Older documents call this a WordPress site. That was wrong — see the DNS facts below.)
 - **Record decisions in `DECISIONS.md`** — one short entry per real choice, written when the
   choice is made. In six months it is the only record of why anything is the way it is.
+- **Check this file's numbers before trusting them, and correct them when they are wrong.**
+  It has now drifted twice: eight ways over nineteen days to 26 August, then four more ways in
+  the four days after it was corrected. The pattern is specific and worth naming — the documents
+  that are *regenerated* show no drift at all, and the one that is *edited by hand* drifts every
+  time. Two commands settle most of it in ten seconds, and a session that is about to rely on a
+  number here should run them rather than quote the paragraph:
+
+  ```bash
+  ls supabase/migrations | tail -2      # the real high-water mark
+  git log -1 --date=short --format=%ad  # how old "where things stand" actually is
+  ```
+
+  A claim about what is *built* is the one that cannot be checked this way and goes stale
+  hardest — "nothing writes them yet" was true when written and false four days later. When you
+  find one wrong, fix it in the same session; leaving it is how the next reader inherits it as
+  fact.
 - **Commit in small, described steps.** The commit log is documentation for a future volunteer.
 - **Ask before adding a dependency.** Every package is something someone has to keep updated.
 - Commit identity is the ministry account, not a personal address. Check `git config user.email`
@@ -292,8 +351,10 @@ Stripe switches to live keys.** Plan §8 has the full reasoning.
 
 ---
 
-*Last updated 26 August 2026 — schema at 44 tables / 3 views / 103 policies, migrations through
-`0055`, refunds live, Phases 1 and 2 complete.
+*Last updated 30 August 2026 — schema at 47 tables / 5 views / 108 policies (queried, not
+remembered), migrations through `0061`, background screening built out, program leaders added as
+a non-staff role.
+26 August 2026 — refunds live, Phases 1 and 2 complete.
 9 August 2026 — schema run, auth layer working.
 7 August 2026 — DNS verified (Squarespace, not WordPress).
 5 August 2026 — GitHub Pages retired, repository renamed to `website`,

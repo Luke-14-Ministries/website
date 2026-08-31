@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { safeNextPath } from '@/lib/site';
 
 export const metadata = { title: 'Confirm' };
 
@@ -35,12 +36,8 @@ async function confirmAction(formData) {
 
   const tokenHash = formData.get('token_hash');
   const type = formData.get('type');
-  const rawNext = formData.get('next') || '/account/dashboard/';
-  // Path-only, same rule as the callback route: never redirect off-site.
-  const next =
-    typeof rawNext === 'string' && rawNext.startsWith('/') && !rawNext.startsWith('//')
-      ? rawNext
-      : '/account/dashboard/';
+  // Path-only: never redirect off-site. See safeNextPath in lib/site.js.
+  const next = safeNextPath(formData.get('next'));
 
   const supabase = await createClient();
 
@@ -77,9 +74,7 @@ export default async function ConfirmPage({ searchParams }) {
   if (typeof redirectTo === 'string') {
     try {
       const embedded = new URL(redirectTo).searchParams.get('next');
-      if (embedded && embedded.startsWith('/') && !embedded.startsWith('//')) {
-        next = embedded;
-      }
+      if (embedded) next = safeNextPath(embedded, next);
     } catch {
       /* not a URL -- keep the default */
     }

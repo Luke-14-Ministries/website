@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { safeNextPath } from '@/lib/site';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 
@@ -96,7 +97,11 @@ export default function LoginForm() {
 
   // Middleware puts ?next=/whatever on the URL when it turns an anonymous
   // visitor away from a signed-in page, so login can send them back there.
-  const next = searchParams.get('next') || '/account/dashboard/';
+  // Sanitised, like every other consumer of ?next=. This form was the ONE
+  // that took it raw, which made it an open redirect: sign in from
+  // /account/?next=https://evil.example and the push below would have carried
+  // you there, having just proved that the ministry's domain and login work.
+  const next = safeNextPath(searchParams.get('next'));
 
   // Set by the idle auto-logout when it signs someone out, so the login page can
   // explain why they landed back here.
@@ -301,9 +306,29 @@ export default function LoginForm() {
   }
 
   function finish() {
-    // refresh() makes the server re-render with the new session cookie.
-    router.push(next);
-    router.refresh();
+    // A FULL-DOCUMENT navigation, deliberately, and not router.push().
+    //
+    // The old pair was `router.push(next); router.refresh();`, and the refresh
+    // races the push it follows: it can cancel the in-flight RSC request for
+    // the very navigation just started. When it loses, nothing moves and
+    // nothing errors -- `busy` is still true, so the button sits on
+    // "Logging in..." forever. Reported repeatedly, most recently 31 Aug:
+    // "hangs, then a manual refresh flashes the login card and dumps me on the
+    // dashboard". That description is the bug exactly -- the session was
+    // created on the very first attempt; only the redirect was lost.
+    //
+    // This is a DIFFERENT fault from the multi-tab hang fixed on 29 Aug (the
+    // withTimeout wrappers above, which guard Supabase's cross-tab lock). Both
+    // ended at the same stuck button, which is why one fix looked like it had
+    // not worked.
+    //
+    // A hard navigation cannot race itself, and it guarantees the browser
+    // sends the fresh session cookie with the request -- so middleware.js sees
+    // an authenticated user first time and there is no bounce back to login.
+    // The cost is a full page load at the one moment a full page load is
+    // completely unremarkable. `next` is sanitised above, which is what makes
+    // handing it to the browser safe.
+    window.location.assign(next);
   }
 
   // --- the two-factor code step ---------------------------------------------

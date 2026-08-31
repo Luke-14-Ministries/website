@@ -253,38 +253,77 @@ export default async function DashboardPage({ searchParams }) {
   // Support-profile status per person. Registration ends by promising a fuller
   // form for each attendee; this is how the family finds it, and how they can
   // tell at a glance which ones are still outstanding.
-  const attendingPeople = [];
-  const seenPerson = new Set();
+  // One entry per PERSON, carrying EVERY role they hold -- not the first one
+  // encountered. The old version stopped at the first participant row for a
+  // person, which read as a lie the moment somebody held two: a tester
+  // registered as a volunteer at one event and a camper at another saw only
+  // "Volunteer", then got the full camper support form and reasonably reported
+  // it as a bug (31 Aug). The form was right; this line was wrong.
+  const byPerson = new Map();
   for (const r of regs) {
     for (const p of r.registration_participants ?? []) {
       const id = p.people?.id;
-      if (!id || p.status === 'cancelled' || seenPerson.has(id)) continue;
-      seenPerson.add(id);
-      attendingPeople.push({
-        id,
-        name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
-        // Role and event travel with the person. Without them the card is a
-        // bare list of names asking for medical detail, and a family with two
-        // registrations cannot tell which is which.
+      if (!id || p.status === 'cancelled') continue;
+      if (!byPerson.has(id)) {
+        byPerson.set(id, {
+          id,
+          name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
+          roles: [],
+        });
+      }
+      byPerson.get(id).roles.push({
         role: p.camp_role,
         eventName: r.events?.name ?? '',
       });
     }
   }
+  const attendingPeople = [...byPerson.values()];
 
   // "Details on file" means exactly one thing: the details form itself was
   // saved for this person, evidenced by the stamp only that form writes.
   // The previous version inferred it from content and marked BOTH of a
   // family's people done when one form was filled (found in testing, 24 Aug)
   // -- because the registration wizard wrote to some of the same columns.
-  const supportStatus = new Map(); // personId -> 'started' | 'empty'
+  // THREE states, not two (31 Aug). Saving the form once used to earn a green
+  // "Details on file" even with no photograph and no emergency contact -- a
+  // tester saved a mostly-blank form and got the same reassurance as somebody
+  // who had filled it in properly. Green is a promise to staff as much as to
+  // the family, and it should not be given away for pressing Save.
+  //
+  // The two things checked beyond the save are the two the form itself calls
+  // for by name: the photo ("A photo is required for camp") and the emergency
+  // contact ("the one part of the form we'd really like filled in"). Neither
+  // BLOCKS -- 0032 decided deliberately that a family without a photo to hand
+  // can still hold a place -- so this is amber, never a barrier.
+  //
+  // Safe to read content here, unlike the 24 Aug bug this replaces: that one
+  // inferred completion from columns the registration WIZARD also writes, and
+  // so marked a whole family done when one form was filled. Neither the photo
+  // nor the emergency contact is ever written by the wizard.
+  const supportStatus = new Map(); // personId -> 'complete' | 'incomplete' | 'empty'
+  const supportMissing = new Map(); // personId -> ['a photo', 'an emergency contact']
   if (attendingPeople.length) {
-    const { data: supportRows } = await supabase
-      .from('person_support')
-      .select('person_id, details_saved_at')
-      .in('person_id', attendingPeople.map((p) => p.id));
-    for (const s of supportRows ?? []) {
-      supportStatus.set(s.person_id, s.details_saved_at ? 'started' : 'empty');
+    const personIds = attendingPeople.map((p) => p.id);
+    const [{ data: supportRows }, { data: photoRows }] = await Promise.all([
+      supabase
+        .from('person_support')
+        .select('person_id, details_saved_at, emergency_contact_name, emergency_contact_phone')
+        .in('person_id', personIds),
+      supabase.from('person_photos').select('person_id').in('person_id', personIds),
+    ]);
+    const hasPhoto = new Set((photoRows ?? []).map((r) => r.person_id));
+    for (const row of supportRows ?? []) {
+      if (!row.details_saved_at) {
+        supportStatus.set(row.person_id, 'empty');
+        continue;
+      }
+      const missing = [];
+      if (!hasPhoto.has(row.person_id)) missing.push('a photo');
+      if (!row.emergency_contact_name?.trim() || !row.emergency_contact_phone?.trim()) {
+        missing.push('an emergency contact');
+      }
+      supportStatus.set(row.person_id, missing.length ? 'incomplete' : 'complete');
+      if (missing.length) supportMissing.set(row.person_id, missing);
     }
   }
 
@@ -294,7 +333,7 @@ export default async function DashboardPage({ searchParams }) {
   // complete would send them hunting.
   const allDetailsDone =
     attendingPeople.length > 0 &&
-    attendingPeople.every((p) => supportStatus.get(p.id) === 'started');
+    attendingPeople.every((p) => supportStatus.get(p.id) === 'complete');
 
   // Registered volunteers who haven't filed their volunteer application yet —
   // surfaced as a nudge below, because the application is a separate short
@@ -507,26 +546,42 @@ export default async function DashboardPage({ searchParams }) {
             </p>
             <ul className="mt-4 divide-y divide-neutral-100">
               {attendingPeople.map((p) => {
-                const started = supportStatus.get(p.id) === 'started';
+                const state = supportStatus.get(p.id) ?? 'empty';
+                const missing = supportMissing.get(p.id) ?? [];
+                const PILL = {
+                  complete: ['bg-green-100 text-green-800', 'Details on file'],
+                  incomplete: ['bg-amber-100 text-amber-800', 'Incomplete'],
+                  empty: ['bg-amber-100 text-amber-800', 'Not started'],
+                };
+                const [pillClass, pillText] = PILL[state];
                 return (
                   <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold">{p.name}</span>
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            started
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {started ? 'Details on file' : 'Not started'}
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${pillClass}`}>
+                          {pillText}
                         </span>
                       </span>
+                      {/* Every role this person holds, not just the first. A
+                          person can be a volunteer at one event and a camper at
+                          another, and showing one of them makes the other look
+                          like a mistake. */}
                       <span className="mt-0.5 block text-xs text-neutral-500">
-                        {ROLE_LABEL[p.role] ?? p.role}
-                        {p.eventName ? ` · ${p.eventName}` : ''}
+                        {p.roles
+                          .map(
+                            (r) =>
+                              `${ROLE_LABEL[r.role] ?? r.role}${r.eventName ? ` · ${r.eventName}` : ''}`
+                          )
+                          .join('  |  ')}
                       </span>
+                      {/* Says WHAT is missing. "Incomplete" on its own sends
+                          somebody back through five sections hunting for it. */}
+                      {missing.length > 0 && (
+                        <span className="mt-0.5 block text-xs text-amber-800">
+                          Still needed: {missing.join(' and ')}
+                        </span>
+                      )}
                     </span>
                     <Link
                       href={`/account/details/${p.id}/`}

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 import { emailLooksValid, formatPhone } from '@/lib/format';
+import { safeNextPath } from '@/lib/site';
 
 export default function SignupForm() {
   const [form, setForm] = useState({
@@ -29,11 +30,7 @@ export default function SignupForm() {
   // /register/family arrives with ?next=/register/family/, so we return them
   // to the form instead of dumping them on the dashboard. Only ever an internal
   // path -- never a full URL -- so this can't be turned into an open redirect.
-  const rawNext = searchParams.get('next');
-  const nextPath =
-    rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
-      ? rawNext
-      : '/account/dashboard/';
+  const nextPath = safeNextPath(searchParams.get('next'));
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 

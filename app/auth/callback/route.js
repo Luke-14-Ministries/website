@@ -17,6 +17,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { safeNextPath } from '@/lib/site';
 
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
@@ -28,10 +29,7 @@ export async function GET(request) {
   // Only ever redirect to a path on this site. Taking a full URL from the
   // query string and redirecting to it is the open-redirect bug -- it lets
   // someone send out a link that looks like ours and lands somewhere else.
-  const rawNext = searchParams.get('next') || '/account/dashboard/';
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//')
-    ? rawNext
-    : '/account/dashboard/';
+  const next = safeNextPath(searchParams.get('next'));
 
   const supabase = await createClient();
 

@@ -53,6 +53,24 @@ export default [
   },
   ...compat.extends('next/core-web-vitals'),
   {
+    // no-undef needs to know what legitimately exists without being declared.
+    // Browser and Node globals, plus the handful this project actually uses.
+    languageOptions: {
+      globals: {
+        window: 'readonly', document: 'readonly', navigator: 'readonly',
+        console: 'readonly', fetch: 'readonly', URL: 'readonly',
+        URLSearchParams: 'readonly', Request: 'readonly', Response: 'readonly',
+        Headers: 'readonly', FormData: 'readonly', Blob: 'readonly',
+        File: 'readonly', FileReader: 'readonly', Image: 'readonly',
+        crypto: 'readonly', TextEncoder: 'readonly', TextDecoder: 'readonly',
+        setTimeout: 'readonly', clearTimeout: 'readonly',
+        setInterval: 'readonly', clearInterval: 'readonly',
+        localStorage: 'readonly', sessionStorage: 'readonly',
+        process: 'readonly', Buffer: 'readonly', structuredClone: 'readonly',
+        AbortController: 'readonly', atob: 'readonly', btoa: 'readonly',
+        HTMLElement: 'readonly', Element: 'readonly', Event: 'readonly',
+      },
+    },
     rules: {
       // ON as a warning, not off, and this is the one rule worth explaining.
       //
@@ -67,6 +85,26 @@ export default [
       // converted. It stays visible so the conversion is a decision somebody
       // makes, not a warning somebody deleted.
       '@next/next/no-img-element': 'warn',
+
+      // ERROR, and added the day it would have mattered.
+      //
+      // On 31 August 2026 a rename left two references to a variable called
+      // `started` that no longer existed. `npm run build` passed. `npm run
+      // lint` passed with zero errors. It deployed, and every family dashboard
+      // returned 500 with "ReferenceError: started is not defined" until it
+      // was found in the Vercel logs.
+      //
+      // The reason both were silent: eslint-config-next leaves no-undef off,
+      // because it is written for TypeScript projects where the compiler
+      // catches this. THIS PROJECT IS JAVASCRIPT -- deliberately, so a
+      // volunteer can maintain it -- so nothing was checking, and a webpack
+      // build will happily bundle an identifier that is only resolved when the
+      // line actually runs.
+      //
+      // This one rule is most of what TypeScript would have bought here, for
+      // none of the cost. Do not turn it off to silence a single case; add the
+      // missing global to languageOptions below instead.
+      'no-undef': 'error',
     },
   },
 ];

@@ -586,9 +586,17 @@ export default async function DashboardPage({ searchParams }) {
                     </span>
                     <Link
                       href={`/account/details/${p.id}/`}
-                      className={started ? 'btn-outline !py-1.5 text-sm' : 'btn-primary !py-1.5 text-sm'}
+                      className={
+                        state === 'empty'
+                          ? 'btn-primary !py-1.5 text-sm'
+                          : 'btn-outline !py-1.5 text-sm'
+                      }
                     >
-                      {started ? 'Review or update' : 'Fill it in'}
+                      {state === 'empty'
+                        ? 'Fill it in'
+                        : state === 'incomplete'
+                          ? 'Finish it'
+                          : 'Review or update'}
                     </Link>
                   </li>
                 );

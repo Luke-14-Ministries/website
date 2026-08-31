@@ -10,3 +10,24 @@ out/
 # deleted on 30 August 2026; the folder is gone. Keep the rule anyway --
 # the next session that cannot delete a file will recreate it.)
 _to_delete/
+
+# Added automatically by `vercel link` on 30 August 2026. The CLI writes two
+# rules; only one of them is kept.
+#
+# .vercel  -- correct, and needed. It holds the project and org ids that tie
+# this working copy to the Vercel project. Machine-specific, not shared.
+.vercel
+
+# The CLI's second rule was a bare `.env*`, and it is removed deliberately.
+# It is broader than it looks: it matches `.env.example`, which this project
+# COMMITS on purpose as the names-only template. That file survived only
+# because it was already tracked -- gitignore does not evict a tracked file --
+# so the breakage would not have shown up until somebody added, say,
+# `.env.production.example` and watched git silently refuse to see it.
+#
+# `.env*.local` on line 4 already covers the file that actually matters
+# (`.env.local`, which is what `vercel env pull` writes). That is also what
+# Next.js ships in its own template, for this same reason.
+#
+# If `.env*` reappears at the bottom of this file, a later `vercel link` put
+# it back. Delete it again.

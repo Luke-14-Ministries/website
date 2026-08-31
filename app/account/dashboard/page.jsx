@@ -6,6 +6,7 @@ import PayPanel from './PayPanel';
 import RegistrationCard from './RegistrationCard';
 import CancelRequest from './CancelRequest';
 import SupportDetailsCard from './SupportDetailsCard';
+import { registrationDepositCents } from '@/lib/payments';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -725,10 +726,12 @@ export default async function DashboardPage({ searchParams }) {
                   // uses -- the bar and the card can never disagree.
                   const bal = balByReg.get(r.id);
                   const clearing = pendingByReg.get(r.id) ?? 0;
-                  const depositCents = Math.min(
-                    r.events?.deposit_cents ?? 0,
-                    bal?.balance_cents ?? 0
-                  );
+                  // Per PERSON (31 Aug). See registrationDepositCents.
+                  const depositCents = registrationDepositCents({
+                    perPersonCents: r.events?.deposit_cents,
+                    participants: r.registration_participants,
+                    balanceCents: bal?.balance_cents,
+                  });
                   const nothingPaid =
                     bal && (bal.paid_cents ?? 0) === 0 && clearing === 0;
                   const depositDue =
@@ -987,17 +990,24 @@ export default async function DashboardPage({ searchParams }) {
                           only while NOTHING has been paid or is clearing. */}
                       {(() => {
                         const b = balByReg.get(r.id);
-                        const dep = Math.min(
-                          r.events?.deposit_cents ?? 0,
-                          b?.balance_cents ?? 0
-                        );
+                        const dep = registrationDepositCents({
+                          perPersonCents: r.events?.deposit_cents,
+                          participants: r.registration_participants,
+                          balanceCents: b?.balance_cents,
+                        });
+                        const heads = (r.registration_participants ?? []).filter(
+                          (x) => x?.status !== 'cancelled'
+                        ).length;
                         const nothingPaid =
                           b && (b.paid_cents ?? 0) === 0 && (pendingByReg.get(r.id) ?? 0) === 0;
                         if (!(dep > 0 && nothingPaid && (b?.balance_cents ?? 0) > 0)) return null;
                         return (
                           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                             <p className="font-semibold">
-                              A {money(dep)} deposit is required to hold your spots.
+                              A {money(dep)} deposit is required to hold your spots
+                              {heads > 1
+                                ? ` — ${money(r.events?.deposit_cents ?? 0)} for each of the ${heads} people on this registration.`
+                                : '.'}
                             </p>
                             <p className="mt-1">
                               The deposit is your family&rsquo;s commitment to come — and it lets
@@ -1021,7 +1031,11 @@ export default async function DashboardPage({ searchParams }) {
                         <PayPanel
                           registrationId={r.id}
                           balanceCents={balanceByReg.get(r.id)}
-                          depositCents={r.events?.deposit_cents}
+                          depositCents={registrationDepositCents({
+                            perPersonCents: r.events?.deposit_cents,
+                            participants: r.registration_participants,
+                            balanceCents: balanceByReg.get(r.id),
+                          })}
                           pendingCents={pendingByReg.get(r.id)}
                           paidCents={balByReg.get(r.id)?.paid_cents}
                         />

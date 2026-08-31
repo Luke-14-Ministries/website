@@ -173,7 +173,11 @@ export async function submitFamilyRegistration(payload) {
         eventName: ev.name,
         saved: data?.saved ?? mapped.length,
         isUpdate: Boolean(payload?.isUpdate),
-        depositCents: ev?.deposit_cents ?? 0,
+        // Per PERSON, matching the dashboard (31 Aug). Sending "$50" to a
+        // family of two and then showing them $100 on the dashboard is how a
+        // family arrives believing they have paid what was asked.
+        depositCents: (ev?.deposit_cents ?? 0) * (data?.saved ?? mapped.length),
+        depositPerPersonCents: ev?.deposit_cents ?? 0,
       });
       await sendEmail({ to, subject, html });
     }

@@ -4,15 +4,27 @@
 //
 // HOW THIS FITS TOGETHER (worth reading before changing anything here):
 //
-// The site does NOT verify the token itself. Supabase Auth has native captcha
+// WHO VERIFIES THE TOKEN DEPENDS ON THE FORM. Two answers, both correct.
+//
+// The three ACCOUNT forms do not verify here. Supabase Auth has native captcha
 // support, so the token rides along on signUp / signInWithPassword /
 // resetPasswordForEmail as options.captchaToken, and Supabase's own servers
-// call Cloudflare to verify it. That is better than a verifier of our own for
-// one specific reason: these forms call supabase.auth.* DIRECTLY from the
-// browser, with no server action in between. A check we wrote ourselves would
-// have to sit in front of a call it cannot actually gate — a lock on a door
-// beside an open window. Supabase enforcing it at the Auth endpoint closes the
-// window.
+// call Cloudflare. That is better than a verifier of our own for one specific
+// reason: those forms call supabase.auth.* DIRECTLY from the browser, with no
+// server action in between. A check we wrote ourselves would have to sit in
+// front of a call it cannot actually gate — a lock on a door beside an open
+// window. Supabase enforcing it at the Auth endpoint closes the window.
+//
+// The CONTACT form (added 30 Aug 2026) has no such call. It posts to a server
+// action of ours, and nothing downstream would check anything, so it verifies
+// server-side in lib/turnstile.js. A widget nobody verifies is worse than no
+// widget: it spins, says "success", and stops nothing.
+//
+// So the SECRET key now lives in two places — the Supabase dashboard for the
+// auth forms, and TURNSTILE_SECRET_KEY in Vercel for the contact form. Same
+// key pair; Cloudflare does not mind who calls siteverify. (This comment said
+// the secret "does NOT go in this project at all" until 30 Aug. That was true
+// of every form that existed when it was written.)
 //
 // ⚠️ THE SEQUENCING HAZARD — this can take the site down.
 // Turning captcha ON in the Supabase dashboard makes EVERY auth endpoint
@@ -64,8 +76,11 @@ function loadTurnstile() {
  * resetKey — change it (e.g. a counter bumped on submit failure) to force a
  *   fresh token. Turnstile tokens are SINGLE USE: after any failed submit the
  *   spent token must be replaced or the retry fails for the wrong reason.
+ * action — a label Cloudflare reports on, so the dashboard can tell contact-form
+ *   traffic from sign-up traffic. Cosmetic to us, useful the day one of them is
+ *   being hammered and you want to know which.
  */
-export default function Turnstile({ onToken, resetKey = 0, className = '' }) {
+export default function Turnstile({ onToken, resetKey = 0, className = '', action = 'auth' }) {
   const boxRef = useRef(null);
   const widgetIdRef = useRef(null);
   // Held in a ref so the render effect never re-runs just because the parent
@@ -90,7 +105,7 @@ export default function Turnstile({ onToken, resetKey = 0, className = '' }) {
         'expired-callback': () => onTokenRef.current?.(null),
         'error-callback': () => onTokenRef.current?.(null),
         theme: 'light',
-        action: 'auth',
+        action,
       });
     });
 

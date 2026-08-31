@@ -132,7 +132,11 @@ export default function EventFilter({
   const selectedPast = past.find((e) => e.id === selected) ?? null;
 
   return (
-    <div className="mb-6">
+    // No bottom margin in search mode: there the component is ONE control
+    // inside somebody else's filter row (the roster header), and mb-6 there
+    // pushes the whole row apart from the inside. In pill mode it is a block
+    // of its own and the margin is right.
+    <div className={searchOnly ? '' : 'mb-6'}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="sr-only">{label}</span>
         {/* In search mode "all" lives pinned at the top of the list, so a
@@ -177,11 +181,24 @@ export default function EventFilter({
               type="button"
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
-              className={`rounded-full border px-3 py-1 text-sm font-semibold ${
-                selectedPast
-                  ? 'border-brand bg-brand text-white'
-                  : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
-              }`}
+              // Two shapes, because this button appears in two places. In the
+              // pill row (Dietary, Programs) it is one pill among pills. In
+              // SEARCH mode it is the first control in a row of native
+              // <select>s, and a rounded-full pill at py-1 beside three square
+              // boxes at py-1.5 is why the roster header never lined up.
+              className={
+                searchOnly
+                  ? `rounded border px-3 py-1.5 text-sm bg-white ${
+                      selectedPast
+                        ? 'border-brand text-brand-dark font-semibold'
+                        : 'border-neutral-300 text-neutral-700 hover:bg-neutral-50'
+                    }`
+                  : `rounded-full border px-3 py-1 text-sm font-semibold ${
+                      selectedPast
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
+                    }`
+              }
             >
               {selectedPast
                 ? selectedPast.name

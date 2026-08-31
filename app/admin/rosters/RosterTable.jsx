@@ -161,7 +161,18 @@ export default function RosterTable({ events, rows, programs = [] }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      {/* Two GROUPS, not one flat row (31 Aug). Everything used to sit in a
+          single flex line — four filters, a running count, then two buttons
+          pushed over with ml-auto — so nothing aligned, the count floated
+          between controls that had nothing to do with it, and on a narrow
+          window ml-auto put the buttons somewhere arbitrary.
+
+          Filters left, because they are one job. Count and actions right,
+          because they are the other: the count says what you have filtered to
+          and the two buttons export exactly that. justify-between rather than
+          ml-auto so the wrap behaves. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center gap-2">
         {/* The same picker the other staff pages use, in its search-only
             shape: this is a filter over every event the ministry has ever run,
             so a pill row would be a wall and a plain <select> gives you no way
@@ -216,19 +227,20 @@ export default function RosterTable({ events, rows, programs = [] }) {
           ))}
         </select>
 
-        <span className="text-sm text-neutral-500">
-          {families} {families === 1 ? 'family' : 'families'} · {filtered.length}{' '}
-          {filtered.length === 1 ? 'person' : 'people'}
-        </span>
+        </div>
 
-        <span className="ml-auto flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="whitespace-nowrap text-sm text-neutral-500">
+            {families} {families === 1 ? 'family' : 'families'} · {filtered.length}{' '}
+            {filtered.length === 1 ? 'person' : 'people'}
+          </span>
           <a href={csvHref} className="btn-outline !py-1.5 text-sm">
             Download CSV
           </a>
           <a href={printHref} className="btn-outline !py-1.5 text-sm">
             Print view
           </a>
-        </span>
+        </div>
       </div>
 
       {/* Two summaries that answer questions staff otherwise ask a spreadsheet:

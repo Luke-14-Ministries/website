@@ -9,6 +9,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
+import { getStaff, can } from '@/lib/staff';
 
 export async function assignBuddy({ eventId, camperParticipantId, buddyParticipantId, note }) {
   if (!eventId || !camperParticipantId || !buddyParticipantId) {
@@ -86,5 +87,52 @@ export async function setBuddyPublication({ eventId, publish }) {
 
   revalidatePath('/admin/buddies');
   revalidatePath('/account/dashboard');
+  return { ok: true };
+}
+
+// Mark someone as needing a one-to-one buddy, or unmark them.
+//
+// This used to be a question on the family's own support form. It was removed
+// on 31 August 2026: families are not asked at registration, because the family
+// coordinator follows up with each family to work out what support is actually
+// needed, and a yes/no ticked months earlier by somebody guessing at the term
+// was a worse input to that conversation than no answer.
+//
+// So the flag needed a home, and this is it — the page where the coordinator
+// already works, and where a follow-up phone call actually gets recorded.
+//
+// Guarded on `sensitive` rather than `coordinator`. Whether a child needs
+// one-to-one support is support information, and person_support's RLS agrees:
+// its write policy is can_view_sensitive(). Guarding on anything weaker here
+// would just produce a save that silently does nothing.
+//
+// upsert, not update: a person can reach camp with no person_support row at
+// all, and a coordinator marking them should not fail on that.
+export async function setBuddyRequired({ personId, required }) {
+  if (!personId) return { ok: false, error: 'No person given.' };
+
+  const staff = await getStaff();
+  if (!can(staff, 'sensitive')) {
+    return {
+      ok: false,
+      error: 'Marking who needs a buddy needs the sensitive-information permission.',
+    };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('person_support')
+    .upsert(
+      { person_id: personId, buddy_required: required === true },
+      { onConflict: 'person_id' }
+    );
+
+  if (error) {
+    console.error('setBuddyRequired:', error.message);
+    return { ok: false, error: 'That could not be saved.' };
+  }
+
+  revalidatePath('/admin/buddies');
+  revalidatePath('/admin/checkin');
   return { ok: true };
 }

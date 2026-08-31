@@ -14,6 +14,7 @@ import Link from 'next/link';
 import PhotoUpload from '@/components/PhotoUpload';
 import SaveButton from '@/components/SaveButton';
 import { savePersonSupport } from './actions';
+import { formatPhone } from '@/lib/format';
 
 const input = 'w-full rounded border border-neutral-300 px-4 py-2.5';
 const label = 'block font-semibold mb-1.5 mt-4 first:mt-0';
@@ -130,6 +131,9 @@ export default function DetailsForm({
   const hasFullerDetail =
     FULLER_TEXT.some((k) => (s[k] ?? '').trim() !== '') ||
     Boolean(s.has_seizures || s.has_rescue_medication || s.has_sleep_disturbance ||
+      // buddy_required is no longer ASKED here, but an answer given before
+      // 31 Aug still means this person has real detail on file, so the fuller
+      // section stays open for them rather than folding away.
       s.has_caregiver || s.buddy_required);
   const [showAll, setShowAll] = useState(isCamper || hasFullerDetail);
 
@@ -193,7 +197,6 @@ export default function DetailsForm({
         'has_rescue_medication',
         'has_sleep_disturbance',
         'has_caregiver',
-        'buddy_required',
       ]) {
         payload[k] = payload[k] === true;
       }
@@ -442,16 +445,20 @@ export default function DetailsForm({
       </Card>
 
       <Card n={4} title="Support at camp">
-        <YesNo
-          id="buddy"
-          question={`Does ${name} need a one-to-one buddy?`}
-          value={f.buddy_required}
-          onChange={setFlag('buddy_required')}
-        >
-          <p className="mt-2 text-sm text-neutral-600">
-            Noted. Buddy pairing is done by camp staff before the week starts.
-          </p>
-        </YesNo>
+        {/* "Does X need a one-to-one buddy?" was removed on 31 August 2026.
+            It is not a question families are asked at registration: the family
+            coordinator follows up with each family to work out what support is
+            actually needed, and a yes/no typed months earlier by somebody
+            guessing at the term was a worse input to that conversation than
+            no answer at all.
+
+            The FIELD is untouched. buddy_required still drives the Buddies
+            board, the check-in flags, the medical page, a program leader's
+            roster and the amber badge counting campers who asked for a buddy
+            and still have nobody. It is now set by staff on the Buddies page
+            instead — which is where the coordinator already works, and where a
+            follow-up phone call actually gets recorded. Answers families gave
+            before today are kept. */}
 
         <YesNo
           id="caregiver"
@@ -509,6 +516,21 @@ export default function DetailsForm({
               className={input}
               value={f.emergency_contact_phone}
               onChange={set('emergency_contact_phone')}
+              // Tidy on blur, like every other phone box on the site (sign-up,
+              // the registration wizard, manage household). This one was
+              // missed, so "4232581264" stayed as typed here while the same
+              // number became "(423) 258-1264" three screens earlier — and
+              // this is the number somebody dials at 2am.
+              //
+              // formatPhone is tidy-never-mangle: anything it does not
+              // recognise as a clean US number comes back untouched, so an
+              // extension or an international number survives.
+              onBlur={() =>
+                setF((prev) => ({
+                  ...prev,
+                  emergency_contact_phone: formatPhone(prev.emergency_contact_phone),
+                }))
+              }
             />
           </div>
         </div>

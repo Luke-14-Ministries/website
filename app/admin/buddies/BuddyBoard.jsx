@@ -5,7 +5,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { assignBuddy, unassignBuddy, setBuddyPublication } from './actions';
+import { assignBuddy, unassignBuddy, setBuddyPublication, setBuddyRequired } from './actions';
 
 function ClearanceBadge({ clearance }) {
   // No record at all is NOT the same as a failed check, and saying "not
@@ -101,11 +101,35 @@ export default function BuddyBoard({
   eventName,
   publishedAt,
   campers,
+  otherCampers = [],
+  canMark = false,
   volunteers,
   assignments,
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [markOpen, setMarkOpen] = useState(false);
+
+  // Marking somebody as needing a buddy. The only way this flag is now set:
+  // families stopped being asked on 31 Aug 2026, because the coordinator works
+  // it out by talking to them.
+  function mark(personId, required, name) {
+    if (
+      !required &&
+      !window.confirm(
+        `Take ${name} off the buddy list?
+
+Any buddy already paired with them stays paired — remove the pairing separately if that is what you meant.`
+      )
+    ) {
+      return;
+    }
+    start(async () => {
+      const res = await setBuddyRequired({ personId, required });
+      if (!res?.ok) window.alert(res?.error || 'That could not be saved.');
+      else router.refresh();
+    });
+  }
   const [error, setError] = useState('');
   const [picking, setPicking] = useState(null); // camper participantId
 
@@ -323,8 +347,23 @@ export default function BuddyBoard({
                     </span>
                   </h3>
                   {mine.length === 0 ? (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                      needs buddy
+                    <span className="flex items-center gap-2">
+                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                        needs buddy
+                      </span>
+                      {/* Only offered while nobody is paired. Taking someone off
+                          the list who already has a buddy would leave a pairing
+                          behind with nothing explaining it. */}
+                      {canMark && (
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => mark(c.personId, false, c.name)}
+                          className="text-xs text-neutral-500 underline hover:text-neutral-700 disabled:opacity-50"
+                        >
+                          not needed
+                        </button>
+                      )}
                     </span>
                   ) : (
                     <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-semibold text-neutral-600">
@@ -419,6 +458,60 @@ export default function BuddyBoard({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Marking somebody as needing a buddy.
+          Families are no longer asked this at registration (31 Aug 2026) — the
+          coordinator works it out by talking to them — so this is the only way
+          the flag is ever set now. Without it the board would empty itself over
+          a season with no way to refill it.
+
+          Collapsed by default: it is a list of every camper at the event, and
+          it is a thing you do occasionally, not the job this page is for. */}
+      {canMark && otherCampers.length > 0 && (
+        <div className="mt-8 rounded-lg border border-neutral-200 bg-white p-5">
+          <button
+            type="button"
+            onClick={() => setMarkOpen((o) => !o)}
+            aria-expanded={markOpen}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span>
+              <span className="font-semibold">Someone else need a buddy?</span>
+              <span className="ml-2 text-sm text-neutral-500">
+                {otherCampers.length} other{' '}
+                {otherCampers.length === 1 ? 'camper' : 'campers'} at this event
+              </span>
+            </span>
+            <span className="text-sm text-brand underline">
+              {markOpen ? 'Hide' : 'Show'}
+            </span>
+          </button>
+
+          {markOpen && (
+            <>
+              <p className="mt-2 text-sm text-neutral-600">
+                Add anyone the family coordinator has since found needs one-to-one
+                support. They then appear on the board above, ready to pair.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {otherCampers.map((c) => (
+                  <button
+                    key={c.participantId}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => mark(c.personId, true, c.name)}
+                    className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm hover:border-brand hover:bg-brand-light disabled:opacity-50"
+                    title={`Mark ${c.name} as needing a one-to-one buddy`}
+                  >
+                    + {c.name}
+                    <span className="ml-1.5 text-xs text-neutral-500">{c.household}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

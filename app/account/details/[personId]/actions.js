@@ -40,13 +40,16 @@ const TEXT_FIELDS = [
   'emergency_contact_relationship',
 ];
 
+// buddy_required deliberately absent since 31 Aug 2026: families are no longer
+// asked, so the family endpoint no longer accepts it. Staff set it on the
+// Buddies page. A server action is a public endpoint, and "the form does not
+// show it" is not the same as "it cannot be sent".
 const FLAG_FIELDS = [
   'has_allergies',
   'has_seizures',
   'has_rescue_medication',
   'has_sleep_disturbance',
   'has_caregiver',
-  'buddy_required',
 ];
 
 export async function savePersonSupport(personId, fields) {

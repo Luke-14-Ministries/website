@@ -124,11 +124,18 @@ export default async function BuddiesPage({ searchParams }) {
     };
   };
 
-  const campers = rows
+  const allCampers = rows
     .filter((r) => r.camp_role !== 'volunteer')
     .map(shape)
-    .filter((c) => c.buddyRequired)
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // The board itself still shows only those who need a buddy — that is what it
+  // is for. The rest travel separately so a coordinator can mark somebody after
+  // a follow-up call, which is now the only way this flag is ever set: families
+  // stopped being asked on 31 Aug 2026. Without this list the board would empty
+  // itself over a season and there would be no way to refill it.
+  const campers = allCampers.filter((c) => c.buddyRequired);
+  const otherCampers = allCampers.filter((c) => !c.buddyRequired);
 
   const volunteers = rows
     .filter((r) => r.camp_role === 'volunteer')
@@ -170,6 +177,8 @@ export default async function BuddiesPage({ searchParams }) {
           eventName={selected.name}
           publishedAt={selected.buddy_assignments_published_at}
           campers={campers}
+          otherCampers={otherCampers}
+          canMark={can(staff, 'sensitive')}
           volunteers={volunteers}
           assignments={assignments}
         />

@@ -44,6 +44,11 @@ workflow, project layout, and the security rules.
 is no deploy workflow in this repository to maintain — Vercel's GitHub integration does the
 watching.
 
+There *is* one GitHub Action, added 30 August 2026: `.github/workflows/build.yml`. It lints and
+builds on every push to `main` and deploys nothing — it exists so a broken build arrives as an
+email in about three minutes rather than as a stale preview site somebody notices days later. It
+needs no secrets.
+
 `NEXT_PUBLIC_BASE_PATH` must stay **unset** on Vercel. It exists only so a site can be served
 from a subfolder; setting it breaks every link and every image, and it fails in a way that
 looks like a styling problem rather than a configuration one.

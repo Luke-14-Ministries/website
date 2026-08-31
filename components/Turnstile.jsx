@@ -88,6 +88,12 @@ export default function Turnstile({ onToken, resetKey = 0, className = '', actio
   // throw away a perfectly good token.
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
+  // Same reason as onTokenRef above: the render effect must not re-run. Naming
+  // `action` in its dependency array would tear down and rebuild the widget,
+  // discarding a token that was perfectly good. A form's action never changes
+  // anyway -- it is a literal at the call site.
+  const actionRef = useRef(action);
+  actionRef.current = action;
 
   useEffect(() => {
     if (!SITE_KEY) return;
@@ -105,7 +111,7 @@ export default function Turnstile({ onToken, resetKey = 0, className = '', actio
         'expired-callback': () => onTokenRef.current?.(null),
         'error-callback': () => onTokenRef.current?.(null),
         theme: 'light',
-        action,
+        action: actionRef.current,
       });
     });
 

@@ -1,0 +1,71 @@
+# Lint and build every push to main, and every pull request.
+#
+# WHY THIS RUNS ON PUSH AND NOT ONLY ON PULL REQUESTS
+#
+# The usual advice is to check pull requests. This project does not use them:
+# work is pushed straight to main from GitHub Desktop, so a PR-only check would
+# sit here doing nothing and quietly imply a safety net that was not there.
+#
+# So it runs on push to main, which is honest about the workflow. It cannot
+# PREVENT a broken build reaching main -- only a branch and a PR can do that --
+# but it turns "somebody notices the preview site is stale" into a GitHub email
+# within about three minutes. Vercel keeps serving the last good version while
+# a build is broken, which is the real safety net and is unchanged by this.
+#
+# `pull_request` is listed too, at no cost, so the day somebody does open one
+# the check is already waiting for it.
+#
+# THE ENVIRONMENT VARIABLES BELOW ARE FAKE ON PURPOSE. Not secrets, not
+# placeholders-for-later: deliberate rubbish. `next build` needs the two
+# NEXT_PUBLIC_SUPABASE_* names to EXIST or it dies during prerendering with an
+# error naming a Supabase settings page. It never uses their values, because
+# lib/supabase/server.js awaits cookies() before it builds a client, which
+# marks those routes dynamic -- nothing on a page that touches the database is
+# rendered at build time. Verified by running exactly this locally on 30 Aug.
+#
+# The consequence worth keeping: this workflow needs NO GitHub secrets, so
+# there is no key here to leak, rotate, or explain to the next volunteer.
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A second push while the first is still building makes the first irrelevant.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches Vercel's build runtime for this project, checked against the
+          # project settings rather than assumed. If Vercel's Node version is
+          # ever changed, change it here in the same sitting -- a CI that builds
+          # on a different major than production is testing the wrong thing.
+          node-version: '24'
+          cache: npm
+
+      # ci, not install: it installs exactly what package-lock.json pins and
+      # fails if the lockfile and package.json disagree, which is itself a
+      # check worth having.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-build-only

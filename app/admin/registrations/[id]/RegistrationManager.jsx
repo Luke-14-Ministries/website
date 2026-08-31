@@ -416,7 +416,7 @@ function ParticipantRow({ registrationId, participant, awaitingScholarship = fal
           <p className="font-semibold">
             {p.first_name} {p.last_name}
             {p.preferred_name ? (
-              <span className="font-normal text-neutral-500"> ("{p.preferred_name}")</span>
+              <span className="font-normal text-neutral-500"> (&ldquo;{p.preferred_name}&rdquo;)</span>
             ) : null}
             <span
               className={`ml-2 rounded-full px-2.5 py-0.5 text-xs font-semibold align-middle ${

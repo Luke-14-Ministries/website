@@ -173,6 +173,14 @@ named `<org>.github.io` is what *tells* GitHub to serve it as the organization's
 The `Production` environment that remains under Settings → Environments belongs to **Vercel**,
 which creates it through the deployments API. Leave it alone.
 
+**`.github/workflows/build.yml` exists again from 30 August 2026, and it is NOT a deploy
+workflow.** It runs `npm ci`, `npm run lint` and `npm run build` on every push to `main`, and
+publishes nothing anywhere. Vercel still does all deploying, through its GitHub integration and
+not through any file in this repository. The distinction matters because the last workflow file
+here *was* a Pages deployer, so a future reader finding `.github/workflows/` again could
+reasonably assume Pages had crept back. It has not. If that file ever grows a step that uploads,
+publishes or deploys, something has gone wrong.
+
 The repository is `https://github.com/luke-14-ministries/website.git`. GitHub redirects the old
 URL, so an out-of-date clone still works, but new instructions should use the new name.
 

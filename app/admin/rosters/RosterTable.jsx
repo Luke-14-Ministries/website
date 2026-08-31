@@ -420,7 +420,18 @@ export default function RosterTable({ events, rows, programs = [] }) {
                       </>
                     )}
                   </td>
-                  <td className="px-4 py-2">{r.person}</td>
+                  {/* E04, and the thing Ellen actually asked for: the PERSON
+                      is a link, not just the household. It could not be built
+                      until there was a person page to point at (E05). */}
+                  <td className="px-4 py-2">
+                    {r.personId ? (
+                      <a href={`/admin/people/${r.personId}/`} className="text-brand underline">
+                        {r.person}
+                      </a>
+                    ) : (
+                      r.person
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-neutral-600">{r.sex || '—'}</td>
                   <td className="px-4 py-2">
                     {/* Volunteers carry a second record — application status

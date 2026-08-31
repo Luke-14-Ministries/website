@@ -123,7 +123,13 @@ export async function setBuddyRequired({ personId, required }) {
   const { error } = await supabase
     .from('person_support')
     .upsert(
-      { person_id: personId, buddy_required: required === true },
+      {
+        person_id: personId,
+        // Three states (0066): true needs one, false decided against, null
+        // nobody has decided. `required === true` would have collapsed null
+        // into false and quietly excused everybody nobody had looked at.
+        buddy_required: required === true ? true : required === false ? false : null,
+      },
       { onConflict: 'person_id' }
     );
 

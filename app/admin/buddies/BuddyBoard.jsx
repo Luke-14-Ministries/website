@@ -117,9 +117,16 @@ export default function BuddyBoard({
     if (
       !required &&
       !window.confirm(
-        `Take ${name} off the buddy list?
+        `Record that ${name} does NOT need a one-to-one buddy?
 
-Any buddy already paired with them stays paired — remove the pairing separately if that is what you meant.`
+` +
+          `Every camper is listed as needing one until somebody decides otherwise, so ` +
+          `this is a decision rather than a tidy-up: they come off the board and stop ` +
+          `being counted as waiting for a buddy.
+
+` +
+          `Any buddy already paired with them stays paired — remove that pairing ` +
+          `separately if it is what you meant.`
       )
     ) {
       return;
@@ -361,7 +368,7 @@ Any buddy already paired with them stays paired — remove the pairing separatel
                           onClick={() => mark(c.personId, false, c.name)}
                           className="text-xs text-neutral-500 underline hover:text-neutral-700 disabled:opacity-50"
                         >
-                          not needed
+                          no buddy needed
                         </button>
                       )}
                     </span>
@@ -478,10 +485,10 @@ Any buddy already paired with them stays paired — remove the pairing separatel
             className="flex w-full items-center justify-between gap-3 text-left"
           >
             <span>
-              <span className="font-semibold">Someone else need a buddy?</span>
+              <span className="font-semibold">Marked as not needing a buddy</span>
               <span className="ml-2 text-sm text-neutral-500">
-                {otherCampers.length} other{' '}
-                {otherCampers.length === 1 ? 'camper' : 'campers'} at this event
+                {otherCampers.length}{' '}
+                {otherCampers.length === 1 ? 'camper' : 'campers'} — put one back on the board
               </span>
             </span>
             <span className="text-sm text-brand underline">
@@ -492,8 +499,9 @@ Any buddy already paired with them stays paired — remove the pairing separatel
           {markOpen && (
             <>
               <p className="mt-2 text-sm text-neutral-600">
-                Add anyone the family coordinator has since found needs one-to-one
-                support. They then appear on the board above, ready to pair.
+                Somebody decided these campers do not need a one-to-one buddy. If that
+                has changed — or it was decided too quickly — put them back and they
+                return to the board above, ready to pair.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {otherCampers.map((c) => (

@@ -16,6 +16,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getStaff, can } from '@/lib/staff';
 import { getStripe } from '@/lib/stripe/server';
+import { registrationDepositCents } from '@/lib/payments';
 
 const STATUSES = ['draft', 'submitted', 'waitlisted', 'confirmed', 'cancelled'];
 const CAMP_ROLES = [
@@ -98,10 +99,64 @@ function revalidateAll(registrationId) {
 }
 
 // #14 -- move a participant off "submitted / pending review" (or anywhere else).
-export async function setParticipantStatus(registrationId, participantId, status) {
+export async function setParticipantStatus(
+  registrationId,
+  participantId,
+  status,
+  options = {}
+) {
   const { error: authError } = await requireRegistrar();
   if (authError) return { ok: false, error: authError };
   if (!STATUSES.includes(status)) return { ok: false, error: 'Unknown status.' };
+
+  // CONFIRMED MEANS THE PLACE IS HELD, AND A PLACE IS HELD BY A DEPOSIT.
+  //
+  // Asked for 31 Aug 2026. Nothing checked before: a registrar could confirm a
+  // family who had paid nothing, and the deposit banner would keep asking them
+  // for money against a registration already marked confirmed.
+  //
+  // Two things stop this being a trap. A registration reduced to zero by a
+  // scholarship or discount owes no deposit -- registrationDepositCents caps at
+  // the balance -- so the fully-funded family sails through without anybody
+  // thinking about it. And a registrar who genuinely needs to confirm anyway
+  // (a cheque in the post, a board decision) can, by confirming a second time:
+  // this returns needsOverride rather than a flat no. A hard block that staff
+  // cannot get past is worked around by recording a payment that did not
+  // happen, which is worse than the thing it prevents.
+  if (status === 'confirmed' && options.override !== true) {
+    const supabaseCheck = await createClient();
+    const [{ data: reg }, { data: bal }] = await Promise.all([
+      supabaseCheck
+        .from('registrations')
+        .select('id, events ( deposit_cents ), registration_participants ( id, status )')
+        .eq('id', registrationId)
+        .maybeSingle(),
+      supabaseCheck
+        .from('registration_balances')
+        .select('paid_cents, balance_cents')
+        .eq('registration_id', registrationId)
+        .maybeSingle(),
+    ]);
+
+    const due = registrationDepositCents({
+      perPersonCents: reg?.events?.deposit_cents,
+      participants: reg?.registration_participants,
+      balanceCents: bal?.balance_cents,
+    });
+    const paid = bal?.paid_cents ?? 0;
+
+    if (due > 0 && paid < due) {
+      const fmt = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
+      return {
+        ok: false,
+        needsOverride: true,
+        error:
+          `The deposit for this registration is ${fmt(due)} and ${fmt(paid)} has been ` +
+          `received. Confirming marks the places as held. Record the payment first, or ` +
+          `confirm again to do it anyway.`,
+      };
+    }
+  }
 
   const now = new Date().toISOString();
   const patch = { status };

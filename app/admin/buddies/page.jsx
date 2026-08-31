@@ -105,7 +105,10 @@ export default async function BuddiesPage({ searchParams }) {
       name: `${r.people?.first_name ?? ''} ${r.people?.last_name ?? ''}`.trim(),
       household: r.registrations?.households?.display_name ?? '',
       role: r.camp_role,
-      buddyRequired: Boolean(support?.buddy_required),
+      // TRI-STATE, not Boolean(): null means nobody has decided, and 0066
+      // makes that different from a decided "no". Boolean() would flatten the
+      // two back together and undo the migration.
+      buddyRequired: support?.buddy_required ?? null,
       buddyRatio: support?.buddy_ratio ?? null,
       // Only the facts that bear on WHO should be paired with them. This page
       // deliberately does not become a second medical page.
@@ -134,8 +137,11 @@ export default async function BuddiesPage({ searchParams }) {
   // a follow-up call, which is now the only way this flag is ever set: families
   // stopped being asked on 31 Aug 2026. Without this list the board would empty
   // itself over a season and there would be no way to refill it.
-  const campers = allCampers.filter((c) => c.buddyRequired);
-  const otherCampers = allCampers.filter((c) => !c.buddyRequired);
+  // Everyone EXCEPT those a coordinator has explicitly excused. Undecided
+  // campers appear here, because the safe direction with support needs is to
+  // put somebody in front of a person rather than leave them off a list.
+  const campers = allCampers.filter((c) => c.buddyRequired !== false);
+  const otherCampers = allCampers.filter((c) => c.buddyRequired === false);
 
   const volunteers = rows
     .filter((r) => r.camp_role === 'volunteer')

@@ -170,6 +170,27 @@ function StatusControl({ registrationId, participant }) {
     setError('');
     start(async () => {
       const res = await setParticipantStatus(registrationId, participant.id, next);
+      if (res.needsOverride) {
+        // The deposit is short. Say the numbers and let the registrar decide
+        // — a cheque in the post is real, and a block they cannot pass is
+        // worked around by recording a payment that never happened.
+        if (window.confirm(`${res.error}
+
+Confirm anyway?`)) {
+          const forced = await setParticipantStatus(
+            registrationId,
+            participant.id,
+            next,
+            { override: true }
+          );
+          if (!forced.ok) setError(forced.error);
+          else router.refresh();
+        } else {
+          setError('');
+          router.refresh(); // put the dropdown back where it was
+        }
+        return;
+      }
       if (!res.ok) setError(res.error);
       else router.refresh();
     });

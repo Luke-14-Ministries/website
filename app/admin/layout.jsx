@@ -233,19 +233,44 @@ export default async function AdminLayout({ children }) {
   // above zero for ever.
   if (staff && can(staff, 'coordinator')) {
     const today = new Date().toISOString().slice(0, 10);
-    const [{ data: needBuddy }, { data: paired }] = await Promise.all([
+    // Counts everybody the Buddies board shows, which after 0066 is every
+    // camper EXCEPT those a coordinator has explicitly excused.
+    //
+    // Two things had to change together. The filter was `= true`, which now
+    // misses the undecided; and the join was person_support!inner, which
+    // dropped anybody with no support row at all — the most undecided people
+    // there are. A badge that silently omits the people nobody has looked at
+    // is worse than no badge, because it reads as "this queue is short".
+    //
+    // Done as two lookups and a filter in JS rather than one clever query: "is
+    // not false, INCLUDING where the row is absent" is not a thing PostgREST
+    // expresses well, and this runs over one camp, not a population.
+    const [{ data: liveParts }, { data: paired }] = await Promise.all([
       supabase
         .from('registration_participants')
-        .select(
-          'id, people!inner ( person_support!inner ( buddy_required ) ), registrations!inner ( events!inner ( ends_on ) )'
-        )
+        .select('id, person_id, camp_role, registrations!inner ( events!inner ( ends_on ) )')
         .neq('status', 'cancelled')
-        .eq('people.person_support.buddy_required', true)
+        .neq('camp_role', 'volunteer')
         .gte('registrations.events.ends_on', today),
       supabase.from('buddy_assignments').select('camper_participant_id').is('ended_at', null),
     ]);
+
+    const personIds = [...new Set((liveParts ?? []).map((p) => p.person_id).filter(Boolean))];
+    const { data: supportRows } = personIds.length
+      ? await supabase
+          .from('person_support')
+          .select('person_id, buddy_required')
+          .in('person_id', personIds)
+      : { data: [] };
+    // Only an explicit false excuses somebody. Absent row, or null, still counts.
+    const excused = new Set(
+      (supportRows ?? []).filter((r) => r.buddy_required === false).map((r) => r.person_id)
+    );
+
     const hasBuddy = new Set((paired ?? []).map((b) => b.camper_participant_id));
-    campersWithoutBuddy = (needBuddy ?? []).filter((p) => !hasBuddy.has(p.id)).length;
+    campersWithoutBuddy = (liveParts ?? []).filter(
+      (p) => !excused.has(p.person_id) && !hasBuddy.has(p.id)
+    ).length;
   }
 
   // People on a roster for an event that has not finished, with no program

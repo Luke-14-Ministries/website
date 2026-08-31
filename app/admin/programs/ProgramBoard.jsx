@@ -169,6 +169,23 @@ export default function ProgramBoard({
             <span className="ml-2 rounded-full bg-neutral-200 px-2 text-xs">{counts[p.id] ?? 0}</span>
           </button>
         ))}
+        {/* E21. The one link Ellen asked for that is genuinely useful: these
+            chips filter this page, which is for PLACING people. The Rosters
+            page is the full record of the same people — fee, t-shirt, status,
+            flags, consent, and the CSV export — and until now there was no way
+            to get from one to the other without rebuilding the filter by hand.
+            ?program= is read by RosterTable on mount.
+
+            Only shown when a real program is selected: "all" and "not placed"
+            have nothing to open — though "not placed" has its own filter in Rosters. */}
+        {filter && filter !== 'all' && filter !== 'unplaced' && (
+          <a
+            href={`/admin/rosters/?program=${filter}`}
+            className="rounded-full border border-brand px-3 py-1 text-sm font-semibold text-brand hover:bg-brand-light"
+          >
+            Open in Rosters &rarr;
+          </a>
+        )}
         <button
           type="button"
           onClick={() => setFilter('all')}

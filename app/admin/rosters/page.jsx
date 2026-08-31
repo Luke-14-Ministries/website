@@ -15,7 +15,14 @@ export default async function RostersPage() {
 
   const supabase = await createClient();
 
-  const [{ data: events }, { data: regs }, { data: consents }, { data: sigs }, { data: balances }] =
+  const [
+    { data: events },
+    { data: regs },
+    { data: consents },
+    { data: sigs },
+    { data: balances },
+    { data: programs },
+  ] =
     await Promise.all([
     supabase
       .from('events')
@@ -27,7 +34,7 @@ export default async function RostersPage() {
         `id, event_id, created_at, family_notes,
          households ( display_name, email, phone ),
          registration_participants ( id, camp_role, status, fee_cents, submitted_at, created_at,
-           tshirt_size, first_time_attending,
+           tshirt_size, first_time_attending, program_id,
            people ( id, first_name, last_name, gender ) )`
       )
       .order('created_at'),
@@ -43,6 +50,12 @@ export default async function RostersPage() {
     // answerable from it (25 Aug) -- a family of three showing one $50 deposit
     // looked settled.
     supabase.from('registration_balances').select('registration_id, paid_cents'),
+    // E21. The roster knew everything about a person except which program they
+    // are in — the one thing a program leader's week is organised around. Read
+    // as a small lookup rather than a nested join: PostgREST joins through two
+    // FKs to the same table are fragile here (a working rule from CLAUDE.md),
+    // and this is three rows.
+    supabase.from('programs').select('id, name, sort_order').order('sort_order'),
   ]);
 
   const consentOf = new Map();
@@ -50,6 +63,8 @@ export default async function RostersPage() {
   const signedRegs = new Set((sigs ?? []).map((s) => s.registration_id).filter(Boolean));
   const paidByReg = new Map((balances ?? []).map((b) => [b.registration_id, b.paid_cents ?? 0]));
   const depositByEvent = new Map((events ?? []).map((e) => [e.id, e.deposit_cents ?? 0]));
+
+  const programNameById = new Map((programs ?? []).map((g) => [g.id, g.name]));
 
   const rows = [];
   for (const r of regs ?? []) {
@@ -80,6 +95,8 @@ export default async function RostersPage() {
         fee: p.fee_cents ?? 0,
         submitted: p.submitted_at ?? p.created_at ?? '',
         tshirt: p.tshirt_size ?? '',
+        programId: p.program_id ?? '',
+        program: p.program_id ? programNameById.get(p.program_id) ?? 'Unknown program' : '',
         firstTime: p.first_time_attending,
         // null means never asked, which is NOT a refusal and must never be
         // displayed as one -- the photographers' list has to distinguish
@@ -115,6 +132,7 @@ export default async function RostersPage() {
           startsOn: e.starts_on,
           endsOn: e.ends_on,
         }))}
+        programs={(programs ?? []).map((g) => ({ id: g.id, name: g.name }))}
         rows={rows}
       />
     </div>

@@ -40,6 +40,7 @@ const COLS = [
   { key: 'person', label: 'Person' },
   { key: 'sex', label: 'Sex' },
   { key: 'role', label: 'Role' },
+  { key: 'program', label: 'Program' },
   { key: 'tshirt', label: 'T-shirt' },
   { key: 'status', label: 'Status' },
   { key: 'flags', label: 'Flags', noSort: true },
@@ -73,11 +74,19 @@ function Flag({ tone, children, title }) {
   );
 }
 
-export default function RosterTable({ events, rows }) {
+export default function RosterTable({ events, rows, programs = [] }) {
   const [sort, setSort] = useState({ key: 'submitted', dir: 'desc' });
   const [fEvent, setFEvent] = useState('');
   const [fRole, setFRole] = useState('');
   const [fStatus, setFStatus] = useState('');
+  // E21. Seeded from ?program= so the Programs page can link straight to
+  // "the roster, filtered to this program" — which is what Ellen asked for.
+  // Read once, on mount: after that the dropdown owns it, and rewriting the
+  // URL on every change would put filter churn in the browser's back button.
+  const [fProgram, setFProgram] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('program') ?? '';
+  });
 
   function clickHeader(key) {
     setSort((s) =>
@@ -91,9 +100,11 @@ export default function RosterTable({ events, rows }) {
         (r) =>
           (!fEvent || r.eventId === fEvent) &&
           (!fRole || r.role === fRole) &&
+          (!fProgram ||
+            (fProgram === '~~none~~' ? !r.programId : r.programId === fProgram)) &&
           (!fStatus || r.status === fStatus)
       ),
-    [rows, fEvent, fRole, fStatus]
+    [rows, fEvent, fRole, fProgram, fStatus]
   );
 
   const sorted = useMemo(() => {
@@ -177,6 +188,25 @@ export default function RosterTable({ events, rows }) {
             </option>
           ))}
         </select>
+        {/* E21. Only offered when programs exist, so a ministry that has not
+            set any up does not get an empty dropdown asking about them.
+            "Not placed" is a real and useful filter: it is the queue the
+            Programs page badge counts. */}
+        {programs.length > 0 && (
+          <select
+            value={fProgram}
+            onChange={(e) => setFProgram(e.target.value)}
+            className={selectCls}
+          >
+            <option value="">All programs</option>
+            <option value="~~none~~">Not placed yet</option>
+            {programs.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={selectCls}>
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABEL).map(([v, l]) => (
@@ -401,6 +431,15 @@ export default function RosterTable({ events, rows }) {
                       </a>
                     ) : (
                       ROLE_LABEL[r.role] ?? r.role
+                    )}
+                  </td>
+                  {/* E21. "Not placed" is said in words rather than left blank:
+                      an empty cell reads as missing data, and this is a queue
+                      somebody has to work through — the same one the Programs
+                      badge counts. */}
+                  <td className="px-4 py-2 text-neutral-600">
+                    {r.program || (
+                      <span className="text-amber-700">Not placed</span>
                     )}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-neutral-600">

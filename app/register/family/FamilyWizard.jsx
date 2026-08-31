@@ -295,11 +295,34 @@ export default function FamilyWizard({
 
   function toggleSelf(e) {
     if (e.target.checked) {
-      const self = {
-        ...emptyMember,
-        firstName: family.contactFirst.trim(),
-        lastName: family.contactLast.trim(),
-      };
+      // Carry EVERYTHING the household already knows, not just the name.
+      //
+      // This used to copy firstName and lastName and nothing else, so ticking
+      // "I'm coming too" left the person retyping their own date of birth and
+      // sex -- facts already sitting in `people` and already handed to this
+      // component as householdPeople. Reported 31 August, and it had been
+      // noticed more than once before that, which is what a form asking for
+      // something it already knows earns.
+      //
+      // Matched by name against the contact fields, the same way selfIncluded
+      // matches. Spreading the household record is exactly what the
+      // "Already in your household" buttons below do -- same shape, same
+      // fields -- so the two ways of adding yourself now behave identically.
+      // It also carries personId, which is what removes your own chip from
+      // that list instead of offering to add you twice.
+      const known = householdPeople.find(
+        (h) =>
+          norm(h.firstName) === norm(family.contactFirst) &&
+          norm(h.lastName) === norm(family.contactLast) &&
+          norm(h.firstName) !== ''
+      );
+      const self = known
+        ? { ...emptyMember, ...known }
+        : {
+            ...emptyMember,
+            firstName: family.contactFirst.trim(),
+            lastName: family.contactLast.trim(),
+          };
       // Fill the first still-blank row rather than stacking a new card under
       // an untouched "Person 1".
       const blankIdx = members.findIndex((m) => !m.firstName.trim() && !m.lastName.trim());

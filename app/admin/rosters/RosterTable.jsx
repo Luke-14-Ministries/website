@@ -6,6 +6,7 @@
 
 import { useMemo, useState } from 'react';
 import EventFilter from '@/components/EventFilter';
+import { STATUS_LABEL, statusPill } from '@/lib/format';
 
 const ROLE_LABEL = {
   camper: 'Camper',
@@ -17,21 +18,8 @@ const ROLE_LABEL = {
   support_team: 'Support team',
 };
 
-const STATUS_LABEL = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  waitlisted: 'Waitlisted',
-  confirmed: 'Confirmed',
-  cancelled: 'Cancelled',
-};
-
-const STATUS_CLS = {
-  draft: 'bg-neutral-100 text-neutral-700',
-  submitted: 'bg-amber-100 text-amber-800',
-  waitlisted: 'bg-orange-100 text-orange-800',
-  confirmed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-neutral-200 text-neutral-500',
-};
+// STATUS_LABEL and statusPill now live in lib/format.js, so the person page
+// (a server component) says status exactly the way this table does.
 
 const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
 
@@ -471,7 +459,7 @@ export default function RosterTable({ events, rows, programs = [] }) {
                   <td className="px-4 py-2">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        STATUS_CLS[r.status] ?? STATUS_CLS.submitted
+                        statusPill(r.status).cls
                       }`}
                     >
                       {r.status}

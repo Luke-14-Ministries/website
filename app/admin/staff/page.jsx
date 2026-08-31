@@ -85,7 +85,15 @@ export default async function StaffAccessPage() {
         <p className="text-neutral-600">
           <span className="font-semibold">Sensitive</span> — medical, dietary, and support
           details (Dietary, Medical &amp; Support pages, red flags at check-in).{' '}
-          <span className="font-semibold">Giving</span> — donor gift records. Grants are
+          <span className="font-semibold">Giving</span> — donor gift records.{' '}
+          {/* "Checks" had a column in the table and no explanation anywhere, so
+              the only way to learn what it did was to tick it and find out
+              (asked 31 Aug). */}
+          <span className="font-semibold">Checks</span> — volunteer background
+          checks: whether somebody has been screened, when, and what came back.
+          Its own grant for the same reason Giving is — whether a person was
+          screened is a different kind of knowledge from their medical needs, and
+          the people who need each are not the same set. Grants are
           need-to-know: give them only where duties require.
         </p>
         {/* Why NEITHER grant is automatic, even for administrators (decided

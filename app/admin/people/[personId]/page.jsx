@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { allergyPill } from '@/lib/format';
+import { allergyPill, statusPill } from '@/lib/format';
 
 export const metadata = { title: 'Person — Staff Admin' };
 
@@ -276,9 +276,34 @@ export default async function PersonPage({ params }) {
               const place = placeFor(p.id);
               return (
                 <div key={p.id} className="mb-3 last:mb-0 rounded border border-neutral-200 p-3">
-                  <p className="font-semibold">{p.registrations?.events?.name ?? 'Event'}</p>
+                  {/* The event name IS the link to the registration (31 Aug).
+                      It was a fifth row saying "Open the registration", which
+                      is a whole line spent on a verb — and it made this card
+                      taller than the Buddy card beside it for no gain. */}
+                  <p className="font-semibold">
+                    <Link
+                      href={`/admin/registrations/${p.registration_id}/`}
+                      className="text-brand underline"
+                    >
+                      {p.registrations?.events?.name ?? 'Event'}
+                    </Link>
+                  </p>
                   <Row label="Role">{ROLE_LABEL[p.camp_role] ?? p.camp_role}</Row>
-                  <Row label="Status">{p.status}</Row>
+                  <Row label="Status">
+                    {(() => {
+                      // The same pill as the roster, from the same function.
+                      // A bare lower-case "confirmed" here next to a green pill
+                      // three clicks away reads as two different facts.
+                      const st = statusPill(p.status);
+                      return (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${st.cls}`}
+                        >
+                          {st.text}
+                        </span>
+                      );
+                    })()}
+                  </Row>
                   <Row label="Program">
                     {p.program_id ? (
                       programName.get(p.program_id) ?? 'Unknown'
@@ -299,14 +324,6 @@ export default async function PersonPage({ params }) {
                     ) : (
                       <span className="text-amber-700">No place assigned</span>
                     )}
-                  </Row>
-                  <Row label="Registration">
-                    <Link
-                      href={`/admin/registrations/${p.registration_id}/`}
-                      className="text-brand underline"
-                    >
-                      Open the registration
-                    </Link>
                   </Row>
                 </div>
               );
@@ -424,7 +441,10 @@ export default async function PersonPage({ params }) {
               <Row label="Dietary needs">{support.dietary_needs || '—'}</Row>
               <Row label="Seizures">{support.has_seizures ? 'Yes' : 'No'}</Row>
               <Row label="Rescue medication">{support.has_rescue_medication ? 'Yes' : 'No'}</Row>
-              <Row label="Needs a buddy">{support.buddy_required ? 'Yes' : 'No'}</Row>
+              {/* "Needs a buddy" was here and is gone (31 Aug). The Buddy card
+                  already answers it, better: it says WHO, and it stays true
+                  after somebody is paired. This row went on saying "Yes" for
+                  the rest of the season. */}
               <p className="mt-2 text-xs text-neutral-500">
                 Fuller medical notes stay on the Medical &amp; Support page — this is the summary,
                 not a second medical record.

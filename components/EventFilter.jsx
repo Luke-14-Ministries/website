@@ -77,12 +77,26 @@ export default function EventFilter({
   const searchOnly = mode === 'search';
   const current = searchOnly ? [] : events.filter((e) => isCurrentEvent(e, cutoff, horizon));
   const past = searchOnly
-    ? [...events].sort(
-        (a, b) =>
-          (isCurrentEvent(b, cutoff, horizon) ? 1 : 0) -
-            (isCurrentEvent(a, cutoff, horizon) ? 1 : 0) ||
-          String(b.startsOn ?? '').localeCompare(String(a.startsOn ?? ''))
-      )
+    ? [...events].sort((a, b) => {
+        // TWO TIERS, and each sorts the opposite way. Corrected 31 Aug 2026:
+        // this sorted everything descending, so the roster's event list opened
+        // with the camp furthest in the future — Week 2 above Week 1, and the
+        // retreat happening this October last of the three.
+        //
+        // Current events ascending: the soonest is the one being worked on.
+        // Past events descending: the one that just finished is the one anybody
+        // still has questions about, and 2019 can stay at the bottom.
+        //
+        // This is the same rule the family dashboard already documents — "a
+        // plain ascending sort by date puts last month's camp above next
+        // month's retreat" — so the two now agree.
+        const aCur = isCurrentEvent(a, cutoff, horizon);
+        const bCur = isCurrentEvent(b, cutoff, horizon);
+        if (aCur !== bCur) return aCur ? -1 : 1;
+        const as = String(a.startsOn ?? '');
+        const bs = String(b.startsOn ?? '');
+        return aCur ? as.localeCompare(bs) : bs.localeCompare(as);
+      })
     : events.filter((e) => !isCurrentEvent(e, cutoff, horizon));
 
   const choose = (id) => {

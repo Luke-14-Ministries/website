@@ -94,6 +94,8 @@ export default function DetailsForm({
     redirection_strategies: s.redirection_strategies ?? '',
     sleep_notes: s.sleep_notes ?? '',
     other_concerns: s.other_concerns ?? '',
+    rooming_preferences: s.rooming_preferences ?? '',
+    likes_dislikes: s.likes_dislikes ?? '',
     emergency_contact_name: s.emergency_contact_name ?? '',
     emergency_contact_phone: s.emergency_contact_phone ?? '',
     emergency_contact_relationship: s.emergency_contact_relationship ?? '',
@@ -127,6 +129,8 @@ export default function DetailsForm({
     'daily_living_supports', 'medications', 'seizure_detail',
     'rescue_medication_detail', 'behaviour_triggers', 'redirection_strategies',
     'sleep_notes',
+    'rooming_preferences',
+    'likes_dislikes',
   ];
   const hasFullerDetail =
     FULLER_TEXT.some((k) => (s[k] ?? '').trim() !== '') ||
@@ -433,6 +437,18 @@ export default function DetailsForm({
           placeholder="A quiet corner, a favourite song, a walk, a five-minute warning before changes"
         />
 
+        {/* E34. Here rather than on a page of its own: a leader reading
+            "loves trains, hates loud singing" is reading it for the same
+            reason they read the two boxes above. */}
+        <label className={label}>What does {name} enjoy, and what do they avoid?</label>
+        <textarea
+          className={input}
+          rows={2}
+          value={f.likes_dislikes}
+          onChange={set('likes_dislikes')}
+          placeholder="Loves water and music, avoids crowds and face paint..."
+        />
+
         <YesNo
           id="sleep"
           question={`Does ${name} have trouble sleeping away from home?`}
@@ -445,6 +461,28 @@ export default function DetailsForm({
       </Card>
 
       <Card n={4} title="Support at camp">
+        {/* E38. Families were asking for this by email and it lived in
+            somebody's memory until the lodging screen was open.
+
+            FREE TEXT, and only for now. The right shape is probably a few
+            tick-boxes with a box beside them, and nobody here knows what the
+            options should be — Ellen does, and has been asked. A guessed
+            tick-box list that families work around is harder to withdraw later
+            than a text box that was always temporary. */}
+        <label className={label}>
+          Anything about who {name} shares a room with, or the room itself?
+        </label>
+        <textarea
+          className={input}
+          rows={2}
+          value={f.rooming_preferences}
+          onChange={set('rooming_preferences')}
+          placeholder="Near a bathroom, ground floor, shares with their brother, needs a quiet end..."
+        />
+        <p className="mt-1 mb-4 text-xs text-neutral-500">
+          Staff do the room assignments and will get as close to this as the buildings allow.
+        </p>
+
         {/* "Does X need a one-to-one buddy?" was removed on 31 August 2026.
             It is not a question families are asked at registration: the family
             coordinator follows up with each family to work out what support is

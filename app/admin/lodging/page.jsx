@@ -57,7 +57,8 @@ export default async function LodgingPage({ searchParams }) {
         .select(
           `id, camp_role, status,
            people ( id, first_name, last_name, gender, date_of_birth,
-             person_support ( mobility, personal_care, has_caregiver ) ),
+             person_support ( mobility, personal_care, has_caregiver,
+               rooming_preferences ) ),
            registrations!inner ( event_id, households ( display_name ) )`
         )
         .eq('registrations.event_id', selectedId)
@@ -110,6 +111,11 @@ export default async function LodgingPage({ searchParams }) {
       mobility: support?.mobility || '',
       personalCare: support?.personal_care || '',
       hasCaregiver: Boolean(support?.has_caregiver),
+      // E38. The family's own words about who they should share with, on the
+      // screen where somebody is actually deciding that — which is the whole
+      // point of collecting it. Advisory: nothing enforces it, because "near a
+      // bathroom" is a wish the buildings may not grant.
+      roomingPreferences: support?.rooming_preferences || '',
     };
   });
 

@@ -28,6 +28,8 @@ const TEXT_FIELDS = [
   'daily_living_supports',
   'allergy_detail',
   'dietary_needs',
+  'rooming_preferences',   // E38
+  'likes_dislikes',        // E34
   'medications',
   'seizure_detail',
   'rescue_medication_detail',

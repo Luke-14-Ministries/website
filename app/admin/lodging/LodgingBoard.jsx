@@ -537,6 +537,19 @@ export default function LodgingBoard({
                         mobility notes
                       </span>
                     )}
+                    {/* E38. A quiet marker rather than a wall of text: the
+                        family's rooming note is one line on hover, next to the
+                        person, on the screen where the room is chosen. It does
+                        not block anything — "near a bathroom" is a wish the
+                        buildings may not grant. */}
+                    {p.roomingPreferences && (
+                      <span
+                        className="rounded-full bg-brand-light px-2 py-0.5 text-xs font-semibold text-brand-dark"
+                        title={`Rooming note from the family: ${p.roomingPreferences}`}
+                      >
+                        rooming note
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}

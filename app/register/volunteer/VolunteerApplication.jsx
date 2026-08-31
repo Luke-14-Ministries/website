@@ -38,6 +38,8 @@ export default function VolunteerApplication({
   existing,
   adults,
   defaultChurch = '',
+  creed = null,
+  creedAlreadySigned = false,
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!existing); // new applications start open
@@ -59,13 +61,36 @@ export default function VolunteerApplication({
   const [experience, setExperience] = useState(existing?.disability_experience ?? '');
   const [adultId, setAdultId] = useState(existing?.accompanying_adult_person_id ?? '');
 
+  // The Apostles' Creed affirmation (migration 0062). Starts ticked only if
+  // this person has already affirmed THIS version -- a reworded version 2
+  // deliberately asks again rather than inheriting an older yes.
+  const [creedOk, setCreedOk] = useState(creedAlreadySigned);
+  const [creedOpen, setCreedOpen] = useState(false);
+
+  // The stored text is one framing paragraph, a blank line, then the Creed.
+  // Splitting on the first blank line lets the framing show inline -- somebody
+  // should know WHY they are being asked without opening anything -- while the
+  // Creed itself sits behind the button, readable without leaving the page.
+  const [creedIntro, ...creedRest] = (creed?.body ?? '').split(/\n\s*\n/);
+  const creedText = creedRest.join('\n\n');
+
   const togglePick = (a) =>
     setPicked((p) => (p.includes(a) ? p.filter((x) => x !== a) : [...p, a]));
 
   async function save() {
+    // Checked here so the person is told before a round trip, and again on the
+    // server, which is the one that actually holds -- a server action is a
+    // public endpoint whatever the form in front of it does.
+    if (creed && !creedOk) {
+      setError(
+        'Please read and affirm the Apostles’ Creed below — it is required of everyone serving at camp.'
+      );
+      return;
+    }
     setPending(true);
     setError('');
     const res = await submitVolunteerApplication({
+      creedAffirmed: creedOk,
       participantId,
       firstTime: firstTime === '' ? null : firstTime === 'yes',
       preferredAreas: picked.join(' · '),
@@ -205,6 +230,72 @@ export default function VolunteerApplication({
                 (or note it in the skills box and our team will follow up).
               </p>
             </>
+          )}
+
+          {creed && (
+            <div className="mt-5 rounded-lg border border-brand bg-brand-light/40 p-4">
+              <p className="font-semibold text-brand-dark">{creed.title}</p>
+              <p className="mt-1.5 text-sm text-neutral-700">{creedIntro}</p>
+
+              <button
+                type="button"
+                onClick={() => setCreedOpen(true)}
+                className="mt-2.5 text-sm font-semibold text-brand underline"
+              >
+                Read the Apostles&rsquo; Creed
+              </button>
+
+              <label className="mt-3 flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0 accent-[#14606a]"
+                  checked={creedOk}
+                  onChange={(e) => setCreedOk(e.target.checked)}
+                />
+                <span className="text-sm">
+                  I have read the Apostles&rsquo; Creed and I affirm it.{' '}
+                  <span className="text-red-700 font-semibold">(required)</span>
+                </span>
+              </label>
+            </div>
+          )}
+
+          {/* The pop-out. A plain conditional overlay rather than a dialog
+              library: one more dependency for one modal is not the trade this
+              project makes, and <dialog> still needs a polyfill story on the
+              older tablets families actually use at camp. Escape closes it,
+              clicking the backdrop closes it, and the panel itself stops the
+              click so a mis-aimed tap inside does not dismiss the text
+              somebody is halfway through reading. */}
+          {creed && creedOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={creed.title}
+              tabIndex={-1}
+              onKeyDown={(e) => e.key === 'Escape' && setCreedOpen(false)}
+              onClick={() => setCreedOpen(false)}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+              >
+                <h3 className="text-xl font-bold text-brand-dark">Apostles&rsquo; Creed</h3>
+                {/* whitespace-pre-line, because the Creed is set as lines and
+                    reads as a list of clauses. Reflowing it into a paragraph
+                    would be a change to the thing somebody is affirming. */}
+                <p className="mt-3 whitespace-pre-line leading-relaxed">{creedText}</p>
+                <button
+                  type="button"
+                  onClick={() => setCreedOpen(false)}
+                  className="btn-primary mt-5"
+                  autoFocus
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           )}
 
           {error && (

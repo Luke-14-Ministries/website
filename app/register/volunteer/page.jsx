@@ -145,6 +145,41 @@ export default async function VolunteerPage() {
     .limit(1);
   const defaultChurch = hh?.[0]?.home_church ?? '';
 
+  // The Apostles' Creed affirmation (migration 0062, item L2).
+  //
+  // Looked up BY KEY, not through agreement_requirements, and that is the
+  // whole safety design: this agreement deliberately has no requirement row,
+  // so the family registration wizard -- which reads requirements -- cannot
+  // surface it. Faith questions are for volunteers only (Larry, 29 Aug).
+  //
+  // Highest active version wins, so a future reworded version 2 takes over
+  // here while every signature already given still points at the text its
+  // signer actually read.
+  const { data: creedRows } = await supabase
+    .from('agreements')
+    .select('id, title, body, version')
+    .eq('key', 'apostles_creed')
+    .eq('active', true)
+    .order('version', { ascending: false })
+    .limit(1);
+  const creed = creedRows?.[0] ?? null;
+
+  // Who has already affirmed it. Scoped to this household's volunteers, and
+  // to THIS version -- somebody who signed version 1 has not affirmed a
+  // version 2 they have never seen, and the form should ask again.
+  let creedSignedBy = new Set();
+  if (creed) {
+    const personIds = volunteers.map((v) => v.participant.people?.id).filter(Boolean);
+    if (personIds.length) {
+      const { data: sigs } = await supabase
+        .from('agreement_signatures')
+        .select('person_id')
+        .eq('agreement_id', creed.id)
+        .in('person_id', personIds);
+      creedSignedBy = new Set((sigs ?? []).map((r) => r.person_id));
+    }
+  }
+
   // Adults in the household, for a minor volunteer's accompanying adult.
   const { data: householdPeople } = await supabase
     .from('people')
@@ -199,6 +234,8 @@ export default async function VolunteerPage() {
               existing={appByPart.get(participant.id) ?? null}
               adults={adults}
               defaultChurch={defaultChurch}
+              creed={creed}
+              creedAlreadySigned={creedSignedBy.has(participant.people?.id)}
             />
           ))}
         </div>

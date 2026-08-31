@@ -90,10 +90,25 @@ export default async function FamilyRegisterPage({ searchParams }) {
   const openEventIds = openEvents.map((e) => e.id);
   let requiredAgreements = [];
   if (openEventIds.length > 0) {
+    // applies_to is filtered EXPLICITLY, and this is a safety filter rather
+    // than a tidiness one. Until 30 Aug 2026 this query took every required
+    // agreement for the open events and ignored applies_to entirely, so any
+    // agreement scoped at somebody else would have been shown to families
+    // here. That became concrete with the Apostles' Creed affirmation
+    // (migration 0062), which volunteers must sign and which families and
+    // campers must never be asked to -- a faith test in front of a family
+    // registering a disabled child is a serious thing to ship by accident.
+    //
+    // 0062 defends itself by having no requirement row at all. This is the
+    // second defence, for the next agreement that legitimately needs one.
+    // 'volunteer' is not a legal applies_to value yet (0001 allows the two
+    // below); when somebody widens that constraint, this list is what keeps
+    // the new value out of the family wizard by default rather than by luck.
     const { data: reqRows } = await supabase
       .from('agreement_requirements')
-      .select('agreement_id, is_required, agreements ( key, title, body, active )')
+      .select('agreement_id, is_required, applies_to, agreements ( key, title, body, active )')
       .in('event_id', openEventIds)
+      .in('applies_to', ['household', 'participant'])
       .eq('is_required', true);
 
     const seen = new Set();

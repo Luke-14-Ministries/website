@@ -10,6 +10,7 @@
 // rather than as the main road.
 
 import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { setParticipantProgram, setManyParticipantPrograms, grantProgramLeader, revokeProgramLeader } from './actions';
 
 const ROLE_LABEL = {
@@ -345,6 +346,16 @@ export default function ProgramBoard({
 // Naming a leader is an ACCESS decision, not a roster edit, so it sits in its
 // own panel with its own explanation rather than as another column above.
 function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
+  // Without this the panel never re-reads its own data. grantProgramLeader
+  // calls revalidatePath on the SERVER, which marks the route stale — but
+  // nothing asks the client to go and fetch it, so the page keeps rendering the
+  // payload it already had. A leader was granted, the green confirmation said
+  // so, and all six cards went on saying "No leader named" (reported twice,
+  // 31 Aug). The row was in the database the whole time.
+  //
+  // router.refresh() is the other half of revalidatePath, and it is easy to
+  // leave out precisely because the write really did succeed.
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [programId, setProgramId] = useState('');
   const [message, setMessage] = useState(null);
@@ -366,8 +377,14 @@ function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
       const res = await grantProgramLeader({ email, programId, eventId });
       if (!res.ok) setMessage({ tone: 'bad', text: res.error });
       else {
-        setMessage({ tone: 'good', text: `${res.name} now leads that program for ${eventName}.` });
+        setMessage({
+          tone: res.warning ? 'warn' : 'good',
+          text: `${res.name} now leads that program for ${eventName}.${
+            res.warning ? ` ${res.warning}` : ''
+          }`,
+        });
         setEmail('');
+        router.refresh();
       }
     });
   }
@@ -377,6 +394,7 @@ function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
     startTransition(async () => {
       const res = await revokeProgramLeader({ grantId });
       if (!res.ok) setMessage({ tone: 'bad', text: res.error });
+      else router.refresh();
     });
   }
 
@@ -472,7 +490,9 @@ function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
           className={`mt-3 rounded border px-3 py-2 text-sm ${
             message.tone === 'good'
               ? 'border-green-300 bg-green-50 text-green-900'
-              : 'border-red-300 bg-red-50 text-red-800'
+              : message.tone === 'warn'
+                ? 'border-amber-300 bg-amber-50 text-amber-900'
+                : 'border-red-300 bg-red-50 text-red-800'
           }`}
         >
           {message.text}

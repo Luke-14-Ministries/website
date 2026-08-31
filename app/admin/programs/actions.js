@@ -137,6 +137,51 @@ export async function grantProgramLeader({ email, programId, eventId }) {
     };
   }
 
+  // MUST BE REGISTERED FOR THIS EVENT. Added 31 Aug 2026 after a leader was
+  // named for Camp Celebrate 2027 Week 1 who was only registered for the Adult
+  // Adventure Retreat — a different camp, in a different year.
+  //
+  // The only checks before this were "the caller is an admin" and "the address
+  // has an account". An account is not a registration: any family member who
+  // had ever signed up for anything could be handed a list of children's names
+  // for a week they have nothing to do with.
+  //
+  // people.profile_id is the link from a login to the person themselves.
+  const { data: mePeople } = await supabase
+    .from('people')
+    .select('id')
+    .eq('profile_id', profile.id);
+  const myPersonIds = (mePeople ?? []).map((r) => r.id);
+
+  let myRoles = [];
+  if (myPersonIds.length) {
+    const { data: parts } = await supabase
+      .from('registration_participants')
+      .select('camp_role, status, registrations!inner ( event_id )')
+      .in('person_id', myPersonIds)
+      .eq('registrations.event_id', eventId)
+      .neq('status', 'cancelled');
+    myRoles = (parts ?? []).map((r) => r.camp_role);
+  }
+
+  if (myRoles.length === 0) {
+    return {
+      ok: false,
+      error:
+        `${profile.first_name ?? 'That person'} is not registered for this event. ` +
+        'A program leader sees the names and support flags of the children in their ' +
+        'program, so the grant is only ever made to somebody who is coming to that ' +
+        'same camp. Ask them to register first.',
+    };
+  }
+
+  // Registered, but not as a volunteer. Allowed — a parent who also serves is
+  // real, if uncommon — but said out loud, because the volunteer application is
+  // what carries the background check and the Creed affirmation, and those are
+  // exactly the things a leader is trusted on. Warned, not blocked: the person
+  // deciding is an administrator who can see the whole picture.
+  const isVolunteer = myRoles.includes('volunteer');
+
   const { error } = await supabase.from('program_leaders').upsert(
     {
       profile_id: profile.id,
@@ -158,6 +203,12 @@ export async function grantProgramLeader({ email, programId, eventId }) {
   return {
     ok: true,
     name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || clean,
+    // Shown beside the confirmation, not instead of it. The grant is made.
+    warning: isVolunteer
+      ? null
+      : 'They are registered for this event, but not as a volunteer — so they have not ' +
+        'filed a volunteer application, which is what carries the background check and the ' +
+        'Apostles’ Creed affirmation. Ask them to register as a volunteer as well.',
   };
 }
 

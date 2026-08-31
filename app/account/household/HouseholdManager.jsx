@@ -12,7 +12,7 @@
 // and there was no good answer. Now it matches the details form and the
 // staff editors. Errors still print beside the button in red.
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import SaveButton from '@/components/SaveButton';
 import PhotoUpload from '@/components/PhotoUpload';
@@ -85,6 +85,66 @@ export default function HouseholdManager({
     patch(key, { saved: false, dirty: false, error: '' });
   };
 
+  // THE UNSAVED BAR.
+  //
+  // The per-card Save buttons stay. They are not clutter — they are what makes
+  // a refusal legible: the identity lock can reject ONE person while the other
+  // three cards save fine, and a single page-level Save could only report "one
+  // of these failed" and leave somebody hunting. Asked 31 Aug, and the hybrid
+  // is the answer to a real problem rather than a tidier-looking one.
+  //
+  // The problem the bar actually fixes is not clutter, it is SILENT LOSS: edit
+  // three cards, press Save on one, wander off, and the other two are gone with
+  // nothing having said so. Nothing on the page admitted there was unsaved work
+  // anywhere.
+  //
+  // It drives the cards rather than replacing them. requestSubmit() fires each
+  // dirty form's own onSubmit, so every save runs through exactly the path it
+  // runs through when clicked by hand, with its own error landing on its own
+  // card. No second save path to keep in step with the first.
+  const dirtyKeys = Object.entries(state)
+    .filter(([, v]) => v?.dirty)
+    .map(([k]) => k);
+
+  const cardForm = (key) =>
+    typeof document === 'undefined'
+      ? null
+      : document.querySelector(`form[data-card="${key}"]`);
+
+  function saveAll() {
+    for (const key of dirtyKeys) cardForm(key)?.requestSubmit();
+  }
+
+  function discardAll() {
+    if (
+      !window.confirm(
+        `Discard unsaved changes on ${dirtyKeys.length} ${
+          dirtyKeys.length === 1 ? 'card' : 'cards'
+        }?
+
+Anything already saved is untouched.`
+      )
+    ) {
+      return;
+    }
+    for (const key of dirtyKeys) {
+      cardForm(key)?.reset();
+      patch(key, { saved: false, dirty: false, error: '' });
+    }
+  }
+
+  // Also catch the browser-level exit, which is the case the bar cannot cover:
+  // a closed tab or a typed URL never touches our own navigation.
+  useEffect(() => {
+    if (dirtyKeys.length === 0) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirtyKeys.length]);
+
   // Fields tidy themselves on blur, exactly like the wizard's -- same helpers,
   // same rule (only reformat what is unambiguously the expected shape).
   const tidyPhone = (e) => {
@@ -104,9 +164,10 @@ export default function HouseholdManager({
   const defaults = (suggested.length > 0 ? suggested : fallbackAdults).slice(0, 2);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Household contact card */}
       <form
+        data-card="hh"
         className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6"
         onInput={markDirty('hh')}
         onSubmit={(e) => {
@@ -247,6 +308,7 @@ export default function HouseholdManager({
         return (
           <form
             key={m.id}
+            data-card={m.id}
             className="rounded-lg bg-white border border-neutral-200 shadow-sm p-6"
             onInput={markDirty(m.id)}
             onSubmit={(e) => {
@@ -446,7 +508,13 @@ export default function HouseholdManager({
           registration -- put the family's own roster behind an event, and
           meant re-typing the same children every year. Now the household is
           kept up to date here and people are PICKED at registration. */}
+      {/* Tagged like the others. It already called markDirty, so without this
+          the bar counted a half-typed new person as unsaved work and then
+          quietly failed to save them — the exact silent loss the bar exists to
+          stop. If the add is incomplete its own validation refuses, on its own
+          card, which is the point of keeping the per-card buttons. */}
       <form
+        data-card="add"
         className="rounded-lg border-2 border-dashed border-neutral-300 bg-white p-6"
         onInput={markDirty('add')}
         onSubmit={(e) => {
@@ -509,6 +577,36 @@ export default function HouseholdManager({
         ministry and staff will cancel their place properly, so the roster and any
         fees stay correct.
       </p>
+
+      {/* Appears only when there is something to lose. A bar that is always
+          there is furniture; one that arrives when you have unsaved work is a
+          warning, and it is the only thing on this page that knows about more
+          than one card at a time.
+
+          pb-24 on the wrapper keeps it from covering the last card's own Save
+          button, which would be a poor joke. */}
+      {dirtyKeys.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-amber-300 bg-amber-50/95 backdrop-blur">
+          <div className="container-site mx-auto flex flex-wrap items-center justify-between gap-3 py-3">
+            <span className="text-sm font-semibold text-amber-900">
+              {dirtyKeys.length} {dirtyKeys.length === 1 ? 'card has' : 'cards have'}{' '}
+              unsaved changes
+            </span>
+            <span className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={discardAll}
+                className="text-sm text-amber-900 underline hover:text-amber-950"
+              >
+                Discard
+              </button>
+              <button type="button" onClick={saveAll} className="btn-primary !py-1.5 text-sm">
+                Save all
+              </button>
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

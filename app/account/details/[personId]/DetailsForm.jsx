@@ -97,6 +97,7 @@ export default function DetailsForm({
     emergency_contact_phone: s.emergency_contact_phone ?? '',
     emergency_contact_relationship: s.emergency_contact_relationship ?? '',
     has_allergies: s.has_allergies ?? null,
+    allergy_severity: s.allergy_severity ?? '',
     has_seizures: s.has_seizures ?? null,
     has_rescue_medication: s.has_rescue_medication ?? null,
     has_sleep_disturbance: s.has_sleep_disturbance ?? null,
@@ -293,6 +294,50 @@ export default function DetailsForm({
           value={f.has_allergies}
           onChange={setFlag('has_allergies')}
         >
+          {/* E33/E42. Severity first, before the description, because it is
+              the part that changes what somebody does — and because a person
+              who answers only one question should answer this one.
+
+              Three buttons rather than a dropdown: on a phone, in a hurry, a
+              closed <select> hides the options and one of them is the reason
+              this field exists. Nothing is preselected, so "not recorded"
+              stays visibly different from "mild". */}
+          <label className={label}>How serious is it?</label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['mild', 'Mild', 'Avoid where easy'],
+              ['severe', 'Severe', 'Must avoid; tell the nurse'],
+              ['anaphylaxis', 'Anaphylaxis', 'Life-threatening; rescue medication'],
+            ].map(([val, title, hint]) => {
+              const on = f.allergy_severity === val;
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    setF((prev) => ({
+                      ...prev,
+                      allergy_severity: prev.allergy_severity === val ? '' : val,
+                    }))
+                  }
+                  className={`rounded border px-3 py-2 text-left text-sm ${
+                    on
+                      ? 'border-brand bg-brand-light font-semibold text-brand-dark'
+                      : 'border-neutral-300 bg-white hover:border-neutral-400'
+                  }`}
+                >
+                  <span className="block">{title}</span>
+                  <span className="block text-xs font-normal text-neutral-500">{hint}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-neutral-500">
+            The kitchen list is printed without names, so this is what tells
+            somebody how carefully to treat it.
+          </p>
+
           <label className={label}>What are they, and what happens?</label>
           <textarea
             className={input}

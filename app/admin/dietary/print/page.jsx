@@ -23,14 +23,22 @@ export default async function KitchenListPage({ searchParams }) {
       .select(
         `id, event_id,
          registration_participants ( status,
-           people ( person_support ( dietary_needs, allergy_detail, has_allergies ) ) )`
+           people ( person_support ( dietary_needs, allergy_detail, has_allergies, allergy_severity ) ) )`
       ),
   ]);
 
   // Tally identical needs so the kitchen sees quantities. Free-text entries
   // are split on commas so "Red 40, gluten, dairy" counts as three items.
   const byEvent = new Map();
-  const addItem = (eventId, kind, text) => {
+  // Severity aggregates to the WORST seen for an item, never the latest and
+  // never the commonest. Three campers list "peanuts" mild and a fourth is
+  // anaphylactic: this list must say anaphylaxis, or the one person it exists
+  // to protect is hidden behind the three it does not.
+  //
+  // Unrecorded ranks ABOVE mild deliberately. "Nobody said" is not evidence of
+  // mildness, and on a page with no names attached there is nobody to ask.
+  const SEV_RANK = { anaphylaxis: 4, severe: 3, unrecorded: 2, mild: 1 };
+  const addItem = (eventId, kind, text, severity) => {
     const items = String(text)
       .split(/[,;\n]/)
       .map((t) => t.trim())
@@ -39,9 +47,15 @@ export default async function KitchenListPage({ searchParams }) {
       const key = item.toLowerCase();
       if (!byEvent.has(eventId)) byEvent.set(eventId, new Map());
       const bucket = byEvent.get(eventId);
-      const cur = bucket.get(key) ?? { label: item, kind, count: 0 };
+      const cur = bucket.get(key) ?? { label: item, kind, count: 0, severity: null };
       cur.count += 1;
       if (kind === 'allergy') cur.kind = 'allergy'; // allergy flag wins
+      if (kind === 'allergy') {
+        const incoming = severity || 'unrecorded';
+        if ((SEV_RANK[incoming] ?? 0) > (SEV_RANK[cur.severity] ?? 0)) {
+          cur.severity = incoming;
+        }
+      }
       bucket.set(key, cur);
     }
   };
@@ -67,7 +81,7 @@ export default async function KitchenListPage({ searchParams }) {
       if (!s) continue;
       let counted = false;
       if (s.allergy_detail) {
-        addItem(r.event_id, 'allergy', s.allergy_detail);
+        addItem(r.event_id, 'allergy', s.allergy_detail, s.allergy_severity);
         counted = true;
       }
       if (s.dietary_needs) {
@@ -130,7 +144,24 @@ export default async function KitchenListPage({ searchParams }) {
                     <td className="py-1 pr-3 font-medium">{it.label}</td>
                     <td className="py-1 pr-3">
                       {it.kind === 'allergy' ? (
-                        <span className="font-bold">ALLERGY</span>
+                        /* Wording, not colour: this sheet is printed, often in
+                           black and white, and pinned to a wall. A red pill
+                           that photocopies grey is no warning at all. */
+                        <span
+                          className={
+                            it.severity === 'anaphylaxis'
+                              ? 'font-bold uppercase'
+                              : 'font-bold'
+                          }
+                        >
+                          {it.severity === 'anaphylaxis'
+                            ? 'ALLERGY — ANAPHYLAXIS'
+                            : it.severity === 'severe'
+                              ? 'ALLERGY — severe'
+                              : it.severity === 'mild'
+                                ? 'ALLERGY — mild'
+                                : 'ALLERGY — severity not recorded'}
+                        </span>
                       ) : (
                         'dietary'
                       )}

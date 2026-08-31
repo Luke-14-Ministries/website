@@ -128,6 +128,11 @@ export async function updatePersonInfo(personId, form) {
     date_of_birth: clean(form.date_of_birth),
     // Blank never wipes a known value — same rule as the wizard.
     gender: clean(form.gender) ?? undefined,
+    // E45. Not in the locked set above on purpose — see the note by the field
+    // in HouseholdManager. `?? null` rather than `?? undefined` so clearing it
+    // actually clears it: unlike a legal name, "no preferred name" is a real
+    // answer meaning "just use their first name".
+    preferred_name: clean(form.preferred_name) ?? null,
     phone: clean(form.phone),
     email: clean(form.email),
   };

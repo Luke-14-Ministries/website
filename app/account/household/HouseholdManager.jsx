@@ -289,6 +289,27 @@ export default function HouseholdManager({
               <Field label="Last name">
                 <input name="last_name" defaultValue={m.last_name ?? ''} className={inputCls} />
               </Field>
+              {/* E45. Staff have always been able to record a preferred name;
+                  nobody ever asked the family for one, so the nametag list it
+                  was supposed to feed would have come out empty unless staff
+                  typed all of them. Asked here, beside the legal name, because
+                  that is where somebody is already thinking about what this
+                  person is called.
+
+                  Deliberately NOT locked when they are on a registration, the
+                  way first name, last name and date of birth are. Those are
+                  locked because rosters and signed agreements use them. What
+                  somebody likes to be called is not an identity claim, it
+                  changes, and a child who starts going by a different name
+                  mid-season should not have to email the ministry about it. */}
+              <Field label="Preferred name (for nametags), if different">
+                <input
+                  name="preferred_name"
+                  defaultValue={m.preferred_name ?? ''}
+                  placeholder={m.first_name || 'Leave blank to use their first name'}
+                  className={inputCls}
+                />
+              </Field>
               <Field label="Date of birth">
                 <input name="date_of_birth" type="date" defaultValue={m.date_of_birth ?? ''} className={inputCls} />
               </Field>

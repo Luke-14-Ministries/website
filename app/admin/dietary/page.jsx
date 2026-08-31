@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import EventFilter from '@/components/EventFilter';
+import { allergyPill } from '@/lib/format';
 
 export const metadata = { title: 'Dietary & Allergies — Staff Admin' };
 
@@ -24,7 +25,7 @@ export default async function DietaryPage({ searchParams }) {
          households ( display_name, phone ),
          registration_participants ( camp_role, status,
            people ( first_name, last_name,
-             person_support ( dietary_needs, allergy_detail, has_allergies ) ) )`
+             person_support ( dietary_needs, allergy_detail, has_allergies, allergy_severity ) ) )`
       ),
   ]);
 
@@ -44,6 +45,7 @@ export default async function DietaryPage({ searchParams }) {
         dietary: s.dietary_needs,
         allergies: s.allergy_detail,
         hasAllergies: s.has_allergies,
+        allergySeverity: s.allergy_severity,
       });
     }
   }
@@ -159,11 +161,17 @@ export default async function DietaryPage({ searchParams }) {
                       <tr key={i} className="border-t border-neutral-100 align-top">
                         <td className="px-4 py-2 font-medium">
                           {r.name}
-                          {r.hasAllergies && (
-                            <span className="ml-2 rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs font-semibold">
-                              allergy
-                            </span>
-                          )}
+                          {(() => {
+                            const pill = allergyPill(r.hasAllergies, r.allergySeverity);
+                            return pill ? (
+                              <span
+                                title={pill.title}
+                                className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${pill.cls}`}
+                              >
+                                {pill.text}
+                              </span>
+                            ) : null;
+                          })()}
                         </td>
                         <td className="px-4 py-2 whitespace-pre-wrap">{r.allergies || '—'}</td>
                         <td className="px-4 py-2 whitespace-pre-wrap">{r.dietary || '—'}</td>

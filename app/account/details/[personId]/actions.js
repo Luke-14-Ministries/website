@@ -74,10 +74,27 @@ export async function savePersonSupport(personId, fields) {
     if (k in (fields || {})) patch[k] = fields[k] === true || fields[k] === 'true';
   }
 
+  // E33/E42. Handled on its own rather than through TEXT_FIELDS, because it is
+  // a constrained value, not prose: the database allows exactly mild, severe
+  // and anaphylaxis (0064), so anything else has to become NULL here or the
+  // whole save fails on a check constraint and the family loses the form.
+  //
+  // An empty string means "unset it", which is what tapping the chosen button
+  // again does. NULL is a real answer meaning nobody has said — never the same
+  // as mild.
+  if ('allergy_severity' in (fields || {})) {
+    const v = fields.allergy_severity;
+    patch.allergy_severity =
+      v === 'mild' || v === 'severe' || v === 'anaphylaxis' ? v : null;
+  }
+
   // Turning a flag OFF clears the detail that belonged to it. Leaving a
   // seizure plan behind after a family has said "no seizures" would put stale
   // medical text in front of a nurse at camp, which is worse than no text.
-  if (patch.has_allergies === false) patch.allergy_detail = null;
+  if (patch.has_allergies === false) {
+    patch.allergy_detail = null;
+    patch.allergy_severity = null;
+  }
   if (patch.has_seizures === false) patch.seizure_detail = null;
   if (patch.has_rescue_medication === false) patch.rescue_medication_detail = null;
   if (patch.has_sleep_disturbance === false) patch.sleep_notes = null;

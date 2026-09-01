@@ -32,6 +32,7 @@ import { submitFamilyRegistration } from './actions';
 const emptyMember = {
   personId: null,
   firstName: '',
+  preferredName: '',
   lastName: '',
   dob: '',
   sex: '',
@@ -816,6 +817,24 @@ export default function FamilyWizard({
                     <option>Male</option>
                     <option>Female</option>
                   </select>
+                </div>
+                <div>
+                  <label className={label}>
+                    Preferred name (for nametags), if different
+                  </label>
+                  {/* E45, second half. It was asked only on Manage household,
+                      which a family registering a NEW person has no reason to
+                      visit — so the nametag list stayed empty for exactly the
+                      people most likely to need one. Registration is where the
+                      names actually arrive, so it is asked here too. Same
+                      column either way, so setting it in one place shows in
+                      the other. */}
+                  <input
+                    className={input}
+                    value={m.preferredName}
+                    onChange={setM(i, 'preferredName')}
+                    placeholder={m.firstName || 'Leave blank to use their first name'}
+                  />
                 </div>
                 <div>
                   <label className={label}>Role</label>

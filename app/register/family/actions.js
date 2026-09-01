@@ -55,6 +55,9 @@ export async function submitFamilyRegistration(payload) {
       personId: m.personId || null,
       firstName: m.firstName.trim(),
       lastName: m.lastName.trim(),
+      // E45. Not sent to the RPC — it does not write this column — so it is
+      // applied below, beside the volunteer second role, off the same read-back.
+      preferredName: (m.preferredName || '').trim(),
       dob: m.dob || null,
       sex: m.sex || null,
       role: ROLE_MAP[m.role] || 'camper',
@@ -227,8 +230,19 @@ export async function submitFamilyRegistration(payload) {
         .filter((m) => m.alsoVolunteering)
         .map((m) => `${m.firstName}|${m.lastName}`.toLowerCase())
     );
+    const wantPreferred = new Map(
+      mapped
+        .filter((m) => m.preferredName)
+        .map((m) => [`${m.firstName}|${m.lastName}`.toLowerCase(), m.preferredName])
+    );
     const regId2 = data?.registrationId;
-    if (wantVolunteer.size > 0 && regId2 && volunteerOptionId) {
+
+    // ONE read-back serving both jobs below. Deliberately NOT nested inside the
+    // volunteer branch: preferred names must be written whether or not anybody
+    // ticked "also volunteering", and putting this inside that `if` meant they
+    // were saved only for families who happened to have a volunteer — caught
+    // before it shipped, but it is exactly the shape of bug that hides.
+    if (regId2 && (wantVolunteer.size > 0 || wantPreferred.size > 0)) {
       const { data: saved } = await supabase
         .from('registration_participants')
         .select('person_id, event_option_id, people ( first_name, last_name )')
@@ -240,7 +254,25 @@ export async function submitFamilyRegistration(payload) {
           .map((r) => r.person_id)
       );
 
-      const rows = (saved ?? [])
+      // E45, preferred names, off the SAME read-back. The RPC does not write
+      // people.preferred_name, and adding it there would mean reopening a
+      // hundred and forty lines of money code for a display field.
+      if (wantPreferred.size > 0) {
+        const seen = new Set();
+        for (const r of saved ?? []) {
+          const key = `${r.people?.first_name ?? ''}|${r.people?.last_name ?? ''}`.toLowerCase();
+          const want = wantPreferred.get(key);
+          if (!want || !r.person_id || seen.has(r.person_id)) continue;
+          seen.add(r.person_id);
+          const { error: prefError } = await supabase
+            .from('people')
+            .update({ preferred_name: want })
+            .eq('id', r.person_id);
+          if (prefError) console.error('preferred name:', prefError.message);
+        }
+      }
+
+      const rows = (!volunteerOptionId || wantVolunteer.size === 0 ? [] : (saved ?? []))
         .filter((r) => {
           const key = `${r.people?.first_name ?? ''}|${r.people?.last_name ?? ''}`.toLowerCase();
           return wantVolunteer.has(key) && !already.has(r.person_id);

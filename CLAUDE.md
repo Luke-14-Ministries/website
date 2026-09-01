@@ -32,12 +32,12 @@ The working checklist is `DO-THIS-NEXT.md` (SharePoint, `02 Accounts and Setup\m
 
 ---
 
-## Where things stand — 30 August 2026
+## Where things stand — 31 August 2026
 
 **The database is live.** Migration `0001_core_schema.sql` has been run against the Supabase
-project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). Queried directly on 30 August 2026 rather
+project `luke14-prod` (ref `nnbcxqxwkivadzognpno`). Queried directly on 31 August 2026 rather
 than remembered, the live schema holds **47 base tables, 5 views and 108 row-level-security
-policies**, with **RLS enabled on all 47 of the 47 tables** and 40 functions in `public`.
+policies**, with **RLS enabled on all 47 of the 47 tables** and 41 functions in `public`.
 Self-check passed.
 `supabase/migrations/rls_test.sql` is the harness — it seeds **six personas** (two families, three
 staff at different access levels, and the camp doctor) plus an unauthenticated visitor, runs **41
@@ -93,6 +93,28 @@ checks as their own staff permission with every grant recorded in an audit log, 
 learned from a real Checkr export, and a translation layer between Checkr's vocabulary and ours.
 Then `0061`, which is the one to read before touching access control — see the next section.
 
+**Built 31 August — migrations `0062`–`0070`, and the high-water mark is now `0070`.** Volunteers
+affirm the Apostles' Creed on the volunteer application (`0062`, `0063`). Allergies carry a
+severity, in the only three terms that change what somebody does (`0064`). Program leaders got
+their table comment corrected — a second, assistant leader always worked (`0065`). Every camper is
+treated as needing a one-to-one buddy until a coordinator says otherwise, which needed a tri-state
+because "nobody decided" and "decided no" had been the same value (`0066`). Rooming preferences and
+likes/dislikes are collected (`0067`), and `0068` put those and `allergy_severity` into the change
+log — **adding a column to `person_support` is not finished until `log_family_change()` is
+redefined**, which `0064` missed and is the trap to remember.
+
+`0069` and `0070` are the two to read before touching money. `0069` publishes a **second, zero-fee
+`event_option` per event** so one person can hold two roles at one camp (a parent who also
+volunteers, charged once). That broke an assumption four files were making —
+`event_options.find((o) => o.published)` — which became a money bug the moment an event had two
+options, because a bad draw returns the zero-fee one and sets the price. Use `enrollmentOption()`
+in `lib/events.js`; never "the first published option". `0070` adds
+`recalc_multi_week_discount()`, which applies the both-weeks discount as a **rule recomputed from
+stored facts** rather than something the wizard works out, and which **only ever touches discounts
+carrying its own `discount_reason`** — a manual staff discount is invisible to it. Whether
+volunteering must cover both weeks or just one is still with staff; the rule is three named
+constants at the top of that function.
+
 **Next, in order:**
 
 1. **Purge ALL test data** from the production project. Everything after this depends on it.
@@ -130,8 +152,9 @@ Three things follow, and all three are deliberate:
 - **Leaders are held to the two-factor rule too**, in `app/admin/layout.jsx`. That is a decision,
   not an oversight: what they see is a list of disabled children's first names.
 
-**Still mock:** the contact form discards submissions, and the newsletter page links out to a
-Google Form.
+**Still mock:** the newsletter page links out to a Google Form. **The contact form is no longer
+mock** — it sends through Resend to `info@` with Turnstile on it (30 August), which retires both
+the "still mock" line and half of item 4 in the list above.
 
 ---
 
@@ -359,9 +382,10 @@ Stripe switches to live keys.** Plan §8 has the full reasoning.
 
 ---
 
-*Last updated 30 August 2026 — schema at 47 tables / 5 views / 108 policies (queried, not
-remembered), migrations through `0061`, background screening built out, program leaders added as
-a non-staff role.
+*Last updated 31 August 2026 — schema at 47 tables / 5 views / 108 policies / 41 functions
+(queried, not remembered), migrations through `0070`; the Creed, allergy severity, the buddy
+default, and the two money migrations (`0069`, `0070`).
+30 August 2026 — background screening built out, program leaders added as a non-staff role.
 26 August 2026 — refunds live, Phases 1 and 2 complete.
 9 August 2026 — schema run, auth layer working.
 7 August 2026 — DNS verified (Squarespace, not WordPress).

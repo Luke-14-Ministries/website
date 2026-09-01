@@ -173,6 +173,26 @@ export async function setParticipantStatus(
     .eq('id', participantId);
 
   if (error) return { ok: false, error: error.message };
+
+  // Cancelling one week must take the both-weeks discount off the other (0070).
+  // This is the moment that stops being true, and the discount is derived, so
+  // it is recomputed rather than adjusted. Not fatal: the status change has
+  // already saved, and a stale discount is a visible number staff can re-run,
+  // where a failed status change would be a place still held.
+  try {
+    const supabase2 = await createClient();
+    const { data: who } = await supabase2
+      .from('registration_participants')
+      .select('person_id')
+      .eq('id', participantId)
+      .maybeSingle();
+    if (who?.person_id) {
+      await supabase2.rpc('recalc_multi_week_discount', { p_person_id: who.person_id });
+    }
+  } catch (e) {
+    console.error('multi-week discount recalc:', e?.message);
+  }
+
   revalidateAll(registrationId);
   return { ok: true };
 }

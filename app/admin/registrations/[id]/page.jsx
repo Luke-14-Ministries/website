@@ -27,7 +27,7 @@ export default async function RegistrationDetailPage({ params }) {
                     home_church, how_did_you_hear, how_did_you_hear_from ),
        events ( id, name, starts_on, ends_on, deposit_cents ),
        registration_participants (
-         id, camp_role, status, fee_cents, scholarship_cents, discount_cents,
+         id, camp_role, status, fee_cents, scholarship_cents, discount_cents, discount_reason,
          tshirt_size, first_time_attending,
          people ( id, first_name, last_name, preferred_name, date_of_birth,
                   gender, email, phone )
@@ -256,6 +256,7 @@ export default async function RegistrationDetailPage({ params }) {
         fee_cents: p.fee_cents,
         scholarship_cents: p.scholarship_cents,
         discount_cents: p.discount_cents,
+        discount_reason: p.discount_reason,
         tshirt_size: p.tshirt_size,
         first_time_attending: p.first_time_attending,
         // null here means never asked. Kept distinct from false all the way

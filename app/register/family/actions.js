@@ -185,6 +185,35 @@ export async function submitFamilyRegistration(payload) {
     console.error('registration confirmation email:', e?.message);
   }
 
+  // The both-weeks discount is a RULE over stored facts, not something this
+  // form works out (0070). Re-run it for everyone on this registration: the
+  // second week is usually registered weeks after the first, so this is the
+  // moment the pair becomes true. Re-running is safe -- the function clears
+  // what it previously wrote and re-earns it.
+  //
+  // Never fatal. A registration that saved must not be reported as failed
+  // because a discount could not be recalculated; staff can re-run it, and the
+  // family's places are the thing that matters here.
+  try {
+    // Read the people back off the saved registration rather than trusting the
+    // payload: a person registering for the first time has NO personId going in
+    // — the RPC creates them — so using mapped[].personId would skip exactly
+    // the family this is most likely to be wrong for.
+    const regId = data?.registrationId;
+    if (regId) {
+      const { data: savedParts } = await supabase
+        .from('registration_participants')
+        .select('person_id')
+        .eq('registration_id', regId);
+      const ids = [...new Set((savedParts ?? []).map((r) => r.person_id).filter(Boolean))];
+      await Promise.all(
+        ids.map((id) => supabase.rpc('recalc_multi_week_discount', { p_person_id: id }))
+      );
+    }
+  } catch (e) {
+    console.error('multi-week discount recalc:', e?.message);
+  }
+
   // Whether the deposit is still outstanding, so the success card asks for it
   // only when it is genuinely unpaid. The panel used to be hidden on any
   // update, which meant editing an unpaid registration silently dropped the

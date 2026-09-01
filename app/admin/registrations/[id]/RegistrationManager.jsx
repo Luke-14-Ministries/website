@@ -453,7 +453,19 @@ function ParticipantRow({ registrationId, participant, awaitingScholarship = fal
               <span className="text-green-700"> − {money(participant.scholarship_cents)} scholarship</span>
             )}
             {(participant.discount_cents ?? 0) > 0 && (
-              <span className="text-green-700"> − {money(participant.discount_cents)} discount</span>
+              <span className="text-green-700">
+                {' '}
+                &minus; {money(participant.discount_cents)} discount
+                {/* WHY, not just how much. A credit with no explanation is one
+                    staff cannot check and cannot defend to a family who asks.
+                    A reason means a rule applied it (0070); no reason means a
+                    person did, by hand, and that is its own answer. */}
+                {participant.discount_reason ? (
+                  <span className="text-neutral-500"> ({participant.discount_reason})</span>
+                ) : (
+                  <span className="text-neutral-500"> (set by staff)</span>
+                )}
+              </span>
             )}
             {p.date_of_birth ? ` · b. ${p.date_of_birth}` : ' · no DOB on file'}
             {participant.tshirt_size ? ` · ${participant.tshirt_size}` : ''}

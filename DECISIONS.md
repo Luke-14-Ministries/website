@@ -1407,3 +1407,41 @@ down. The 26 August entry covered the warnings that existed *then*; this ERROR a
 later and would have read, to anyone opening the dashboard cold, as an unreviewed security hole in
 the newest code in the system. A vendor's warning list is a document other people read without us.
 
+---
+
+## 2026-08-31 — one person, two roles at one camp: the second role is free, not discounted
+
+A parent who is also volunteering is rare and real. The ministry charges such a person **once**.
+
+**The accounting choice, which is invisible from the screen and is why it is written here.** The
+second role carries **`fee_cents = 0`** rather than a full fee cancelled by a matching discount.
+The parent row holds the real fee; the volunteer row holds nothing.
+
+Everything downstream then keeps working with no change at all: the balance view, the deposit
+(which multiplies fee-bearing heads), the statements, the CSV exports, refunds. There is no second
+charge anywhere that has to be reconciled against a second credit. **A zero is easier to audit than
+two numbers that must always cancel** — and a discount that silently stops matching its fee is
+the kind of error nobody notices until a family is invoiced twice.
+
+**No schema change was needed, which is worth recording on its own.** The unique on
+`registration_participants` is `(registration_id, person_id, event_option_id)` — `person_id` is
+not unique by itself — and `event_options` has always carried a nullable `participant_role`, with
+`0001` noting that "the retreat publishes two options, one per role". Two roles for one person was
+designed in from the start and never used. Migration `0069` only publishes the second option.
+
+**The trap it created, and closed.** Publishing a second option per event broke an assumption four
+places were quietly making: `event_options.find((o) => o.published)` — take whichever comes back
+first. That was fragile the day it was written and became a **money bug** the moment two options
+existed, because a bad draw returns the zero-fee volunteer option and sets the price shown on the
+chooser page and the fee written onto every participant. A family could have been registered at
+$0.
+
+All four now call `enrollmentOption()` in `lib/events.js`, which selects on `participant_role is
+null` — the field that actually means "this option does not decide the role". The generalisable
+part: adding a row to a lookup table is a code change wherever the code assumed there would only
+ever be one row.
+
+**Still open:** the both-weeks discount (E11) is a different mechanism and a different decision.
+That one is a genuine discount on a second registration, and its amount is not yet known — see
+Q7 on the reviewer ledger.
+

@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
-import { programOf, registrationOpen, OPEN_EVENT_COLUMNS } from '@/lib/events';
+import {
+  programOf,
+  registrationOpen,
+  OPEN_EVENT_COLUMNS,
+  enrollmentOption,
+  volunteerOption,
+} from '@/lib/events';
 import FamilyWizard from './FamilyWizard';
 
 export const metadata = { title: 'Family Registration — Luke 14 Ministries' };
@@ -123,7 +129,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
 
   const weeks = openEvents
     .map((e) => {
-      const opt = (e.event_options ?? []).find((o) => o.published);
+      const opt = enrollmentOption(e);
       return opt
         ? {
             eventId: e.id,

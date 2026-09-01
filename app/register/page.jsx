@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
-import { programOf, registrationOpen, OPEN_EVENT_COLUMNS } from '@/lib/events';
+import { programOf, registrationOpen, OPEN_EVENT_COLUMNS, enrollmentOption } from '@/lib/events';
 
 export const metadata = { title: 'Register — Luke 14 Ministries' };
 
@@ -74,7 +74,7 @@ export default async function RegisterPage() {
               const fees = [
                 ...new Set(
                   p.events.map(
-                    (e) => (e.event_options ?? []).find((o) => o.published)?.fee_cents
+                    (e) => enrollmentOption(e)?.fee_cents
                   )
                 ),
               ];

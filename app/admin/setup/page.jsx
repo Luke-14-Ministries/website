@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import SetupManager from './SetupManager';
+import { enrollmentOption } from '@/lib/events';
 
 export const metadata = { title: 'Setup — Staff Admin' };
 
@@ -37,7 +38,9 @@ export default async function SetupPage() {
     opensAt: e.registration_opens_at,
     closesAt: e.registration_closes_at,
     capacity: e.capacity,
-    feeCents: (e.event_options ?? []).find((o) => o.published)?.fee_cents ?? null,
+    // The enrollment option's fee (0069 published a second, zero-fee volunteer
+    // option per event, and "the first published one" could return either).
+    feeCents: enrollmentOption(e)?.fee_cents ?? null,
     hasPublishedOption: (e.event_options ?? []).some((o) => o.published),
   }));
 

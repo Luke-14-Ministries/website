@@ -134,6 +134,10 @@ export default async function FamilyRegisterPage({ searchParams }) {
         ? {
             eventId: e.id,
             optionId: opt.id,
+            // The zero-fee second-role option (0069), or null for an event
+            // that has not published one — in which case the wizard simply
+            // does not offer "also volunteering".
+            volunteerOptionId: volunteerOption(e)?.id ?? null,
             name: e.name,
             startsOn: e.starts_on,
             endsOn: e.ends_on,

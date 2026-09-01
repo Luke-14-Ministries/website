@@ -40,6 +40,7 @@ const emptyMember = {
   // disability") was also the most sensitive answer on the form, and it stuck
   // silently to anyone who skipped the dropdown.
   role: '',
+  alsoVolunteering: false,
   tshirt: '',
   firstTime: '',
   // Permissions, not agreements: a family may say no to either of these and
@@ -451,6 +452,7 @@ export default function FamilyWizard({
         members,
         eventId: week.eventId,
         optionId: week.optionId,
+        volunteerOptionId: week.volunteerOptionId ?? null,
         notes,
         isUpdate,
         agreements: alreadySigned
@@ -832,6 +834,41 @@ export default function FamilyWizard({
                     <option value="Caregiver">Caregiver</option>
                     <option value="Volunteer">Volunteer</option>
                   </select>
+
+                  {/* One person, two roles at the same camp (0069). A parent
+                      who is also volunteering is rare and real, and the
+                      ministry charges them ONCE — the second role is written
+                      with no fee at all rather than a fee cancelled by a
+                      discount, so nothing downstream has two numbers to
+                      reconcile.
+
+                      Hidden when the role IS Volunteer, because "also
+                      volunteering" is then a question about itself. */}
+                  {m.role && m.role !== 'Volunteer' && week?.volunteerOptionId && (
+                    <label className="mt-2 flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={Boolean(m.alsoVolunteering)}
+                        onChange={(e) =>
+                          setMembers(
+                            members.map((mm, j) =>
+                              j === i ? { ...mm, alsoVolunteering: e.target.checked } : mm
+                            )
+                          )
+                        }
+                      />
+                      <span>
+                        <span className="font-semibold">
+                          {m.firstName || 'This person'} is also volunteering
+                        </span>{' '}
+                        <span className="text-neutral-600">
+                          &mdash; no extra fee. The volunteer team will be in touch about the
+                          separate volunteer application.
+                        </span>
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">

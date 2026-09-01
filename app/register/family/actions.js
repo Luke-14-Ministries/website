@@ -34,7 +34,15 @@ export async function submitFamilyRegistration(payload) {
     return { ok: false, error: 'Your session has expired. Please log in and try again.' };
   }
 
-  const { family = {}, members = [], eventId, optionId, notes, agreements = null } = payload || {};
+  const {
+    family = {},
+    members = [],
+    eventId,
+    optionId,
+    volunteerOptionId = null,
+    notes,
+    agreements = null,
+  } = payload || {};
   if (!eventId || !optionId) {
     return { ok: false, error: 'Please choose a camp week before submitting.' };
   }
@@ -50,6 +58,9 @@ export async function submitFamilyRegistration(payload) {
       dob: m.dob || null,
       sex: m.sex || null,
       role: ROLE_MAP[m.role] || 'camper',
+      // Not sent to the RPC — it takes one option and writes one row per
+      // person. The second, zero-fee volunteer row is written below.
+      alsoVolunteering: m.alsoVolunteering === true && m.role !== 'Volunteer',
       // Enrollment questions. The selects hold strings, and '' means "not
       // answered" -- which has to reach the database as null, not as a blank,
       // so an answer given last time is never wiped by a skipped dropdown.
@@ -194,6 +205,70 @@ export async function submitFamilyRegistration(payload) {
   // Never fatal. A registration that saved must not be reported as failed
   // because a discount could not be recalculated; staff can re-run it, and the
   // family's places are the thing that matters here.
+  // SECOND ROLE: a parent (or sibling, or caregiver) who is also volunteering.
+  //
+  // Written here rather than inside submit_family_registration because that
+  // function takes ONE event option and writes one row per person, and it is a
+  // hundred and forty lines of money code. Adding a second row from outside
+  // needs no change to it at all: the unique is (registration_id, person_id,
+  // event_option_id), and RLS lets a family insert into their own registration
+  // (registration_id in my_registration_ids()), so this runs under exactly the
+  // permissions the rest of the submit does.
+  //
+  // fee_cents 0 — the person is charged once, on their first role. See 0069
+  // and the DECISIONS.md entry: a zero is easier to audit than two numbers that
+  // must always cancel.
+  //
+  // Never fatal. The registration is already saved; a missing second role is a
+  // thing staff can add, where a failed submit is a family with no place.
+  try {
+    const wantVolunteer = new Set(
+      mapped
+        .filter((m) => m.alsoVolunteering)
+        .map((m) => `${m.firstName}|${m.lastName}`.toLowerCase())
+    );
+    const regId2 = data?.registrationId;
+    if (wantVolunteer.size > 0 && regId2 && volunteerOptionId) {
+      const { data: saved } = await supabase
+        .from('registration_participants')
+        .select('person_id, event_option_id, people ( first_name, last_name )')
+        .eq('registration_id', regId2);
+
+      const already = new Set(
+        (saved ?? [])
+          .filter((r) => r.event_option_id === volunteerOptionId)
+          .map((r) => r.person_id)
+      );
+
+      const rows = (saved ?? [])
+        .filter((r) => {
+          const key = `${r.people?.first_name ?? ''}|${r.people?.last_name ?? ''}`.toLowerCase();
+          return wantVolunteer.has(key) && !already.has(r.person_id);
+        })
+        // A person can appear twice in `saved` once this has run before; keep one.
+        .filter((r, i, arr) => arr.findIndex((x) => x.person_id === r.person_id) === i)
+        .map((r) => ({
+          registration_id: regId2,
+          person_id: r.person_id,
+          event_option_id: volunteerOptionId,
+          camp_role: 'volunteer',
+          status: 'submitted',
+          fee_cents: 0,
+          submitted_at: new Date().toISOString(),
+          furthest_step: 5,
+        }));
+
+      if (rows.length > 0) {
+        const { error: volError } = await supabase
+          .from('registration_participants')
+          .insert(rows);
+        if (volError) console.error('second volunteer role:', volError.message);
+      }
+    }
+  } catch (e) {
+    console.error('second volunteer role:', e?.message);
+  }
+
   try {
     // Read the people back off the saved registration rather than trusting the
     // payload: a person registering for the first time has NO personId going in

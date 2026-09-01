@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import PrintButton from './PrintButton';
+import PrintButton from '@/components/PrintButton';
 
 export const metadata = { title: 'Print Rosters — Staff Admin' };
 

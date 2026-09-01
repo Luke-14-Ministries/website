@@ -121,7 +121,17 @@ export default async function AdminActivitiesPage({ searchParams }) {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Activities</h2>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-bold">Activities</h2>
+        {/* E51. Carries the event filter through, so the sheets you print are
+            the ones you are looking at — same rule as the kitchen list. */}
+        <a
+          href={`/admin/activities/print/${selected ? `?event=${selected}` : ''}`}
+          className="btn-outline !py-2 text-sm"
+        >
+          Print activity sheets
+        </a>
+      </div>
       <p className="text-sm text-neutral-500 mb-4">
         What is on offer for each event, and who has chosen it. Numbers here are what to give
         the stable, the boat, and the outfitter.

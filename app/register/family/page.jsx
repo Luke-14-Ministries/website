@@ -9,7 +9,7 @@ import {
 } from '@/lib/events';
 import FamilyWizard from './FamilyWizard';
 
-export const metadata = { title: 'Family Registration — Luke 14 Ministries' };
+export const metadata = { title: 'Registration — Luke 14 Ministries' };
 
 // The database's camp_role values -> the wizard's human-readable labels.
 const ROLE_LABEL = {
@@ -48,7 +48,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
     return (
       <section className="bg-neutral-50 py-12">
         <div className="container-site max-w-xl mx-auto text-center">
-          <h1 className="text-4xl font-bold">Family Registration</h1>
+          <h1 className="text-4xl font-bold">Registration</h1>
           <p className="mt-4 text-neutral-700">
             Please log in or create an account first. Your registration is saved to
             your account so you can leave and come back to it, and only you and camp
@@ -405,7 +405,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
             wizard serves all of them -- the event itself is chosen (or
             preselected via ?event=) in step 3. The old hardcoded
             "Camp Celebrate 2027" title presumed camp on every neutral entry. */}
-        <h1 className="text-4xl font-bold text-center">Family Registration</h1>
+        <h1 className="text-4xl font-bold text-center">Registration</h1>
         {chosenProgram && weeks.length > 0 && (
           <p className="text-center text-lg text-brand-dark font-semibold mt-1">
             {chosenProgram}

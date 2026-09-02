@@ -58,8 +58,10 @@ export default async function RegisterPage() {
       <div className="container-site max-w-2xl mx-auto">
         <h1 className="text-4xl font-bold text-center">Register</h1>
         <p className="text-center text-neutral-600 mt-3 mb-8">
-          Choose what you&rsquo;re registering for. One account covers your
-          whole family, every event, and volunteering.
+                    Choose what you&rsquo;re registering for. One account covers your
+          whole family, every event, and volunteering. Registering for a group
+          home or a church group? Same form: your account is the household, and
+          you add everyone you&rsquo;re bringing.
         </p>
 
         {programs.length === 0 ? (
@@ -103,7 +105,7 @@ export default async function RegisterPage() {
                       href={`/register/family/?program=${encodeURIComponent(p.key)}`}
                       className="btn-primary !py-2"
                     >
-                      Register your family
+                      Register your family or group
                     </Link>
                     <p className="text-sm text-neutral-600">
                       Want to serve instead?{' '}

@@ -405,7 +405,7 @@ export default function FamilyWizard({
     // purpose -- see emailLooksValid.
     if (family.email && !emailLooksValid(family.email)) {
       setError(
-        `That email address doesn't look right — "${family.email}". Please check it in "Your family" above; it is where your confirmation goes.`
+        `That email address doesn't look right — "${family.email}". Please check it in "Your family or group" above; it is where your confirmation goes.`
       );
       return;
     }
@@ -432,7 +432,7 @@ export default function FamilyWizard({
         return;
       }
       // The signature must name the accountable adult filling in this form --
-      // the primary contact from "Your family" above. Testing proved the need:
+      // the primary contact from "Your family or group" above. Testing proved the need:
       // "Alberto Gonzales" signed for a family containing no such person. A
       // guardian with a different name corrects the contact fields, which sit
       // one card up and are theirs to edit.
@@ -510,7 +510,7 @@ export default function FamilyWizard({
                 staff set a due date -- Staff Questions §3 (Events & pricing)
                 -- this says only what is certainly true. */}
             <p className="mt-1 text-sm">
-              The deposit is your family&rsquo;s commitment to come — and it lets the
+              The deposit is your family&rsquo;s (or group&rsquo;s) commitment to come — and it lets the
               ministry book vendors and reserve locations with real numbers. You can pay
               it from your dashboard in about a minute, and the rest of the balance can
               be paid in one go or in parts. Camp staff will be in touch about the
@@ -571,7 +571,7 @@ export default function FamilyWizard({
         subtitle={
           weeks.length === 1
             ? 'One session is open for registration right now.'
-            : 'Choose the session your family is attending.'
+            : 'Choose the session your family or group is attending.'
         }
       >
         <div className="space-y-2">
@@ -622,7 +622,7 @@ export default function FamilyWizard({
       {/* 2 — the family's own details. */}
       <Card
         n={2}
-        title="Your family"
+        title="Your family or group"
         subtitle="We've filled in what we know from your account. The primary contact is who camp staff will call or email about this registration — if that should be someone else, just change the details below."
       >
         <div className="grid sm:grid-cols-2 gap-4">
@@ -1002,9 +1002,11 @@ export default function FamilyWizard({
             if (available.length === 0) return null;
             return (
               <div className="rounded border border-neutral-200 bg-neutral-50 p-4">
-                <p className="text-sm font-semibold">Already in your household</p>
+                                <p className="text-sm font-semibold">Already in your household</p>
                 <p className="mt-0.5 text-xs text-neutral-600">
                   Tap to add them to this registration — no need to type them in again.
+                  &ldquo;Household&rdquo; here means everyone on your account, related or not
+                  — a group home or church group works the same way.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {available.map((p) => (

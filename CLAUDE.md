@@ -1,5 +1,7 @@
 # CLAUDE.md — Luke 14 Ministries website & registration platform
 
+*Reviewed for drift 2 September 2026 — every statement below was checked against the repository, the database ledger and the vendor consoles that day. Anything found wrong was corrected in place and dated.*
+
 Read this before touching anything. It is the standing brief for any Claude session working in
 this repository, and it outranks assumptions carried in from other Next.js projects.
 
@@ -68,7 +70,7 @@ carries 54 rows for 50 files. Both are expected; neither is a missing migration.
 to end in Stripe test mode: family accounts and household management (per-adult phones, linked
 caregivers), the registration wizard with true edit/update mode and tracked changes (staff review
 queue at /admin/changes; role changes on a confirmed person auto-flip to re-review), card + bank
-payments with receipts from camp@, scholarships/discounts with a credit display ("Credit −$X"),
+payments with receipts (then from camp@; since 27 August from `registration@`), scholarships/discounts with a credit display ("Credit −$X"),
 printable statements (staff at /admin/registrations/[id]/statement, family at
 /account/statement/[id], donors at /admin/giving/statements — all on ministry letterhead), the
 staff admin (rosters, check-in, dietary + no-names kitchen list, medical, Event Payments with a

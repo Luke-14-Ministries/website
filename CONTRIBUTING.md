@@ -29,7 +29,7 @@ so it cannot reach a database or take a payment. Family sign-up, saved registrat
 and Stripe all need server code, so `output: 'export'` came out of `next.config.mjs`
 and GitHub Pages was retired the same day.
 
-Registration, payments and camper data are being built on Supabase and Stripe now.
+Registration, payments and camper data run on Supabase and Stripe, in test mode until launch; the Web Admin Handbook in SharePoint describes what runs. *(Reviewed for drift 2 September 2026.)*
 
 ---
 

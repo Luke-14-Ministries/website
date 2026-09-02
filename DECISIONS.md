@@ -226,6 +226,13 @@ admin is unreachable," and it is not: Bitwarden's Emergency Access reaches only 
 Bitwarden's own answer for shared credentials is organization account recovery, a Teams/Enterprise
 feature and out of scope.
 
+*Corrected 29 August 2026 in DO-THIS-NEXT, recorded here 1 September: the claim above is wrong in
+the case that applies. Emergency Access **Takeover** hands the contact the grantor's whole account —
+and an Owner's ownership of the organisation goes with it. So it is not too small for this job; it is
+far too large, and granting it is a succession decision for the board, not a setting. The practical
+conclusion is unchanged: two owners holding the collection live, printed recovery codes offline in two
+places, and a periodic encrypted export on offline media.*
+
 Resilience comes from three ordinary things instead: both admins holding the shared collection live
 as owners; each account's recovery codes printed and stored offline in two separate places; and a
 periodic encrypted vault export on offline media — **never** in OneDrive or SharePoint, because an
@@ -1445,3 +1452,46 @@ ever be one row.
 That one is a genuine discount on a second registration, and its amount is not yet known — see
 Q7 on the reviewer ledger.
 
+---
+
+## 2026-09-01 — Claude runs on a ministry Team organisation; connectors live at organisation level, Vercel excepted
+
+Anthropic approved nonprofit pricing on Claude Team on 1 September 2026. The organisation is owned by
+`lawrence@luke14ministries.net`, with `admin@luke14ministries.net` added the same day as a second
+owner that holds no seat — the ministry's master key, as on every other vendor, at no cost. Two
+seats: Premium ($40, the build seat) and Standard ($8).
+Claude Code on the build machine is signed in as the ministry account from today; the platform had
+been built on a personal subscription until now, which was a live breach of the ministry-ownership
+rule.
+
+**Every Team seat includes Claude Code.** The tiers differ in usage quota, roughly five to one, not
+in features. Two documents said Larry's Standard seat would be "without Code" and were corrected.
+He needs it: a second web admin who cannot pull, build and push is not a second web admin.
+
+**Connectors are placed at organisation level wherever the vendor allows it.** Stripe, Supabase,
+Resend and Microsoft 365 are claude.ai connectors on the organisation, so every seat sees the same
+four, each person authorises with their own vendor login, and access is revoked centrally on
+offboarding. A local `claude mcp add` was tried first and worked, but it lives in one person's
+`~/.claude.json` on one machine — exactly the shape of single-point failure the rest of this log
+argues against. The local copies were removed so that Claude does not carry two of every tool.
+
+**Vercel is the exception, and it is Vercel's constraint, not ours.** Its claude.ai connector does
+not reach Claude Code, so it is a local plugin (`vercel@claude-plugins-official`) per machine, and it
+only works for someone who holds a Vercel seat. On Hobby that is one person. A second admin can still
+build and push without it — deploys are triggered by GitHub — but cannot read runtime logs when
+production fails. That is the real reason Vercel Pro may need to move from "at go-live" to "now",
+and it is a decision for Lawrence and Larry rather than for this log.
+
+*What was given up:* the local Supabase server carried `read_only=true` and a `project_ref` pin, and
+the organisation connector carries neither. Read/write was accepted deliberately; the project pin is
+a small loss, since the ministry has one Supabase project.
+
+*Alternative considered:* keep everything local, on the grounds that it worked and was already
+scoped tightly. Rejected for the reason above — it made Claude's access to five vendors depend on
+one laptop.
+
+*Corrected the same day.* Vercel's organisation connector **does** reach Claude Code — it appeared
+once the session was restarted, which the first check did not do. So Vercel is not an exception
+after all; it lives on the organisation with the other four, and the local plugin is optional and
+duplicative. What has not changed: a connector only works for someone the vendor itself recognises,
+and on Vercel Hobby that is one person.

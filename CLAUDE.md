@@ -64,7 +64,7 @@ applied migration missing from `supabase/migrations/`. Two caveats about that le
 reads drift into it. It begins at `0012` — `0001`–`0011` were applied before the CLI ledger was
 in use. And four repository files were applied as more than one entry each (`0023`, `0028`,
 `0032`, and `0059`, whose second half is recorded as `all_screening_verdicts`), so the ledger
-carries 54 rows for 50 files. Both are expected; neither is a missing migration. Working end
+carries 54 rows for 50 files. Both are expected; neither is a missing migration. **Checked again 1 September, and this time there IS drift:** the ledger has 65 rows and its last entry is `multi_week_discount_fix_pick` (20260901053321), applied the same morning as `0070`. No repository file carries that name, and `0070` itself has a single commit and no amendment — so the correction exists only in the database. Recover its SQL from the dashboard's migration history and commit it as `0071` before anything else touches the discount rule.* Working end
 to end in Stripe test mode: family accounts and household management (per-adult phones, linked
 caregivers), the registration wizard with true edit/update mode and tracked changes (staff review
 queue at /admin/changes; role changes on a confirmed person auto-flip to re-review), card + bank
@@ -123,8 +123,11 @@ constants at the top of that function.
    silently (see migration `0054`).
 3. **Vercel Pro.** Required the moment live keys are in — Hobby is non-commercial only. See the
    Hosting note below.
-4. **Spam protection on the contact and newsletter forms.** Turnstile covers the account forms
-   only; these two are still open.
+4. ~~**Spam protection on the contact and newsletter forms.**~~ **Half done, half moot** *(corrected
+   1 Sep)*: the contact form got Turnstile with server-side verification on 30 August
+   (`app/contact/actions.js`, `lib/turnstile.js`); the newsletter page only links out to a Google
+   Form, so there is nothing to protect. What remains is a *design* question — replace that link
+   with an on-site sign-up that writes to Resend contacts, or keep the Google Form.
 5. **The balance-reminder buttons in `app/admin/payments/page.jsx`** are still `disabled`
    placeholders — "Email balance reminders (all shown)" and "Email selected families" render but
    do nothing.

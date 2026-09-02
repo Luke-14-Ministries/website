@@ -64,7 +64,7 @@ applied migration missing from `supabase/migrations/`. Two caveats about that le
 reads drift into it. It begins at `0012` — `0001`–`0011` were applied before the CLI ledger was
 in use. And four repository files were applied as more than one entry each (`0023`, `0028`,
 `0032`, and `0059`, whose second half is recorded as `all_screening_verdicts`), so the ledger
-carries 54 rows for 50 files. Both are expected; neither is a missing migration. **Checked again 1 September, and this time there IS drift:** the ledger has 65 rows and its last entry is `multi_week_discount_fix_pick` (20260901053321), applied the same morning as `0070`. No repository file carries that name, and `0070` itself has a single commit and no amendment — so the correction exists only in the database. Recover its SQL from the dashboard's migration history and commit it as `0071` before anything else touches the discount rule.* Working end
+carries 54 rows for 50 files. Both are expected; neither is a missing migration. *Checked again 1 September: 66 rows. `0070` is a fifth multi-entry file — the ledger holds `multi_week_discount` (the first draft, whose row-pick used a tuple `max()` that Postgres does not have) and `multi_week_discount_fix_pick` (the corrected function). The repository's `0070` already carries the corrected text, so there is no drift — an earlier note today said there was, before the file was compared to both ledger rows. `0071` (`program_leader_is_lead`) and `0072` (`program_leaders_for`) were applied through the Supabase MCP on 1 September, so their ledger names match their files for once.* Working end
 to end in Stripe test mode: family accounts and household management (per-adult phones, linked
 caregivers), the registration wizard with true edit/update mode and tracked changes (staff review
 queue at /admin/changes; role changes on a confirmed person auto-flip to re-review), card + bank
@@ -93,7 +93,7 @@ checks as their own staff permission with every grant recorded in an audit log, 
 learned from a real Checkr export, and a translation layer between Checkr's vocabulary and ours.
 Then `0061`, which is the one to read before touching access control — see the next section.
 
-**Built 31 August — migrations `0062`–`0070`, and the high-water mark is now `0070`.** Volunteers
+**Built 31 August — migrations `0062`–`0070`; `0071` and `0072` followed on 1 September (the program-lead flag, and the definer function that lets co-leaders see each other's names), and the high-water mark is now `0072`.** Volunteers
 affirm the Apostles' Creed on the volunteer application (`0062`, `0063`). Allergies carry a
 severity, in the only three terms that change what somebody does (`0064`). Program leaders got
 their table comment corrected — a second, assistant leader always worked (`0065`). Every camper is
@@ -128,6 +128,13 @@ constants at the top of that function.
    (`app/contact/actions.js`, `lib/turnstile.js`); the newsletter page only links out to a Google
    Form, so there is nothing to protect. What remains is a *design* question — replace that link
    with an on-site sign-up that writes to Resend contacts, or keep the Google Form.
+
+**Done 1 September, from Lawrence's read of Testing Script 3:** buddy pills now say *buddy
+assigned — name*, *no buddy assigned* and *buddy not needed* (the words camp uses); a program can
+have one **lead** among its leaders (`0071` + `0072`, a label not a permission, shown on Programs and at the
+top of My Program); and the registration wizard says "family or group" so a group home or church
+group is not told it is in the wrong place (the data model always allowed it — a household needs no
+family relationship and a person can carry their own address).
 5. **The balance-reminder buttons in `app/admin/payments/page.jsx`** are still `disabled`
    placeholders — "Email balance reminders (all shown)" and "Email selected families" render but
    do nothing.
@@ -386,7 +393,7 @@ Stripe switches to live keys.** Plan §8 has the full reasoning.
 ---
 
 *Last updated 31 August 2026 — schema at 47 tables / 5 views / 108 policies / 41 functions
-(queried, not remembered), migrations through `0070`; the Creed, allergy severity, the buddy
+(queried, not remembered), migrations through `0072`; the Creed, allergy severity, the buddy
 default, and the two money migrations (`0069`, `0070`).
 30 August 2026 — background screening built out, program leaders added as a non-staff role.
 26 August 2026 — refunds live, Phases 1 and 2 complete.

@@ -151,7 +151,7 @@ export default async function CheckinPage({ searchParams }) {
             });
           } else {
             flags.push({
-              t: 'needs buddy',
+              t: 'no buddy assigned',
               tone: 'amber',
               title:
                 'This person asked for a one-to-one buddy and none is assigned yet. Pairing is done by staff on the Buddy Assignments page.',

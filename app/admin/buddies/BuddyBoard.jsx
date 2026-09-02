@@ -356,7 +356,7 @@ export default function BuddyBoard({
                   {mine.length === 0 ? (
                     <span className="flex items-center gap-2">
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                        needs buddy
+                        no buddy assigned
                       </span>
                       {/* Only offered while nobody is paired. Taking someone off
                           the list who already has a buddy would leave a pairing
@@ -368,13 +368,21 @@ export default function BuddyBoard({
                           onClick={() => mark(c.personId, false, c.name)}
                           className="text-xs text-neutral-500 underline hover:text-neutral-700 disabled:opacity-50"
                         >
-                          no buddy needed
+                          buddy not needed
                         </button>
                       )}
                     </span>
                   ) : (
                     <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-semibold text-neutral-600">
-                      {mine.length === 1 ? 'buddy assigned' : `${mine.length} buddies`}
+                      {/* The three states, in the words camp uses (Lawrence, 1 Sep):
+                          "buddy assigned — name(s)", "no buddy assigned", "buddy not
+                          needed". The name is the point: "who?" is the question
+                          staff actually have. */}
+                      {mine.length === 1 ? 'buddy assigned' : `${mine.length} buddies assigned`}
+                      {' — '}
+                      {mine
+                        .map((a) => volunteerById.get(a.buddyParticipantId)?.name ?? 'unknown')
+                        .join(', ')}
                     </span>
                   )}
                 </div>

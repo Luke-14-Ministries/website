@@ -201,7 +201,7 @@ export default async function MedicalPage({ searchParams }) {
                           <div className="mt-1 flex flex-wrap gap-1">
                             {r.seizures && <Flag>seizures</Flag>}
                             {r.rescue && <Flag>rescue med</Flag>}
-                            {r.buddy && <Flag tone="amber">needs buddy</Flag>}
+                            {r.buddy && <Flag tone="amber">no buddy assigned</Flag>}
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-pre-wrap">{r.medications || '—'}</td>

@@ -11,7 +11,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { setParticipantProgram, setManyParticipantPrograms, grantProgramLeader, revokeProgramLeader } from './actions';
+import { setParticipantProgram, setManyParticipantPrograms, grantProgramLeader, revokeProgramLeader, setProgramLead } from './actions';
 
 const ROLE_LABEL = {
   camper: 'Camper',
@@ -389,10 +389,22 @@ function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
     });
   }
 
-  function revoke(grantId) {
+    function revoke(grantId) {
     setMessage(null);
     startTransition(async () => {
       const res = await revokeProgramLeader({ grantId });
+      if (!res.ok) setMessage({ tone: 'bad', text: res.error });
+      else router.refresh();
+    });
+  }
+
+  // One lead per program per event -- a label, not a permission (0071). The
+  // server action clears the previous lead first, so this is always "move the
+  // badge", never "add a second one".
+  function setLead(grantId, isLead) {
+    setMessage(null);
+    startTransition(async () => {
+      const res = await setProgramLead({ grantId, isLead });
       if (!res.ok) setMessage({ tone: 'bad', text: res.error });
       else router.refresh();
     });
@@ -402,9 +414,11 @@ function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
     <section className="mt-8">
       <h3 className="text-lg font-bold mb-1">Program leaders for {eventName}</h3>
       <p className="mb-3 text-sm text-neutral-500">
-        A leader signs in and sees one page: the people in their program, with their buddy and a
+                A leader signs in and sees one page: the people in their program, with their buddy and a
         flag where there is something to ask about. No medical detail, no other programs, no
-        editing. Access is for this event only and ends with it.
+        editing. Access is for this event only and ends with it. A program may have more than one
+        leader; mark one as the <strong>lead</strong> so check-in staff and drivers know who to
+        find — it changes nothing about what either of them can see.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -418,17 +432,39 @@ function LeaderPanel({ eventId, eventName, programs, leaders, canGrant }) {
               ) : (
                 <ul className="mt-1 space-y-1 text-sm">
                   {list.map((l) => (
-                    <li key={l.id} className="flex items-center justify-between gap-2">
-                      <span>{l.name}</span>
+                                        <li key={l.id} className="flex items-center justify-between gap-2">
+                      <span>
+                        {l.name}
+                        {l.isLead && (
+                          <span className="ml-2 rounded-full bg-brand-light px-2 py-0.5 text-xs font-semibold text-brand-dark">
+                            lead
+                          </span>
+                        )}
+                      </span>
                       {canGrant && (
-                        <button
-                          type="button"
-                          onClick={() => revoke(l.id)}
-                          disabled={pending}
-                          className="text-xs underline text-neutral-500 hover:text-red-700"
-                        >
-                          remove
-                        </button>
+                        <span className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setLead(l.id, !l.isLead)}
+                            disabled={pending}
+                            className="text-xs underline text-neutral-500 hover:text-brand-dark"
+                            title={
+                              l.isLead
+                                ? 'Make this person an assistant leader instead.'
+                                : 'Make this person the lead. Any current lead becomes an assistant.'
+                            }
+                          >
+                            {l.isLead ? 'make assistant' : 'make lead'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => revoke(l.id)}
+                            disabled={pending}
+                            className="text-xs underline text-neutral-500 hover:text-red-700"
+                          >
+                            remove
+                          </button>
+                        </span>
                       )}
                     </li>
                   ))}

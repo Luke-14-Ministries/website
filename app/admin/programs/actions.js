@@ -233,3 +233,53 @@ export async function revokeProgramLeader({ grantId }) {
   revalidatePath('/admin/programs');
   return { ok: true };
 }
+
+// One lead per program per event. A LABEL FOR HUMANS, not a permission: both
+// leaders read the same program_roster view and nothing else (0071 says why it
+// stays out of the permission model). The partial unique index in 0071 refuses
+// two active leads, so the previous one is cleared first -- and if two
+// administrators race, the database wins and the second click gets an error
+// rather than a second lead.
+export async function setProgramLead({ grantId, isLead }) {
+  const staff = await getStaff();
+  if (!can(staff, 'admin')) {
+    return { ok: false, error: 'Only an administrator can name the lead.' };
+  }
+  if (!grantId) return { ok: false, error: 'Nothing to change.' };
+
+  const supabase = await createClient();
+  const { data: grant, error: readError } = await supabase
+    .from('program_leaders')
+    .select('id, program_id, event_id, active')
+    .eq('id', grantId)
+    .maybeSingle();
+  if (readError || !grant || !grant.active) {
+    return { ok: false, error: 'That leader is no longer listed.' };
+  }
+
+  if (isLead) {
+    const { error: clearError } = await supabase
+      .from('program_leaders')
+      .update({ is_lead: false })
+      .eq('program_id', grant.program_id)
+      .eq('event_id', grant.event_id)
+      .eq('is_lead', true);
+    if (clearError) {
+      console.error('setProgramLead clear:', clearError.message);
+      return { ok: false, error: 'The previous lead could not be cleared.' };
+    }
+  }
+
+  const { error } = await supabase
+    .from('program_leaders')
+    .update({ is_lead: !!isLead })
+    .eq('id', grantId);
+  if (error) {
+    console.error('setProgramLead:', error.message);
+    return { ok: false, error: 'That could not be saved.' };
+  }
+
+  revalidatePath('/admin/programs');
+  revalidatePath('/admin/my-program');
+  return { ok: true };
+}

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff } from '@/lib/staff';
-import { getProgramLeadership, getProgramRoster, ageAt } from '@/lib/programs';
+import { getProgramLeadership, getProgramRoster, getProgramLeaders, ageAt } from '@/lib/programs';
 
 export const metadata = { title: 'My Program — Luke 14 Ministries' };
 
@@ -38,10 +38,12 @@ export default async function MyProgramPage({ searchParams }) {
   const current =
     leaderships.find((l) => `${l.programId}:${l.eventId}` === selectedKey) ?? leaderships[0];
 
-  const roster = await getProgramRoster({
-    programId: current.programId,
-    eventId: current.eventId,
-  });
+    const [roster, leaders] = await Promise.all([
+    getProgramRoster({ programId: current.programId, eventId: current.eventId }),
+    getProgramLeaders({ programId: current.programId, eventId: current.eventId }),
+  ]);
+  const lead = leaders.find((l) => l.isLead) ?? null;
+  const assistants = leaders.filter((l) => !l.isLead);
 
   const rows = roster
     .map((r) => ({
@@ -78,8 +80,24 @@ export default async function MyProgramPage({ searchParams }) {
       <p className="text-sm text-neutral-500 mb-4">
         {current.eventName}
         {current.startsOn ? ` · from ${current.startsOn}` : ''} — {rows.length}{' '}
-        {rows.length === 1 ? 'person' : 'people'} in your program.
+                {rows.length === 1 ? 'person' : 'people'} in your program.
       </p>
+
+      {/* Who else leads this program, lead first. Two leaders on one program
+          is normal (a lead and an assistant); this line is so each knows the
+          other, and so "who is the lead?" has one answer. */}
+      {leaders.length > 0 && (
+        <p className="-mt-3 mb-4 text-sm text-neutral-600">
+          {lead ? (
+            <>
+              Lead: <strong>{lead.name}</strong>
+            </>
+          ) : (
+            'No lead named yet'
+          )}
+          {assistants.length > 0 && <> · with {assistants.map((a) => a.name).join(', ')}</>}
+        </p>
+      )}
 
       {leaderships.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">

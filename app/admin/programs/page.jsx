@@ -62,7 +62,7 @@ export default async function ProgramsPage({ searchParams }) {
   const { data: leaderRows } = selectedId
     ? await supabase
         .from('program_leaders')
-        .select('id, profile_id, program_id, granted_at, profiles ( first_name, last_name )')
+        .select('id, profile_id, program_id, granted_at, is_lead, profiles ( first_name, last_name )')
         .eq('event_id', selectedId)
         .eq('active', true)
     : { data: [] };
@@ -87,7 +87,8 @@ export default async function ProgramsPage({ searchParams }) {
     name:
       [l.profiles?.first_name, l.profiles?.last_name].filter(Boolean).join(' ') ||
       'Someone with an account',
-    grantedAt: l.granted_at,
+        grantedAt: l.granted_at,
+    isLead: !!l.is_lead,
   }));
 
   return (

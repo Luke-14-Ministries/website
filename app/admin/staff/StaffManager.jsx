@@ -365,17 +365,20 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
 
       <div className="mt-8 rounded-lg bg-white border border-neutral-200 shadow-sm p-6 max-w-lg">
         <h3 className="font-bold mb-1">Add a staff member</h3>
-                <p className="text-sm text-neutral-500 mb-3">
+        <p className="text-sm text-neutral-500 mb-3">
           They need an account on the site first (created the same way families do). Start typing
           their name or email and pick the account from the list — that way the grant lands on the
           login they actually use. New staff must set up two-factor before the staff area opens.
         </p>
-        <form onSubmit={submitAdd} className="flex flex-wrap items-end gap-3">
+        {/* items-start, not items-end: the email column grows a helper line
+            under the box once an account is picked, and bottom-alignment
+            dropped the Role select and the button to meet it (2 Sep). */}
+        <form onSubmit={submitAdd} className="flex flex-wrap items-start gap-3">
           <label className="block flex-1 min-w-[14rem]">
             <span className="block text-sm font-semibold mb-1">
               Email <span className="text-red-600">*</span>
             </span>
-                        <input
+            <input
               type="email"
               required
               value={addEmail}
@@ -388,13 +391,13 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
               autoComplete="off"
               className="w-full rounded border border-neutral-300 px-3 py-2"
               placeholder="start typing a name or email"
-                            role="combobox"
+              role="combobox"
               aria-autocomplete="list"
               aria-expanded={pickerOpen && matches.length > 0}
               aria-controls="add-staff-picker"
             />
             {pickerOpen && needle.length >= 2 && (
-                            <ul
+              <ul
                 id="add-staff-picker"
                 role="listbox"
                 className="mt-1 max-h-64 overflow-auto rounded border border-neutral-200 bg-white text-sm shadow-sm"

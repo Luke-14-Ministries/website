@@ -670,16 +670,43 @@ export default async function DashboardPage({ searchParams }) {
         {staff && (
           <div className="mb-8 rounded-lg border border-brand/30 bg-brand-light p-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-semibold text-brand-dark">
-                You also have staff access{' '}
-                <span className="text-neutral-700">
-                  [{staff.title || STAFF_ROLE_LABEL[staff.role] || staff.role}
-                  {staff.can_view_sensitive ? ' · Sensitive access' : ''}]
-                </span>
-              </p>
-              <p className="text-sm text-neutral-600">
-                This page is your own family view; the staff area is where you see everyone.
-              </p>
+              {/* Every grant this login holds, not only Sensitive (2 Sep). The
+                  point is the reminder: a grant left on is a screen that shows
+                  medical or donor detail to anyone looking over a shoulder, so
+                  the dashboard names them each time and points at the switch. */}
+              {(() => {
+                const grants = [
+                  staff.can_view_sensitive && 'Sensitive',
+                  staff.can_view_giving && 'Giving',
+                  staff.can_view_background_checks && 'Background checks',
+                ].filter(Boolean);
+                return (
+                  <>
+                    <p className="font-semibold text-brand-dark">
+                      You also have staff access{' '}
+                      <span className="text-neutral-700">
+                        [{staff.title || STAFF_ROLE_LABEL[staff.role] || staff.role}
+                        {grants.length > 0 ? ` · ${grants.join(' · ')}` : ''}]
+                      </span>
+                    </p>
+                    <p className="text-sm text-neutral-600">
+                      This page is your own family view; the staff area is where you see everyone.
+                    </p>
+                    {grants.length > 0 && (
+                      <p className="mt-1 text-sm text-neutral-600">
+                        You currently hold {grants.length === 1 ? 'the' : 'these'}{' '}
+                        <strong>{grants.join(', ')}</strong> grant{grants.length === 1 ? '' : 's'}. If
+                        you are not using {grants.length === 1 ? 'it' : 'them'} today, switching{' '}
+                        {grants.length === 1 ? 'it' : 'them'} off on{' '}
+                        <Link href="/admin/staff" className="underline">
+                          Staff &amp; Access
+                        </Link>{' '}
+                        keeps that information off your screen until you need it.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <Link href="/admin" className="btn-primary !py-2 shrink-0">
               Go to Staff Area

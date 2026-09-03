@@ -20,9 +20,13 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-    const [addEmail, setAddEmail] = useState('');
+  const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState('registrar');
   const [adding, setAdding] = useState(false);
+  // A failed add is shown under the email box, not in the page-wide red bar:
+  // two warnings about one field, one at the top of the page and one beside
+  // it, read as two problems (2 Sep). The bar is for the table's own actions.
+  const [addError, setAddError] = useState('');
   // The picker under the email box. Filtering starts at two characters, on
   // email or name, and shows at most eight -- enough to find anyone at this
   // ministry's size without scrolling. Picking fills the box; the form still
@@ -66,10 +70,11 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
     e.preventDefault();
     setError('');
     setNotice('');
+    setAddError('');
     setAdding(true);
     start(async () => {
       const res = await addStaffMember(addEmail, addRole);
-      if (!res.ok) setError(res.error);
+      if (!res.ok) setAddError(res.error);
       else {
         setNotice(`${res.name} added to staff.`);
         setAddEmail('');
@@ -384,6 +389,7 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
               value={addEmail}
               onChange={(e) => {
                 setAddEmail(e.target.value);
+                setAddError('');
                 setPickerOpen(true);
               }}
               onFocus={() => setPickerOpen(true)}
@@ -403,9 +409,9 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
                 className="mt-1 max-h-64 overflow-auto rounded border border-neutral-200 bg-white text-sm shadow-sm"
               >
                 {matches.length === 0 ? (
-                  <li className="px-3 py-2 text-neutral-500">
+                  <li className={`px-3 py-2 ${addError ? 'text-red-700' : 'text-neutral-500'}`}>
                     No account matches. If they have never signed up, they need to create an account
-                    first — <span className="whitespace-nowrap">Add to staff</span> will say so.
+                    first.
                   </li>
                 ) : (
                   matches.map((a) => (
@@ -435,6 +441,11 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
                   ))
                 )}
               </ul>
+            )}
+            {addError && !pickerOpen && (
+              <p className="mt-1 text-sm text-red-700" role="alert">
+                {addError}
+              </p>
             )}
             {exact && !pickerOpen && (
               <span className="mt-1 block text-xs text-neutral-500">

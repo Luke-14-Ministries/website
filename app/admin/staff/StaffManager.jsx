@@ -79,8 +79,63 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
     });
   }
 
-    const activeMembers = members.filter((m) => m.active);
+      const activeMembers = members.filter((m) => m.active);
   const inactiveMembers = members.filter((m) => !m.active);
+
+  // ORDER IS THE USER'S, NOT THE DATABASE'S. The rows arrived ordered by role
+  // and then by nothing in particular, so a person could change position after
+  // any edit -- unchecking a grant re-fetched the list and she "sank to the
+  // bottom" (2 Sep). Default here is role (administrators first), then name,
+  // and it is stable: only sorting BY a grant moves anyone when a grant changes.
+  const ROLE_ORDER = Object.keys(ROLE_LABEL);
+  const [sortKey, setSortKey] = useState('role');
+  const [sortDir, setSortDir] = useState('asc');
+  const [filterText, setFilterText] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+
+  function toggleSort(key) {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  function view(rows) {
+    const q = filterText.trim().toLowerCase();
+    const filtered = rows.filter(
+      (m) =>
+        (!q || m.name.toLowerCase().includes(q) || (m.email ?? '').toLowerCase().includes(q)) &&
+        (!filterRole || m.role === filterRole)
+    );
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const byName = (a, b) => a.name.localeCompare(b.name);
+    const cmp = {
+      name: byName,
+      email: (a, b) => (a.email ?? '').localeCompare(b.email ?? ''),
+      role: (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || byName(a, b),
+      sensitive: (a, b) => Number(b.sensitive) - Number(a.sensitive) || byName(a, b),
+      giving: (a, b) => Number(b.giving) - Number(a.giving) || byName(a, b),
+      checks: (a, b) => Number(b.backgroundChecks) - Number(a.backgroundChecks) || byName(a, b),
+    }[sortKey];
+    return [...filtered].sort((a, b) => dir * cmp(a, b));
+  }
+
+  const SortTh = ({ k, children, center }) => (
+    <th className={`px-4 py-2 font-semibold ${center ? 'text-center' : ''}`}>
+      <button
+        type="button"
+        onClick={() => toggleSort(k)}
+        className="inline-flex items-center gap-1 hover:text-neutral-800"
+        title={`Sort by ${typeof children === 'string' ? children.toLowerCase() : 'this column'}`}
+      >
+        {children}
+        <span aria-hidden="true" className="text-xs">
+          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
   // Said once at the top, because it is the mistake that actually happens:
   // access is granted to a LOGIN, and a person with two logins has it on one.
   const loginNote = (
@@ -235,12 +290,12 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
     <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
       <table className="w-full text-left text-sm">
         <thead className="bg-neutral-50 text-neutral-500">
-          <tr>
-            <th className="px-4 py-2 font-semibold">Person</th>
-            <th className="px-4 py-2 font-semibold">Role</th>
-            <th className="px-4 py-2 font-semibold text-center">Sensitive</th>
-            <th className="px-4 py-2 font-semibold text-center">Giving</th>
-            <th className="px-4 py-2 font-semibold text-center">Checks</th>
+                    <tr>
+            <SortTh k="name">Person</SortTh>
+            <SortTh k="role">Role</SortTh>
+            <SortTh k="sensitive" center>Sensitive</SortTh>
+            <SortTh k="giving" center>Giving</SortTh>
+            <SortTh k="checks" center>Checks</SortTh>
             <th className="px-4 py-2" />
           </tr>
         </thead>
@@ -266,14 +321,45 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
         </p>
       )}
 
-            {loginNote}
+                  {loginNote}
 
-      <Table rows={activeMembers} />
+      <div className="mb-3 flex flex-wrap items-end gap-3 text-sm">
+        <label className="block flex-1 min-w-[14rem]">
+          <span className="block text-xs font-semibold text-neutral-600 mb-1">Filter by name or email</span>
+          <input
+            type="search"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            placeholder="start typing…"
+            className="w-full rounded border border-neutral-300 px-3 py-1.5"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-semibold text-neutral-600 mb-1">Role</span>
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            className="rounded border border-neutral-300 px-3 py-1.5"
+          >
+            <option value="">All roles</option>
+            {Object.entries(ROLE_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="text-xs text-neutral-500 pb-2">
+          {view(activeMembers).length} of {activeMembers.length} active · click a column heading to sort
+        </span>
+      </div>
+
+      <Table rows={view(activeMembers)} />
 
       {inactiveMembers.length > 0 && (
         <div className="mt-6">
           <h3 className="font-semibold text-neutral-700 mb-2">Deactivated</h3>
-          <Table rows={inactiveMembers} />
+          <Table rows={view(inactiveMembers)} />
         </div>
       )}
 
@@ -302,11 +388,14 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
               autoComplete="off"
               className="w-full rounded border border-neutral-300 px-3 py-2"
               placeholder="start typing a name or email"
+                            role="combobox"
               aria-autocomplete="list"
               aria-expanded={pickerOpen && matches.length > 0}
+              aria-controls="add-staff-picker"
             />
             {pickerOpen && needle.length >= 2 && (
-              <ul
+                            <ul
+                id="add-staff-picker"
                 role="listbox"
                 className="mt-1 max-h-64 overflow-auto rounded border border-neutral-200 bg-white text-sm shadow-sm"
               >

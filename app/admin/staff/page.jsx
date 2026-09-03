@@ -19,11 +19,21 @@ export default async function StaffAccessPage() {
     .select(
       'profile_id, role, title, can_view_sensitive, can_view_giving, can_view_background_checks, active, profiles ( first_name, last_name )'
     )
-    .order('active', { ascending: false })
+        .order('active', { ascending: false })
     .order('role');
+
+  // The login address, beside every name. Emails live in auth.users, which the
+  // client may not read; admin_list_accounts (0023) is the admin-only function
+  // the Accounts page already uses, and this page is admin-only too. Worth the
+  // extra query because access follows the LOGIN, not the person: on 2 Sep 2026
+  // a staff member appeared to have no admin access -- she had it, on a second
+  // account, and nothing on this page said which address the row belonged to.
+  const { data: accounts } = await supabase.rpc('admin_list_accounts');
+  const emailById = new Map((accounts ?? []).map((a) => [a.user_id, a.email]));
 
   const members = (rows ?? []).map((r) => ({
     profileId: r.profile_id,
+    email: emailById.get(r.profile_id) ?? '',
     name:
       [r.profiles?.first_name, r.profiles?.last_name].filter(Boolean).join(' ').trim() ||
       '(no name on profile)',

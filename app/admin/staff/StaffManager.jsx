@@ -66,8 +66,18 @@ export default function StaffManager({ members, selfId }) {
     });
   }
 
-  const activeMembers = members.filter((m) => m.active);
+    const activeMembers = members.filter((m) => m.active);
   const inactiveMembers = members.filter((m) => !m.active);
+  // Said once at the top, because it is the mistake that actually happens:
+  // access is granted to a LOGIN, and a person with two logins has it on one.
+  const loginNote = (
+    <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <strong>Access belongs to the login, not the person.</strong> The address beside each name is
+      the account that has this access. Somebody who signs in with a different address — a second
+      email, a personal one — will see no staff area at all, even though they are listed here. If
+      that happens, check which address they signed in with before granting anything else.
+    </p>
+  );
 
   const Row = ({ m }) => {
     const isSelf = m.profileId === selfId;
@@ -75,8 +85,20 @@ export default function StaffManager({ members, selfId }) {
     return (
       <tr className={`border-t border-neutral-100 align-top ${m.active ? '' : 'opacity-60'}`}>
         <td className="px-4 py-3">
-          <span className="font-medium">{m.name}</span>
+                    <span className="font-medium">{m.name}</span>
           {isSelf && <span className="ml-2 text-xs text-neutral-500">(you)</span>}
+          {/* The login this access belongs to. Shown on its own line so it can be
+              read and compared at a glance -- "which address did you sign in
+              with?" is the first question when someone says they have no access. */}
+          {m.email ? (
+            <div className="text-xs text-neutral-500 break-all" title="The login this access belongs to">
+              {m.email}
+            </div>
+          ) : (
+            <div className="text-xs text-amber-700" title="No login found for this profile">
+              (login not found)
+            </div>
+          )}
           <input
             defaultValue={m.title}
             placeholder="Job title, e.g. Camp Director (optional)"
@@ -230,6 +252,8 @@ export default function StaffManager({ members, selfId }) {
           {notice}
         </p>
       )}
+
+            {loginNote}
 
       <Table rows={activeMembers} />
 

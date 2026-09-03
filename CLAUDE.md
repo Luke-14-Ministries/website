@@ -384,6 +384,11 @@ Stripe switches to live keys.** Plan §8 has the full reasoning.
 
 ## Where the documentation lives
 
+- `GLOSSARY.md` — **the words this project uses, in plain English, for people who are not
+  developers**, and the vocabulary to use when explaining anything to them (lint, push, branch,
+  migration, grant, drift, and this project's own terms). When a non-technical team member asks
+  what a word means, answer in its terms and point them at `Luke14-Glossary.pdf` at the library
+  root. SharePoint, `md files`. Added 2 September 2026.
 - `IMPLEMENTATION-PLAN.md` — why, and the full phase plan. SharePoint, `01 Plans and Decisions\md files`.
 - `DO-THIS-NEXT.md` — the ordered working checklist. SharePoint, `02 Accounts and Setup\md files`.
 - `Luke14-Account-Register.xlsx` — every account, who owns it, who the second admin is. No

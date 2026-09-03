@@ -13,16 +13,29 @@ import { updateStaffMember, addStaffMember, removeStaffMember } from './actions'
 
 const ROLE_LABEL = { registrar: 'Registrar', coordinator: 'Coordinator', admin: 'Administrator' };
 
-export default function StaffManager({ members, selfId }) {
+export default function StaffManager({ members, selfId, accounts = [] }) {
   const router = useRouter();
   const [, start] = useTransition();
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const [addEmail, setAddEmail] = useState('');
+    const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState('registrar');
   const [adding, setAdding] = useState(false);
+  // The picker under the email box. Filtering starts at two characters, on
+  // email or name, and shows at most eight -- enough to find anyone at this
+  // ministry's size without scrolling. Picking fills the box; the form still
+  // submits the address, so nothing downstream changed.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const needle = addEmail.trim().toLowerCase();
+  const matches =
+    needle.length >= 2
+      ? accounts
+          .filter((a) => a.email.toLowerCase().includes(needle) || a.name.toLowerCase().includes(needle))
+          .slice(0, 8)
+      : [];
+  const exact = accounts.find((a) => a.email.toLowerCase() === needle) ?? null;
 
   function patch(profileId, changes) {
     setError('');
@@ -266,23 +279,77 @@ export default function StaffManager({ members, selfId }) {
 
       <div className="mt-8 rounded-lg bg-white border border-neutral-200 shadow-sm p-6 max-w-lg">
         <h3 className="font-bold mb-1">Add a staff member</h3>
-        <p className="text-sm text-neutral-500 mb-3">
-          They need an account on the site first (created the same way families do). Enter the
-          email they signed up with. New staff must set up two-factor before the staff area opens.
+                <p className="text-sm text-neutral-500 mb-3">
+          They need an account on the site first (created the same way families do). Start typing
+          their name or email and pick the account from the list — that way the grant lands on the
+          login they actually use. New staff must set up two-factor before the staff area opens.
         </p>
         <form onSubmit={submitAdd} className="flex flex-wrap items-end gap-3">
           <label className="block flex-1 min-w-[14rem]">
             <span className="block text-sm font-semibold mb-1">
               Email <span className="text-red-600">*</span>
             </span>
-            <input
+                        <input
               type="email"
               required
               value={addEmail}
-              onChange={(e) => setAddEmail(e.target.value)}
+              onChange={(e) => {
+                setAddEmail(e.target.value);
+                setPickerOpen(true);
+              }}
+              onFocus={() => setPickerOpen(true)}
+              onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+              autoComplete="off"
               className="w-full rounded border border-neutral-300 px-3 py-2"
-              placeholder="person@example.com"
+              placeholder="start typing a name or email"
+              aria-autocomplete="list"
+              aria-expanded={pickerOpen && matches.length > 0}
             />
+            {pickerOpen && needle.length >= 2 && (
+              <ul
+                role="listbox"
+                className="mt-1 max-h-64 overflow-auto rounded border border-neutral-200 bg-white text-sm shadow-sm"
+              >
+                {matches.length === 0 ? (
+                  <li className="px-3 py-2 text-neutral-500">
+                    No account matches. If they have never signed up, they need to create an account
+                    first — <span className="whitespace-nowrap">Add to staff</span> will say so.
+                  </li>
+                ) : (
+                  matches.map((a) => (
+                    <li key={a.email}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={exact?.email === a.email}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setAddEmail(a.email);
+                          setPickerOpen(false);
+                        }}
+                        className="flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left hover:bg-neutral-50"
+                      >
+                        <span>
+                          <span className="font-medium">{a.name || '(no name on profile)'}</span>
+                          <span className="ml-2 text-neutral-500 break-all">{a.email}</span>
+                        </span>
+                        {a.onStaff && (
+                          <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                            already on staff
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+            {exact && !pickerOpen && (
+              <span className="mt-1 block text-xs text-neutral-500">
+                {exact.name ? `${exact.name} — ` : ''}
+                {exact.onStaff ? 'already on staff; adding again updates their role.' : 'has an account; not on staff yet.'}
+              </span>
+            )}
           </label>
           <label className="block">
             <span className="block text-sm font-semibold mb-1">Role</span>

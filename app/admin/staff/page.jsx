@@ -29,7 +29,20 @@ export default async function StaffAccessPage() {
   // a staff member appeared to have no admin access -- she had it, on a second
   // account, and nothing on this page said which address the row belonged to.
   const { data: accounts } = await supabase.rpc('admin_list_accounts');
-  const emailById = new Map((accounts ?? []).map((a) => [a.user_id, a.email]));
+    const emailById = new Map((accounts ?? []).map((a) => [a.user_id, a.email]));
+
+  // The same list feeds the "add a staff member" picker, so an administrator
+  // chooses an existing login rather than typing an address from memory --
+  // mistyping is how a grant lands on the wrong (or no) account. Names help
+  // when the address is not obvious; the staff flag marks who is already here.
+  const pickable = (accounts ?? [])
+    .filter((a) => a.email)
+    .map((a) => ({
+      email: a.email,
+      name: [a.first_name, a.last_name].filter(Boolean).join(' ').trim(),
+      onStaff: !!a.staff_role && a.staff_active !== false,
+    }))
+    .sort((a, b) => a.email.localeCompare(b.email));
 
   const members = (rows ?? []).map((r) => ({
     profileId: r.profile_id,
@@ -123,7 +136,7 @@ export default async function StaffAccessPage() {
         </p>
       </div>
 
-      <StaffManager members={members} selfId={staff.userId} />
+      <StaffManager members={members} selfId={staff.userId} accounts={pickable} />
     </div>
   );
 }

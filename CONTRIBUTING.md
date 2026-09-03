@@ -104,8 +104,11 @@ you need to know *why* it failed.
 Write commit messages in plain language describing what changed and why. In six months
 that sentence is the only explanation anyone will have.
 
-**For anything larger than a typo, use a branch and a pull request** so a second person
-sees the change before the public does:
+**Branches: now, and from go-live.** During Phase 3 (staff testing, one developer, no real
+families on the site) changes go straight onto `main`, as above -- the build check on every
+push is the safety net, and branching would only add ceremony. From go-live, or from the day
+a second person is committing, whichever comes first, **anything larger than a typo goes on a
+branch with a pull request** so a second person sees the change before the public does:
 
 ```bash
 git checkout -b camp-dates-2027
@@ -113,7 +116,9 @@ git checkout -b camp-dates-2027
 git push -u origin camp-dates-2027
 ```
 
-Then open the pull request on GitHub and request a review.
+Then open the pull request on GitHub and request a review. The reviewer merges; the author
+does not merge their own work. *(Clarified 2 September 2026; the Web Admin Handbook §5 says
+the same in more words, for people who are not developers.)*
 
 ---
 

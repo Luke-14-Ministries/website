@@ -140,7 +140,7 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
   // access is granted to a LOGIN, and a person with two logins has it on one.
   const loginNote = (
     <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-      <strong>Access belongs to the login, not the person.</strong> The address beside each name is
+      <strong>Access belongs to the login, not the person.</strong> The address under each name is
       the account that has this access. Somebody who signs in with a different address — a second
       email, a personal one — will see no staff area at all, even though they are listed here. If
       that happens, check which address they signed in with before granting anything else.

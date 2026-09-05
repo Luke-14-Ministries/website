@@ -51,7 +51,7 @@ shared login. Two-factor authentication is required by the organization.
 
 Reopen your terminal after installing Node, then check:
 
-```bash
+```powershell
 node --version    # v24.x
 npm --version
 git --version
@@ -66,7 +66,7 @@ Clone to a local disk path, **never inside OneDrive or SharePoint** — file-syn
 clients corrupt the hidden `.git` directory, usually silently. `C:\dev\luke14` is the
 convention here.
 
-```bash
+```powershell
 mkdir C:\dev
 cd C:\dev
 git clone https://github.com/luke-14-ministries/website.git luke14
@@ -86,7 +86,7 @@ it rewrites the lockfile as a side effect.
 
 ## 3. Making a change
 
-```bash
+```powershell
 git pull                     # take everyone else's work first
                              # ... edit, watch localhost:3000 ...
 npm run build                # prove the production build still succeeds
@@ -110,7 +110,7 @@ push is the safety net, and branching would only add ceremony. From go-live, or 
 a second person is committing, whichever comes first, **anything larger than a typo goes on a
 branch with a pull request** so a second person sees the change before the public does:
 
-```bash
+```powershell
 git checkout -b camp-dates-2027
                              # ... commit as usual ...
 git push -u origin camp-dates-2027

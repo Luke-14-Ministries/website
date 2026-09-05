@@ -9,7 +9,7 @@ the official site.
 
 ## Run locally
 
-```bash
+```powershell
 npm ci             # installs the exact tested versions; use this, not npm install
 npm run dev        # http://localhost:3000
 ```
@@ -25,7 +25,7 @@ compiles fine and then dies at the end of `npm run build` with
 rather than the file you actually forgot. The fastest fix, which never puts a key on the
 clipboard or in a chat window:
 
-```bash
+```powershell
 npx vercel login
 npx vercel link          # pick the luke14-ministries project
 npx vercel env pull .env.local

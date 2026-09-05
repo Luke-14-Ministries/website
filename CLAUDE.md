@@ -333,10 +333,14 @@ These are the ministry's rules, agreed at board level. Do not relax them for con
   time. Two commands settle most of it in ten seconds, and a session that is about to rely on a
   number here should run them rather than quote the paragraph:
 
-  ```bash
-  ls supabase/migrations | tail -2      # the real high-water mark
-  git log -1 --date=short --format=%ad  # how old "where things stand" actually is
+  ```powershell
+  (Get-ChildItem supabase\migrations -Filter '0*.sql').Name | Select-Object -Last 2  # the real high-water mark
+  git log -1 --date=short --format=%ad                                              # how old "where things stand" actually is
   ```
+
+  The filter matters: the folder also holds `README.md` and `rls_test.sql`, and both sort after every
+  numbered file (digits collate before letters), so an unfiltered listing's last two entries are
+  always those two housekeeping files, never the actual high-water mark.
 
   A claim about what is *built* is the one that cannot be checked this way and goes stale
   hardest — "nothing writes them yet" was true when written and false four days later. When you

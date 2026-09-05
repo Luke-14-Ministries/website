@@ -1495,3 +1495,37 @@ once the session was restarted, which the first check did not do. So Vercel is n
 after all; it lives on the organisation with the other four, and the local plugin is optional and
 duplicative. What has not changed: a connector only works for someone the vendor itself recognises,
 and on Vercel Hobby that is one person.
+
+---
+
+## 2026-09-05 — The password vault exists: Bitwarden Families, owned by `admin@`, with personal accounts as Owners
+
+Set up by Larry and Lawrence on 5 September 2026. **Bitwarden Families Premium, $48 a year, paid
+through the ministry's PayPal account** — a ministry payment method, so the rule that the vault is
+billed to the ministry and not to a person is met. Three of six seats in use: `admin@`, Lawrence,
+Larry. The owning Bitwarden account is
+`admin@luke14ministries.net`, secured with Larry's authenticator app; its recovery key is printed and
+held offline. That account is the root and is not used day to day. Lawrence and Larry are Owners of
+the organisation from their **own personal Bitwarden accounts** (`llaplue@outlook.com` and
+`laplue@hotmail.com`).
+
+**Why personal accounts rather than new ministry-address logins.** Both already live in Bitwarden
+with their own app-based two-factor. A second Bitwarden login per person would be one more master
+password, one more authenticator entry and one more recovery code to lose, protecting nothing the
+existing login does not. The ministry's ownership is carried by the `admin@` root account and by the
+organisation itself, not by which login each human uses to reach it.
+
+**What this commits us to.** Offboarding either admin is one step: remove that account from the
+organisation, then rotate anything they could have copied (Handbook §9.1). Each person's own Bitwarden
+two-factor is now a gate on the ministry's keys, so it stays app-based — never SMS, never email.
+And neither personal account may grant Bitwarden Emergency Access takeover to anyone without the
+board knowing, because an Owner's ownership travels with the account (entry of 4 August, as corrected).
+
+**What remains is the filling.** The `admin@` mailbox password, each vendor's `admin@` password and
+each TOTP seed that today lives on one phone move into the shared collection one at a time, with the
+account register's *In vault?* column ticked as each lands. An encrypted export goes on offline media
+at each milestone snapshot — never in OneDrive or SharePoint.
+
+*Alternative considered:* Bitwarden Teams, about $190/year for four seats, for its administrator
+account-recovery. Rejected: two Owners plus a printed recovery key cover the same risk at this size,
+and $48 is the figure already in the board packet.

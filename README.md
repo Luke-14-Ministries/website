@@ -40,9 +40,10 @@ workflow, project layout, and the security rules.
 
 ## How it deploys
 
-**Vercel** watches `main` and rebuilds on every push. Nothing is uploaded by hand, and there
-is no deploy workflow in this repository to maintain — Vercel's GitHub integration does the
-watching.
+**Vercel** watches `main` and rebuilds on every push that touches the site — a push that changes
+only Markdown documents is skipped, by the `ignoreCommand` in `vercel.json`. Nothing is uploaded by
+hand, and there is no deploy workflow in this repository to maintain — Vercel's GitHub integration
+does the watching.
 
 There *is* one GitHub Action, added 30 August 2026: `.github/workflows/build.yml`. It lints and
 builds on every push to `main` and deploys nothing — it exists so a broken build arrives as an

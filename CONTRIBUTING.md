@@ -16,7 +16,10 @@ non-code half of the job.
 
 A **Next.js** application, hosted on **Vercel**. Deployment is automatic: Vercel
 watches the `main` branch, every push triggers a build, and a successful build is live
-within a minute or two. Nothing is ever uploaded by hand.
+within a minute or two. Nothing is ever uploaded by hand. One exception, since 5 September
+2026: a push that changes only Markdown documents (`CLAUDE.md`, this file, `DECISIONS.md`) is
+skipped, because nothing in the site changed — `vercel.json` carries the rule. Vercel keeps
+every build's output for a while so it can roll back, and a documentation edit does not need one.
 
 The preview serves at <https://luke14-ministries.vercel.app>. The ministry's own
 domain, `luke14ministries.net`, still points at the ministry's existing Squarespace site and will keep

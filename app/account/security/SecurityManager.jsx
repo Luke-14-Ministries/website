@@ -47,10 +47,35 @@ export default function SecurityManager({ required }) {
   // through. Now we ask for a current code first, then carry on with what they
   // were doing. stepUp remembers the intent while the code is being entered.
   const [stepUp, setStepUp] = useState(null); // { intent: 'add' | 'remove', targetId?, viaId }
+  // True once a code has been proved for the current attempt. Stops the
+  // refusal handlers below from asking for a code a second time if the server
+  // somehow still refuses -- a loop would be worse than a plain message.
+  const [steppedUp, setSteppedUp] = useState(false);
 
+  // Two layers, because the first one is not reliable on its own. The
+  // pre-check reads the level off the browser's copy of the session; the
+  // server's opinion is what counts, and on 8 September the two disagreed --
+  // the pre-check said AAL2, Supabase still refused. So the pre-check is only
+  // a way to ask for the code BEFORE the failed attempt when it can; the
+  // AAL2 refusal itself always opens the code form (see beginEnroll and
+  // doRemove), so there is never a dead end. If the check cannot be made,
+  // ask for the code -- one unnecessary code costs ten seconds; a dead end
+  // costs a support call.
   async function needsStepUp() {
-    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    return data?.nextLevel === 'aal2' && data?.currentLevel !== 'aal2';
+    try {
+      const result = await Promise.race([
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+        new Promise((resolve) => setTimeout(() => resolve({ data: null }), 6000)),
+      ]);
+      if (!result?.data) return true;
+      return result.data.currentLevel !== 'aal2';
+    } catch {
+      return true;
+    }
+  }
+
+  function isAalRefusal(message) {
+    return /aal2/i.test(message || '');
   }
 
   // Supabase's own wording for the step-up rule is not something a person can
@@ -121,13 +146,15 @@ export default function SecurityManager({ required }) {
   }, [loadFactors]);
 
   function openAdd() {
-    // A friendly default only for the very first device.
-    setDeviceName(factors.length === 0 ? 'My phone' : '');
+    // A friendly default only for the very first device. A name already typed
+    // (before a step-up interrupted the add) is kept.
+    if (!deviceName) setDeviceName(factors.length === 0 ? 'My phone' : '');
     setAdding(true);
   }
 
   async function startAdd() {
     setError('');
+    setSteppedUp(false);
     // The first device needs no step-up: there is nothing to prove a code with.
     if (factors.length > 0 && (await needsStepUp())) {
       setCode('');
@@ -163,6 +190,7 @@ export default function SecurityManager({ required }) {
     // The session is AAL2 now. Carry on with what the person was doing.
     const intent = stepUp;
     setStepUp(null);
+    setSteppedUp(true);
     setCode('');
     router.refresh();
     if (intent.intent === 'add') {
@@ -198,6 +226,14 @@ export default function SecurityManager({ required }) {
     });
     setBusy(false);
     if (enrollError) {
+      if (isAalRefusal(enrollError.message) && factors.length > 0 && !steppedUp) {
+        // The pre-check let us through and the server said no: ask for the
+        // code now and come back to this form afterwards, name intact.
+        setAdding(false);
+        setCode('');
+        setStepUp({ intent: 'add', viaId: factors[0].id });
+        return;
+      }
       setError(friendly(enrollError.message));
       return;
     }
@@ -286,6 +322,7 @@ export default function SecurityManager({ required }) {
       return;
     }
     setError('');
+    setSteppedUp(false);
     if (await needsStepUp()) {
       // Prove a code with any current device -- this one is fine -- then remove.
       setCode('');
@@ -303,6 +340,13 @@ export default function SecurityManager({ required }) {
     }
     setBusy(false);
     if (unError) {
+      if (isAalRefusal(unError.message) && !steppedUp) {
+        // Same as in beginEnroll: the server wants a code first. Ask, then
+        // remove -- confirmStepUp calls back into here.
+        setCode('');
+        setStepUp({ intent: 'remove', targetId: factorId, viaId: factorId });
+        return;
+      }
       setError(friendly(unError.message));
       return;
     }

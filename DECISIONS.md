@@ -1529,3 +1529,33 @@ at each milestone snapshot — never in OneDrive or SharePoint.
 *Alternative considered:* Bitwarden Teams, about $190/year for four seats, for its administrator
 account-recovery. Rejected: two Owners plus a printed recovery key cover the same risk at this size,
 and $48 is the figure already in the board packet.
+
+---
+
+## 2026-09-08 — Emergency Access: Lawrence and Larry hold takeover on each other's personal Bitwarden accounts
+
+Granted on 8 September 2026, both directions, with Takeover. The 4 August entry (as corrected on
+29 August) explains what this does: after the waiting period the contact can set a new master
+password on the grantor's account, which carries the grantor's Owner role in the ministry
+organisation with it. So this is the vault's succession path, made deliberately, between the two
+people who already hold the organisation as Owners — not a quiet technical setting.
+
+**Why it is acceptable.** Both are already Owners, so neither gains ministry access they lack; the
+grant matters only when one of them is dead, incapacitated or unreachable, which is the case the
+whole vault exists for. The grantor is emailed when a takeover is requested and can reject it
+during the waiting period, so it cannot be used against someone who is reachable.
+
+**What it also does, knowingly.** Takeover reaches the grantor's *personal* vault as well — bank
+logins and the rest. Both accepted that as a personal matter between them; it is recorded here
+because the ministry's keys ride along.
+
+**Conditions.** The waiting period stays at seven days or more. Each person's own Bitwarden
+two-factor stays app-based. Each person's own Bitwarden recovery code is on paper and not in any
+vault. If either grant is ever revoked or moved to a third person, that is a new entry here and a
+note to the board.
+
+**Recorded the same day:** claude.ai and Checkr offer no authenticator option, and Vercel offers
+only a passkey beside its emailed code, so for those three the `admin@` mailbox is the second
+factor — which makes Larry's own Authenticator registration on `admin@` (done 5 September) the
+single most important two-factor on the ministry's books.
+

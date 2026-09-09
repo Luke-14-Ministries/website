@@ -324,6 +324,14 @@ export default function SecurityManager({ required }) {
     const { error: unError } = await supabase.auth.mfa.unenroll({ factorId });
     if (!unError) {
       await supabase.from('mfa_factor_labels').delete().eq('factor_id', factorId);
+      // Re-issue the session so the cookie's copy of the user stops listing the
+      // factor that no longer exists -- otherwise the middleware and any check
+      // that reads the cookie believe two-factor is still on for up to an hour.
+      try {
+        await supabase.auth.refreshSession();
+      } catch {
+        /* the server-side gate no longer trusts the cookie anyway */
+      }
     }
     setBusy(false);
     if (unError) {

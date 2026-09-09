@@ -78,11 +78,20 @@ export default async function AdminLayout({ children }) {
   if (!staff && !isLeaderOnly) redirect('/account/?next=/admin/');
 
   // Staff must have two-factor turned on before they can open the staff area,
-  // because everything in here is other families' information. getAuthenticator-
-  // AssuranceLevel reports nextLevel === 'aal2' exactly when a verified factor
-  // exists; anything else means no factor, so send them to set one up. This is
-  // an enrolment gate, not a per-visit challenge -- the login form is what asks
-  // for the code each time a staffer with a factor signs in.
+  // because everything in here is other families' information. The check asks
+  // the auth server for the live factor list; anything without a verified
+  // factor is sent to set one up. This is an enrolment gate, not a per-visit
+  // challenge -- the login form is what asks for the code each time a staffer
+  // with a factor signs in.
+  //
+  // It used to read getAuthenticatorAssuranceLevel().nextLevel instead, and
+  // that is answered from the session COOKIE's copy of the user, which is only
+  // refreshed when the access token is (up to an hour). Lawrence, 8 September:
+  // turned two-factor off, saw the "must turn it back on" banner, then walked
+  // straight into the staff area, because the cookie still listed the factor
+  // he had just removed. listFactors() is a server round-trip and cannot be
+  // stale; the extra request on each staff page is the price of a gate that
+  // holds.
   //
   // Program leaders are held to the SAME rule, and that is a decision rather
   // than an accident: what they can see is a list of disabled children's first
@@ -91,8 +100,11 @@ export default async function AdminLayout({ children }) {
   // their roster works, which is real friction at camp. If that proves too
   // much, this is the one line to revisit -- but revisit it deliberately.
   const supabase = await createClient();
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel !== 'aal2') {
+  const { data: factorList, error: factorError } = await supabase.auth.mfa.listFactors();
+  const hasVerifiedFactor = (factorList?.totp ?? []).some((f) => f.status === 'verified');
+  // If the auth server cannot be asked, fail closed: the gate exists to keep
+  // other families' data behind a second factor, so an unknown answer is "no".
+  if (factorError || !hasVerifiedFactor) {
     redirect('/account/security?required=1');
   }
 

@@ -52,28 +52,13 @@ export default function SecurityManager({ required }) {
   // somehow still refuses -- a loop would be worse than a plain message.
   const [steppedUp, setSteppedUp] = useState(false);
 
-  // Two layers, because the first one is not reliable on its own. The
-  // pre-check reads the level off the browser's copy of the session; the
-  // server's opinion is what counts, and on 8 September the two disagreed --
-  // the pre-check said AAL2, Supabase still refused. So the pre-check is only
-  // a way to ask for the code BEFORE the failed attempt when it can; the
-  // AAL2 refusal itself always opens the code form (see beginEnroll and
-  // doRemove), so there is never a dead end. If the check cannot be made,
-  // ask for the code -- one unnecessary code costs ten seconds; a dead end
-  // costs a support call.
-  async function needsStepUp() {
-    try {
-      const result = await Promise.race([
-        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-        new Promise((resolve) => setTimeout(() => resolve({ data: null }), 6000)),
-      ]);
-      if (!result?.data) return true;
-      return result.data.currentLevel !== 'aal2';
-    } catch {
-      return true;
-    }
-  }
-
+  // The code form is opened by startAdd and remove unconditionally (see the
+  // note above startAdd). The AAL2 refusal handlers in beginEnroll and doRemove
+  // remain as a second layer, so that even if a path is added later that skips
+  // the form, the server's refusal opens it rather than dead-ending. An earlier
+  // version pre-checked the session level here and asked only when it read
+  // AAL1; on 8 September the browser's copy read AAL2 while the server refused,
+  // which is why the pre-check is gone.
   function isAalRefusal(message) {
     return /aal2/i.test(message || '');
   }
@@ -152,11 +137,17 @@ export default function SecurityManager({ required }) {
     setAdding(true);
   }
 
-  async function startAdd() {
+  // A change to the factor list ALWAYS asks for a fresh code, whatever the
+  // session's level. Lawrence, 8 September: having logged in with a code a
+  // minute earlier, Remove went straight through -- correct by Supabase's
+  // rule, but the wrong feel for the one control that switches protection
+  // off. Someone at an unlocked laptop should not be able to remove the
+  // owner's second factor without holding the owner's phone. The first device
+  // is the exception: there is nothing yet to prove a code with.
+  function startAdd() {
     setError('');
     setSteppedUp(false);
-    // The first device needs no step-up: there is nothing to prove a code with.
-    if (factors.length > 0 && (await needsStepUp())) {
+    if (factors.length > 0) {
       setCode('');
       setStepUp({ intent: 'add', viaId: factors[0].id });
       return;
@@ -323,13 +314,9 @@ export default function SecurityManager({ required }) {
     }
     setError('');
     setSteppedUp(false);
-    if (await needsStepUp()) {
-      // Prove a code with any current device -- this one is fine -- then remove.
-      setCode('');
-      setStepUp({ intent: 'remove', targetId: factorId, viaId: factorId });
-      return;
-    }
-    await doRemove(factorId);
+    // Always: prove a code with any current device -- this one is fine -- then remove.
+    setCode('');
+    setStepUp({ intent: 'remove', targetId: factorId, viaId: factorId });
   }
 
   async function doRemove(factorId) {
@@ -386,9 +373,9 @@ export default function SecurityManager({ required }) {
           <p className="mb-2 font-semibold">First, confirm it&rsquo;s you.</p>
           <p className="mb-4 text-sm text-neutral-600">
             Before {stepUp.intent === 'add' ? 'adding' : 'removing'} a device, enter the
-            current 6-digit code from one of your authenticators. This browser was
-            remembered at login, so the code was skipped then — it is needed for a
-            change like this one.
+            current 6-digit code from one of your authenticators. A change to two-factor
+            always asks for a fresh code, even right after logging in, so that nobody
+            at an unlocked computer can change it without your phone.
           </p>
           {factors.length > 1 && (
             <>

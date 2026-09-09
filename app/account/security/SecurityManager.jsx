@@ -36,6 +36,32 @@ export default function SecurityManager({ required }) {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
 
+  // Stepping the session up before a change to the factor list.
+  //
+  // Supabase refuses to add or remove a factor unless THIS session has already
+  // proved a code (its "AAL2"). Ticking "remember this browser" at login skips
+  // the code for 30 days, which leaves the session at AAL1 -- and the person
+  // most likely to visit this page is exactly the one on a remembered browser
+  // who wants a new phone. Until 8 September 2026 the raw Supabase error
+  // ("AAL2 required to enroll a new factor") was shown and there was no way
+  // through. Now we ask for a current code first, then carry on with what they
+  // were doing. stepUp remembers the intent while the code is being entered.
+  const [stepUp, setStepUp] = useState(null); // { intent: 'add' | 'remove', targetId?, viaId }
+
+  async function needsStepUp() {
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    return data?.nextLevel === 'aal2' && data?.currentLevel !== 'aal2';
+  }
+
+  // Supabase's own wording for the step-up rule is not something a person can
+  // act on. Everything else passes through unchanged.
+  function friendly(message) {
+    if (/aal2/i.test(message || '')) {
+      return 'Please enter a current code from your authenticator app first, then try again.';
+    }
+    return message;
+  }
+
   const loadFactors = useCallback(async () => {
     const { data, error: listError } = await supabase.auth.mfa.listFactors();
     if (listError) {
@@ -94,11 +120,62 @@ export default function SecurityManager({ required }) {
     loadFactors();
   }, [loadFactors]);
 
-  function startAdd() {
-    setError('');
+  function openAdd() {
     // A friendly default only for the very first device.
     setDeviceName(factors.length === 0 ? 'My phone' : '');
     setAdding(true);
+  }
+
+  async function startAdd() {
+    setError('');
+    // The first device needs no step-up: there is nothing to prove a code with.
+    if (factors.length > 0 && (await needsStepUp())) {
+      setCode('');
+      setStepUp({ intent: 'add', viaId: factors[0].id });
+      return;
+    }
+    openAdd();
+  }
+
+  async function confirmStepUp(e) {
+    e.preventDefault();
+    if (!stepUp) return;
+    setError('');
+    setBusy(true);
+    const { data: ch, error: chError } = await supabase.auth.mfa.challenge({
+      factorId: stepUp.viaId,
+    });
+    if (chError) {
+      setBusy(false);
+      setError(friendly(chError.message));
+      return;
+    }
+    const { error: vError } = await supabase.auth.mfa.verify({
+      factorId: stepUp.viaId,
+      challengeId: ch.id,
+      code: code.trim(),
+    });
+    setBusy(false);
+    if (vError) {
+      setError('That code did not match. It changes every 30 seconds — try the current one.');
+      return;
+    }
+    // The session is AAL2 now. Carry on with what the person was doing.
+    const intent = stepUp;
+    setStepUp(null);
+    setCode('');
+    router.refresh();
+    if (intent.intent === 'add') {
+      openAdd();
+    } else {
+      await doRemove(intent.targetId);
+    }
+  }
+
+  function cancelStepUp() {
+    setStepUp(null);
+    setCode('');
+    setError('');
   }
 
   async function beginEnroll(e) {
@@ -121,7 +198,7 @@ export default function SecurityManager({ required }) {
     });
     setBusy(false);
     if (enrollError) {
-      setError(enrollError.message);
+      setError(friendly(enrollError.message));
       return;
     }
     setAdding(false);
@@ -208,6 +285,17 @@ export default function SecurityManager({ required }) {
     if (!confirm('Turn off two-factor for this device? You can turn it back on at any time.')) {
       return;
     }
+    setError('');
+    if (await needsStepUp()) {
+      // Prove a code with any current device -- this one is fine -- then remove.
+      setCode('');
+      setStepUp({ intent: 'remove', targetId: factorId, viaId: factorId });
+      return;
+    }
+    await doRemove(factorId);
+  }
+
+  async function doRemove(factorId) {
     setBusy(true);
     const { error: unError } = await supabase.auth.mfa.unenroll({ factorId });
     if (!unError) {
@@ -215,7 +303,7 @@ export default function SecurityManager({ required }) {
     }
     setBusy(false);
     if (unError) {
-      setError(unError.message);
+      setError(friendly(unError.message));
       return;
     }
     await loadFactors();
@@ -249,6 +337,57 @@ export default function SecurityManager({ required }) {
 
       {loading ? (
         <p className="text-neutral-500">Checking your security settings…</p>
+      ) : stepUp ? (
+        <form onSubmit={confirmStepUp}>
+          <p className="mb-2 font-semibold">First, confirm it&rsquo;s you.</p>
+          <p className="mb-4 text-sm text-neutral-600">
+            Before {stepUp.intent === 'add' ? 'adding' : 'removing'} a device, enter the
+            current 6-digit code from one of your authenticators. This browser was
+            remembered at login, so the code was skipped then — it is needed for a
+            change like this one.
+          </p>
+          {factors.length > 1 && (
+            <>
+              <label className="block font-semibold mb-1.5" htmlFor="step-up-device">
+                Which device is the code from?
+              </label>
+              <select
+                id="step-up-device"
+                value={stepUp.viaId}
+                onChange={(e) => setStepUp({ ...stepUp, viaId: e.target.value })}
+                className={`${inputCls} mb-4`}
+              >
+                {factors.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          <label className="block font-semibold mb-1.5" htmlFor="step-up-code">
+            6-digit code
+          </label>
+          <input
+            id="step-up-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            required
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className={`${inputCls} mb-5 tracking-widest`}
+            placeholder="123456"
+          />
+          <div className="flex gap-3">
+            <button type="submit" disabled={busy} className="btn-primary">
+              {busy ? 'Checking…' : 'Continue'}
+            </button>
+            <button type="button" onClick={cancelStepUp} disabled={busy} className="btn-outline">
+              Cancel
+            </button>
+          </div>
+        </form>
       ) : enrolling ? (
         <form onSubmit={confirmEnroll}>
           <p className="mb-3 text-neutral-700">

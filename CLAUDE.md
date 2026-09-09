@@ -137,6 +137,12 @@ have one **lead** among its leaders (`0071` + `0072`, a label not a permission, 
 top of My Program); and the registration wizard says "family or group" so a group home or church
 group is not told it is in the wrong place (the data model always allowed it — a household needs no
 family relationship and a person can carry their own address).
+
+**Done 8 September:** the two-factor page (`app/account/security/SecurityManager.jsx`) steps the
+session up before adding or removing a device. Supabase requires AAL2 for both, and a browser
+remembered at login sits at AAL1, so both buttons used to fail with Supabase's raw "AAL2 required"
+text — found by Lawrence while moving codes into Bitwarden. The page now asks for a current code
+inline and then continues. Testing Script 3, item 20.10.
 5. **The balance-reminder buttons in `app/admin/payments/page.jsx`** are still `disabled`
    placeholders — "Email balance reminders (all shown)" and "Email selected families" render but
    do nothing.

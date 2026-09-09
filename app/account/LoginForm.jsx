@@ -141,17 +141,54 @@ export default function LoginForm() {
     return false;
   }
 
-  async function startChallenge() {
+  // The code step names the account and the device it expects a code from.
+  // Somebody with several logins (a personal address and a ministry one) and
+  // several entries in their authenticator otherwise has to guess which code
+  // this page wants -- Lawrence's report of 8 September, having just moved his
+  // codes into a password manager where every entry looks alike. The label is
+  // the nickname from Security, falling back to the name given at enrolment.
+  async function startChallenge(preferredId) {
     const { data: list } = await supabase.auth.mfa.listFactors();
-    const factor = (list?.totp ?? []).find((f) => f.status === 'verified');
+    const verified = (list?.totp ?? []).filter((f) => f.status === 'verified');
+    const factor = verified.find((f) => f.id === preferredId) || verified[0];
     if (!factor) return false;
     const { data: ch, error: chError } = await supabase.auth.mfa.challenge({
       factorId: factor.id,
     });
     if (chError) return false;
-    setMfa({ factorId: factor.id, challengeId: ch.id });
+    let email = mfa?.email;
+    let labels = mfa?.labels;
+    if (!email || !labels) {
+      const [{ data: userData }, { data: labelRows }] = await Promise.all([
+        withTimeout(supabase.auth.getUser(), 6000, { data: {} }),
+        withTimeout(supabase.from('mfa_factor_labels').select('factor_id, label'), 6000, {
+          data: [],
+        }),
+      ]);
+      email = userData?.user?.email || '';
+      const byId = new Map((labelRows ?? []).map((l) => [l.factor_id, l.label]));
+      labels = verified.map((f) => ({
+        id: f.id,
+        label: byId.get(f.id) || f.friendly_name || 'Authenticator app',
+      }));
+    }
+    setMfa({ factorId: factor.id, challengeId: ch.id, email, labels });
     setCode('');
     return true;
+  }
+
+  // "Not you?" on the code step: drop the half-finished session and start over.
+  async function useDifferentAccount() {
+    setBusy(true);
+    try {
+      await withTimeout(supabase.auth.signOut(), 6000, null);
+    } catch {
+      /* the session is going either way */
+    }
+    setMfa(null);
+    setCode('');
+    setError('');
+    setBusy(false);
   }
 
   // A session can arrive at this page ALREADY half signed in: password
@@ -345,10 +382,50 @@ export default function LoginForm() {
             continuing.
           </p>
         )}
+        {mfa.email && (
+          <p className="text-sm text-neutral-700 mb-1">
+            Signing in as <strong className="break-all">{mfa.email}</strong>.{' '}
+            <button
+              type="button"
+              onClick={useDifferentAccount}
+              disabled={busy}
+              className="text-brand underline"
+            >
+              Not you?
+            </button>
+          </p>
+        )}
         <p className="text-sm text-neutral-500 mb-5">
           Open your authenticator app and enter the current 6-digit code for
-          Luke 14 Ministries.
+          Luke 14 Ministries
+          {mfa.labels?.length === 1 && (
+            <>
+              {' '}— the entry named <strong>{mfa.labels[0].label}</strong>
+            </>
+          )}
+          .
         </p>
+
+        {mfa.labels?.length > 1 && (
+          <>
+            <label className="block font-semibold mb-1.5" htmlFor="login-device">
+              Which device is the code from?
+            </label>
+            <select
+              id="login-device"
+              value={mfa.factorId}
+              onChange={(e) => startChallenge(e.target.value)}
+              disabled={busy}
+              className="w-full rounded border border-neutral-300 px-4 py-2.5 mb-4"
+            >
+              {mfa.labels.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
         {error && (
           <p role="alert" className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-800">

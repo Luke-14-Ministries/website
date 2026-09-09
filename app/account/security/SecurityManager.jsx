@@ -409,11 +409,14 @@ export default function SecurityManager({ required }) {
               </select>
             </>
           )}
-          <label className="block font-semibold mb-1.5" htmlFor="step-up-code">
+          <label className="block font-semibold mb-1.5" htmlFor="step-up-totp-code">
             6-digit code
           </label>
           <input
-            id="step-up-code"
+            id="step-up-totp-code"
+            name="totp"
+            maxLength={6}
+            pattern="[0-9]{6}"
             inputMode="numeric"
             autoComplete="one-time-code"
             required
@@ -462,11 +465,14 @@ export default function SecurityManager({ required }) {
             </div>
           </div>
 
-          <label className="block font-semibold mb-1.5" htmlFor="mfa-code">
+          <label className="block font-semibold mb-1.5" htmlFor="mfa-totp-code">
             6-digit code
           </label>
           <input
-            id="mfa-code"
+            id="mfa-totp-code"
+            name="totp"
+            maxLength={6}
+            pattern="[0-9]{6}"
             inputMode="numeric"
             autoComplete="one-time-code"
             required

@@ -433,11 +433,14 @@ export default function LoginForm() {
           </p>
         )}
 
-        <label className="block font-semibold mb-1.5" htmlFor="login-code">
+        <label className="block font-semibold mb-1.5" htmlFor="login-totp-code">
           6-digit code
         </label>
         <input
-          id="login-code"
+          id="login-totp-code"
+          name="totp"
+          maxLength={6}
+          pattern="[0-9]{6}"
           inputMode="numeric"
           autoComplete="one-time-code"
           required

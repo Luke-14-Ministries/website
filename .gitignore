@@ -31,3 +31,11 @@ _to_delete/
 #
 # If `.env*` reappears at the bottom of this file, a later `vercel link` put
 # it back. Delete it again.
+
+# Claude Code's per-machine permission allowlist. It records which commands
+# one person has approved on one computer, with that computer's paths in it,
+# so it is machine-specific in the same way `.vercel` is. It was swept into
+# the Phase 1 commit by accident and untracked on 15 September 2026; the
+# local file is kept, git just stops watching it. A shared `.claude/settings.json`
+# (no `.local`) would be the place for rules everyone should get.
+.claude/settings.local.json

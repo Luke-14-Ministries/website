@@ -5,11 +5,48 @@
 // volunteers, activities, buddies, payments), and org-level pages below.
 // The group remembers open/closed per browser.
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const OPEN_KEY = 'l14_admin_nav_events_open';
+
+// Whether the Events group is open is a per-browser preference kept in
+// localStorage, and it is read through useSyncExternalStore: React's hook for
+// state that lives OUTSIDE React (here, the browser's storage). During server
+// rendering and hydration it uses the server snapshot -- open -- and then the
+// browser's real answer, with no flash. Until 16 September 2026 this was a
+// useState plus an effect that read storage and called setState, which is
+// the pattern react-hooks/set-state-in-effect flags: a render, then a second
+// render to correct it.
+//
+// `memOpen` is the fallback when storage is unavailable (private mode, full,
+// disabled): the group still toggles, it just forgets on reload. The 'storage'
+// event keeps two admin tabs in step with each other.
+let memOpen = true;
+const openListeners = new Set();
+function subscribeOpen(callback) {
+  openListeners.add(callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    openListeners.delete(callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+function readOpen() {
+  try {
+    const saved = window.localStorage.getItem(OPEN_KEY);
+    if (saved !== null) return saved !== '0';
+  } catch {}
+  return memOpen;
+}
+function writeOpen(next) {
+  memOpen = next;
+  try {
+    window.localStorage.setItem(OPEN_KEY, next ? '1' : '0');
+  } catch {}
+  openListeners.forEach((callback) => callback());
+}
 
 // Two kinds of number, and the difference is NOT whether a human should look
 // -- both deserve eyes (24 Aug). It is whether looking makes the number go
@@ -37,22 +74,10 @@ const BADGE_TONE = {
 
 export default function AdminNav({ top, events, rest, badges = {}, badgeTitles = {} }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(OPEN_KEY);
-      if (saved === '0') setOpen(false);
-    } catch {}
-  }, []);
+  const open = useSyncExternalStore(subscribeOpen, readOpen, () => true);
 
   function toggle() {
-    setOpen((o) => {
-      try {
-        window.localStorage.setItem(OPEN_KEY, o ? '0' : '1');
-      } catch {}
-      return !o;
-    });
+    writeOpen(!open);
   }
 
   const isActive = (href) =>

@@ -79,7 +79,11 @@ export default function IdleTimeout() {
   const [warning, setWarning] = useState(false);
   const [remaining, setRemaining] = useState(WARN_MS);
 
-  const lastActivity = useRef(Date.now());
+  // Starts at 0, not Date.now(): reading the clock while rendering is what
+  // react-hooks/purity flags. Nothing reads this before init() below sets it
+  // to the stored stamp (or to now) -- the interval only starts once
+  // `enabled` is true, and init() sets that last.
+  const lastActivity = useRef(0);
   const warningRef = useRef(false);
   const channelRef = useRef(null);
   const lastBroadcast = useRef(0);

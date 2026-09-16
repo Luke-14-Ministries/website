@@ -22,8 +22,35 @@
 // forces Android straight into the camera app with no way to pick an existing
 // photo from the gallery (reported 24 Aug). Without it, phones offer both.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createClient } from '@/lib/supabase/client';
+
+// "Is this a touch device that plausibly has a camera in it?" -- asked of the
+// browser with matchMedia and read through useSyncExternalStore, because the
+// answer lives outside React and does not exist during server rendering. The
+// server snapshot is `false` (no camera button in the HTML), the browser's
+// real answer replaces it at hydration, and React re-renders if the media
+// query ever flips. `pointer: coarse` is the honest question, rather than
+// sniffing the user agent, which ages badly. Until 16 September 2026 this was
+// a useState set from an effect after mount -- a render and then a correcting
+// render, which react-hooks/set-state-in-effect flags.
+const COARSE_POINTER = '(pointer: coarse)';
+function subscribeCoarsePointer(callback) {
+  try {
+    const mq = window.matchMedia(COARSE_POINTER);
+    mq.addEventListener('change', callback);
+    return () => mq.removeEventListener('change', callback);
+  } catch {
+    return () => {};
+  }
+}
+function readCoarsePointer() {
+  try {
+    return window.matchMedia(COARSE_POINTER).matches;
+  } catch {
+    return false;
+  }
+}
 
 const SIZE = 512;
 const PREVIEW = 280;
@@ -65,19 +92,13 @@ export default function PhotoUpload({ personId, personName, initialUrl = null, o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
-  // Whether to offer a camera button at all. Decided after mount because
-  // matchMedia does not exist during server rendering, and a guess would
-  // flash the wrong control. `pointer: coarse` is the honest question here --
-  // "is this a touch device that plausibly has a camera in it" -- rather than
-  // sniffing the user agent, which ages badly.
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-  useEffect(() => {
-    try {
-      setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
-    } catch {
-      setIsTouchDevice(false);
-    }
-  }, []);
+  // Whether to offer a camera button at all. See subscribeCoarsePointer at
+  // the top of the file for how this is decided without a flash.
+  const isTouchDevice = useSyncExternalStore(
+    subscribeCoarsePointer,
+    readCoarsePointer,
+    () => false
+  );
 
   // The framing session, null when not framing.
   const [framing, setFraming] = useState(null); // { bitmap }

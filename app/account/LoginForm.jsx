@@ -191,6 +191,37 @@ export default function LoginForm() {
     setBusy(false);
   }
 
+  // Declared here, above the mount effect that calls it. It is a function
+  // declaration, so hoisting made the old order (declared further down) work;
+  // the lint rule react-hooks/immutability wants the declaration first so the
+  // closure the effect captures can never be a stale one. Same function,
+  // moved, otherwise unchanged (16 September 2026).
+  function finish() {
+    // A FULL-DOCUMENT navigation, deliberately, and not router.push().
+    //
+    // The old pair was `router.push(next); router.refresh();`, and the refresh
+    // races the push it follows: it can cancel the in-flight RSC request for
+    // the very navigation just started. When it loses, nothing moves and
+    // nothing errors -- `busy` is still true, so the button sits on
+    // "Logging in..." forever. Reported repeatedly, most recently 31 Aug:
+    // "hangs, then a manual refresh flashes the login card and dumps me on the
+    // dashboard". That description is the bug exactly -- the session was
+    // created on the very first attempt; only the redirect was lost.
+    //
+    // This is a DIFFERENT fault from the multi-tab hang fixed on 29 Aug (the
+    // withTimeout wrappers above, which guard Supabase's cross-tab lock). Both
+    // ended at the same stuck button, which is why one fix looked like it had
+    // not worked.
+    //
+    // A hard navigation cannot race itself, and it guarantees the browser
+    // sends the fresh session cookie with the request -- so middleware.js sees
+    // an authenticated user first time and there is no bounce back to login.
+    // The cost is a full page load at the one moment a full page load is
+    // completely unremarkable. `next` is sanitised above, which is what makes
+    // handing it to the browser safe.
+    window.location.assign(next);
+  }
+
   // A session can arrive at this page ALREADY half signed in: password
   // accepted, code never entered. That happens when someone backs out of the
   // code step and later returns, and when the middleware bounces such a
@@ -340,32 +371,6 @@ export default function LoginForm() {
     }
 
     finish();
-  }
-
-  function finish() {
-    // A FULL-DOCUMENT navigation, deliberately, and not router.push().
-    //
-    // The old pair was `router.push(next); router.refresh();`, and the refresh
-    // races the push it follows: it can cancel the in-flight RSC request for
-    // the very navigation just started. When it loses, nothing moves and
-    // nothing errors -- `busy` is still true, so the button sits on
-    // "Logging in..." forever. Reported repeatedly, most recently 31 Aug:
-    // "hangs, then a manual refresh flashes the login card and dumps me on the
-    // dashboard". That description is the bug exactly -- the session was
-    // created on the very first attempt; only the redirect was lost.
-    //
-    // This is a DIFFERENT fault from the multi-tab hang fixed on 29 Aug (the
-    // withTimeout wrappers above, which guard Supabase's cross-tab lock). Both
-    // ended at the same stuck button, which is why one fix looked like it had
-    // not worked.
-    //
-    // A hard navigation cannot race itself, and it guarantees the browser
-    // sends the fresh session cookie with the request -- so middleware.js sees
-    // an authenticated user first time and there is no bounce back to login.
-    // The cost is a full page load at the one moment a full page load is
-    // completely unremarkable. `next` is sanitised above, which is what makes
-    // handing it to the browser safe.
-    window.location.assign(next);
   }
 
   // --- the two-factor code step ---------------------------------------------

@@ -127,6 +127,14 @@ export default function SecurityManager({ required }) {
   }
 
   useEffect(() => {
+    // loadFactors is async, and every setState inside it runs after an await
+    // -- that is, after this effect has already returned -- which is exactly
+    // what the rule below asks for. The lint cannot see through the
+    // useCallback to know that, so it reports a synchronous setState here.
+    // False positive, silenced on this one line rather than restructured:
+    // this file is the two-factor flow hand-fixed on 8 September 2026, and
+    // its behaviour does not change for a linter's sake.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFactors();
   }, [loadFactors]);
 

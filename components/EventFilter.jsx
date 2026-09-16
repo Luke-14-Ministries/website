@@ -20,6 +20,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { eventWindow } from '@/lib/events';
 
 // "Current" has two edges, not one.
 //
@@ -30,12 +31,11 @@ import { useRouter } from 'next/navigation';
 // years out sits in the pill row from the day it is created, and a row meant
 // to say "what is happening now" slowly becomes a list of everything.
 // Anything further off is still one search away.
-const cutoffISO = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-const horizonISO = () => {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() + 1);
-  return d.toISOString().slice(0, 10);
-};
+// Both edges come from lib/events.js -- the same function every staff page
+// uses to decide which event it opens on -- so a pill and a page default can
+// never disagree.
+const cutoffISO = () => eventWindow().cutoff;
+const horizonISO = () => eventWindow().horizon;
 
 export function isCurrentEvent(e, cutoff = cutoffISO(), horizon = horizonISO()) {
   const ends = e.endsOn ?? e.startsOn ?? '9999';

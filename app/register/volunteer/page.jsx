@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
+import { yearsSince } from '@/lib/format';
 import VolunteerApplication from './VolunteerApplication';
 import BackBar from '@/components/BackBar';
 
@@ -206,7 +207,7 @@ export default async function VolunteerPage() {
 
   const isAdult = (dob) => {
     if (!dob) return true; // unknown DOB: let them be chosen; staff review catches oddities
-    const age = (Date.now() - new Date(dob).getTime()) / (365.25 * 86400000);
+    const age = yearsSince(dob);
     return age >= 18;
   };
   const adults = (householdPeople ?? [])

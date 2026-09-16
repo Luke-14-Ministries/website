@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 import CheckinList from './CheckinList';
 import MedicalContact from './MedicalContact';
 
@@ -45,10 +46,7 @@ export default async function CheckinPage({ searchParams }) {
   // interaction there. But it had no date bounds at all, so every event the
   // ministry has ever run was a pill. Same two edges as everywhere else
   // (25 Aug): a 30-day grace behind, twelve months ahead.
-  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const horizon = new Date();
-  horizon.setFullYear(horizon.getFullYear() + 1);
-  const horizonISO = horizon.toISOString().slice(0, 10);
+  const { cutoff, horizon: horizonISO } = eventWindow();
   const eventsList = (events ?? []).filter(
     (e) =>
       (e.ends_on ?? e.starts_on ?? '9999') >= cutoff &&

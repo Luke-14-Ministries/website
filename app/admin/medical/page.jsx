@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 
 export const metadata = { title: 'Medical & Support — Staff Admin' };
 
@@ -72,7 +73,7 @@ export default async function MedicalPage({ searchParams }) {
   const eventFilter = typeof params?.event === 'string' ? params.event : '';
   const showPast = params?.past === '1';
   const q = typeof params?.q === 'string' ? params.q.trim().toLowerCase() : '';
-  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const { cutoff } = eventWindow();
   const isCurrent = (ev) => (ev.ends_on ?? ev.starts_on ?? '') >= cutoff;
   const visibleEvents = (events ?? []).filter((ev) => {
     if (eventFilter) return ev.id === eventFilter;

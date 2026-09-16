@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { getProgramLeadership } from '@/lib/programs';
 import { createClient } from '@/lib/supabase/server';
+import { sinceISO } from '@/lib/events';
 import AdminNav from './AdminNav';
 
 export const metadata = { title: 'Staff Admin — Luke 14 Ministries' };
@@ -168,7 +169,7 @@ export default async function AdminLayout({ children }) {
     recentAccounts = n ?? 0;
   }
   if (staff && can(staff, 'registrar')) {
-    const paymentsSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const paymentsSince = sinceISO(7);
     const [
       { count: changesCount },
       { count: volCount },

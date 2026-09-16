@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 import PrintButton from '@/components/PrintButton';
 
 export const metadata = { title: 'Kitchen List — Staff Admin' };
@@ -64,7 +65,7 @@ export default async function KitchenListPage({ searchParams }) {
   // thing on the screen and on the printout: ended less than ~30 days ago.
   const eventFilter = typeof params?.event === 'string' ? params.event : '';
   const showPast = params?.past === '1';
-  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const { cutoff } = eventWindow();
   const isCurrent = (ev) => (ev.ends_on ?? ev.starts_on ?? '') >= cutoff;
   const shownEvents = (events ?? []).filter((ev) => {
     if (eventFilter) return ev.id === eventFilter;

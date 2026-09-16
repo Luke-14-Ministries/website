@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 import BuddyBoard from './BuddyBoard';
 import EventFilter from '@/components/EventFilter';
 
@@ -29,15 +30,11 @@ export default async function BuddiesPage({ searchParams }) {
     .select('id, name, starts_on, ends_on, buddy_assignments_published_at')
     .order('starts_on');
 
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   // Current-and-upcoming decides what the page OPENS on; EventFilter reaches
   // everything else by search, so no page-level "show past" toggle any more.
-  // Same twelve-month horizon the pill row uses (EventFilter), so the event
-  // this page OPENS on is always one that has a pill. Without it a week booked
-  // three years out would be selected by default and appear nowhere.
-  const horizon = new Date();
-  horizon.setFullYear(horizon.getFullYear() + 1);
-  const horizonISO = horizon.toISOString().slice(0, 10);
+  // Same window as the pill row -- the same function -- so the event this page
+  // OPENS on is always one that has a pill.
+  const { cutoff, horizon: horizonISO } = eventWindow();
   const visible = (events ?? []).filter(
     (e) => (e.ends_on ?? '9999') >= cutoff && (e.starts_on ?? '0000') <= horizonISO
   );

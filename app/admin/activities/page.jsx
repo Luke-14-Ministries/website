@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 import { ActivityEditor, AddActivity, ActivityCard, SlotEditor, slotLabel } from './ActivityEditor';
 import EventFilter from '@/components/EventFilter';
 
@@ -33,15 +34,11 @@ export default async function AdminActivitiesPage({ searchParams }) {
 
   // Same archiving convention as the rest of the staff portal: current and
   // upcoming by default, past one click away, nothing hidden in the database.
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   // Current-and-upcoming is what the page opens on; EventFilter owns the
-  // rest, including reaching past events by search.
-  // Same twelve-month horizon the pill row uses (EventFilter), so the event
-  // this page OPENS on is always one that has a pill. Without it a week booked
-  // three years out would be selected by default and appear nowhere.
-  const horizon = new Date();
-  horizon.setFullYear(horizon.getFullYear() + 1);
-  const horizonISO = horizon.toISOString().slice(0, 10);
+  // rest, including reaching past events by search. Same window as the pill
+  // row -- literally the same function -- so the event this page OPENS on is
+  // always one that has a pill.
+  const { cutoff, horizon: horizonISO } = eventWindow();
   const visibleEvents = (events ?? []).filter(
     (e) => (e.ends_on ?? '9999') >= cutoff && (e.starts_on ?? '0000') <= horizonISO
   );

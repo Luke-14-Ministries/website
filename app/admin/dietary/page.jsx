@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 import EventFilter from '@/components/EventFilter';
 import { allergyPill } from '@/lib/format';
 
@@ -62,13 +63,9 @@ export default async function DietaryPage({ searchParams }) {
   // one by id is the only way to see it -- there is no page-wide past mode.
   const showPast = false;
   const q = typeof params?.q === 'string' ? params.q.trim().toLowerCase() : '';
-  const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  // Same twelve-month horizon the pill row uses (EventFilter), so the event
-  // this page OPENS on is always one that has a pill. Without it a week booked
-  // three years out would be selected by default and appear nowhere.
-  const horizon = new Date();
-  horizon.setFullYear(horizon.getFullYear() + 1);
-  const horizonISO = horizon.toISOString().slice(0, 10);
+  // Same window as the pill row (the same function), so the event this page
+  // OPENS on is always one that has a pill.
+  const { cutoff, horizon: horizonISO } = eventWindow();
   const isCurrent = (ev) =>
     (ev.ends_on ?? ev.starts_on ?? '') >= cutoff && (ev.starts_on ?? '0000') <= horizonISO;
   const visibleEvents = (events ?? []).filter((ev) => {

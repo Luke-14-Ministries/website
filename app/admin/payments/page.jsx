@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { dateISO } from '@/lib/events';
 import RecordPaymentForm from './RecordPaymentForm';
 
 export const metadata = { title: 'Event Payments — Staff Admin' };
@@ -68,9 +69,9 @@ export default async function AdminPaymentsPage({ searchParams }) {
   //   'recent'   ended within the last 90 days
   //   'all'      full history
   //   <uuid>     one specific event
-  const today = new Date().toISOString().slice(0, 10);
-  const plus90 = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
-  const minus90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const today = dateISO(0);
+  const plus90 = dateISO(90);
+  const minus90 = dateISO(-90);
   const inScope = (ev) => {
     if (eventFilter === 'all') return true;
     if (!ev) return !eventFilter; // registrations with no event: default + all only

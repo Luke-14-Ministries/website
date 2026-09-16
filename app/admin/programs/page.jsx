@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { eventWindow } from '@/lib/events';
 import EventFilter from '@/components/EventFilter';
 import ProgramBoard from './ProgramBoard';
 
@@ -32,10 +33,7 @@ export default async function ProgramsPage({ searchParams }) {
 
   // Same current-and-upcoming rule as the other event pages, so every staff
   // page opens on the same event.
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const horizon = new Date();
-  horizon.setFullYear(horizon.getFullYear() + 1);
-  const horizonISO = horizon.toISOString().slice(0, 10);
+  const { cutoff, horizon: horizonISO } = eventWindow();
   const visible = (events ?? []).filter(
     (e) => (e.ends_on ?? '9999') >= cutoff && (e.starts_on ?? '0000') <= horizonISO
   );

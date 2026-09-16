@@ -81,7 +81,10 @@ click-tracking domain verified).
 RLS policies (RLS without `grant ... to authenticated` = permission denied); never swallow query
 errors in admin pages; `/account/*` "my data" queries must scope by household membership
 explicitly, never rely on RLS alone (staff RLS is broad); PostgREST nested joins with two FKs to
-the same table are fragile — use separate simple lookups.
+the same table are fragile — use separate simple lookups. **Never define a component inside
+another component's body** — it becomes a new type on every render and React remounts it,
+which silently emptied the staff table's job-title boxes until 16 September 2026; hoist it to
+module level and pass what it needs as props.
 
 **Done since that update:** the volunteer application (17 Aug); Turnstile on the public account
 forms (live on sign-up, login and password reset); and refunds end to end — `charge.refunded`

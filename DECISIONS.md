@@ -1604,3 +1604,45 @@ the 40 lint findings in the same change. Rejected for the reason above.
 
 **Do not `npm audit fix --force`.** It is still the thing that downgraded Next by six major versions
 once. The same page of `CONTRIBUTING.md` still applies.
+
+---
+
+## 2026-09-16 — The 40 React Hooks 7 warnings are cleared, and the preset's errors apply again
+
+Same day as the Next 16 entry above, in five commits after it. The temporary block in
+`eslint.config.mjs` that held six rules at `warn` is deleted; they are errors again, as the preset
+ships them, and `npm run lint` reports none.
+
+**What the warnings turned out to be, in order of what they were worth.**
+
+- **One latent bug**, in `app/admin/staff/StaffManager.jsx`. `Table`, `Row` and `SortTh` were
+  defined *inside* the component, which makes each a brand-new component type on every render, so
+  React unmounted and remounted the whole table each time any state changed — one keystroke in the
+  filter box was enough. The job-title box in each row is uncontrolled (`defaultValue` + `onBlur`),
+  so anything typed there and not yet blurred was silently discarded. Nobody had reported it. All
+  three now live at module level with their state passed in.
+- **Twelve copies of the same arithmetic.** Eight admin pages and `EventFilter` each computed
+  "current events = ended less than 30 days ago, starting within twelve months" by hand. They now
+  call `eventWindow()` in `lib/events.js`, so the pill row and a page's default event come from one
+  function. `dateISO`, `sinceISO` and `yearsSince` cover the other three clock reads.
+- **Two places where the browser's answer was fetched after mount** (`AdminNav`'s open/closed
+  preference in localStorage; `PhotoUpload`'s "is this a touch device" from matchMedia). Both now
+  use `useSyncExternalStore`, React's hook for state that lives outside React: the server snapshot
+  renders first, the browser's real answer replaces it at hydration, no correcting render.
+- **The rest were housekeeping**: four more inner components hoisted, Turnstile's refs updated from
+  an effect instead of during render, a `useMemo` in `EventFilter` that never held removed, the login
+  form's `finish` moved above the effect that calls it, and the idle timer's start stamp initialised
+  to 0 instead of the clock.
+
+**One warning is silenced, not fixed, and it is labelled.** `SecurityManager.jsx` line 130 calls
+`loadFactors()` from an effect. `loadFactors` is async and every `setState` in it follows an
+`await`, which is exactly what the rule wants; the lint cannot see through the `useCallback` to know
+that. The `eslint-disable-next-line` carries the reason. That file is the two-factor flow hand-fixed
+on 8 September and was not going to be restructured for a linter.
+
+**What was verified, and what was not.** Lint and build after every group. In a browser, against the
+live Supabase project (with the two public keys in `.env.local` — see the note in that file), the
+login page renders and a wrong-password attempt produces the deliberately vague message. **Not
+exercised in a browser:** every staff page, the two-factor page, the photo uploader and the payment
+panel, all of which sit behind a login this session did not have credentials for. Testing Script 3
+covers them; the next person through it is the real check on this work.

@@ -106,34 +106,6 @@ export default [
       // none of the cost. Do not turn it off to silence a single case; add the
       // missing global to languageOptions below instead.
       'no-undef': 'error',
-
-      // WARNINGS, not errors, and deliberately so -- added 16 September 2026
-      // with the move to Next.js 16.
-      //
-      // eslint-config-next 16 pulls in eslint-plugin-react-hooks 7, which
-      // adds the React Compiler's analysis as lint rules. On the day it
-      // arrived it flagged 40 places in 23 files that had passed lint the day
-      // before: components declared inside render, Date.now() read during
-      // render, setState called straight from an effect, refs read during
-      // render. None of them was a reported bug; the login form and the
-      // two-factor page among them had just been through a week of testing.
-      //
-      // They are real advice, and the right way to act on it is one file at a
-      // time with the page open in a browser -- not as a side-effect of a
-      // dependency bump, and not by a volunteer racing a red CI. So: visible,
-      // counted, not blocking. When a file is cleaned up, nothing here needs
-      // to change; when they are all gone, delete this block and the rules go
-      // back to the preset's errors on their own.
-      //
-      // preserve-manual-memoization is the odd one out: it reports that the
-      // React Compiler could not optimise a component. This project does not
-      // enable the React Compiler, so today that is information, not a defect.
-      'react-hooks/static-components': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
     },
   },
 ];

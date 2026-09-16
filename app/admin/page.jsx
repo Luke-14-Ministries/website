@@ -10,6 +10,26 @@ export const metadata = { title: 'Overview — Staff Admin' };
 // carries the detail; nothing is shown twice. (A "registration" is one
 // family's sign-up for one event — the labels here avoid assuming staff know
 // that vocabulary.)
+// One headline number on the Overview. Module level rather than inside the
+// page function: this is a server component, so nothing remounts, but the
+// lint (react-hooks/static-components) cannot tell, and the habit is worth
+// not having.
+function Stat({ label, sub, value, tone }) {
+  return (
+    <div
+      className={`rounded-lg bg-white border shadow-sm p-5 ${
+        tone === 'amber' ? 'border-amber-300' : 'border-neutral-200'
+      }`}
+    >
+      <div className={`text-3xl font-bold ${tone === 'amber' ? 'text-amber-700' : ''}`}>
+        {value}
+      </div>
+      <div className="text-sm font-semibold text-neutral-700">{label}</div>
+      <div className="text-xs text-neutral-500">{sub}</div>
+    </div>
+  );
+}
+
 export default async function AdminOverview() {
   const staff = await getStaff();
   if (!staff) redirect('/account/?next=/admin/');
@@ -101,20 +121,6 @@ export default async function AdminOverview() {
   const totalWaitlisted = [...byEvent.values()].reduce((s, r) => s + r.waitlisted, 0);
 
   const reviewList = [...needsReview.entries()];
-
-  const Stat = ({ label, sub, value, tone }) => (
-    <div
-      className={`rounded-lg bg-white border shadow-sm p-5 ${
-        tone === 'amber' ? 'border-amber-300' : 'border-neutral-200'
-      }`}
-    >
-      <div className={`text-3xl font-bold ${tone === 'amber' ? 'text-amber-700' : ''}`}>
-        {value}
-      </div>
-      <div className="text-sm font-semibold text-neutral-700">{label}</div>
-      <div className="text-xs text-neutral-500">{sub}</div>
-    </div>
-  );
 
   return (
     <div>

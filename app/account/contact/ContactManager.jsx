@@ -11,6 +11,22 @@ import { updateMyProfile, requestLoginEmailChange, setEmailNews } from './action
 
 const inputCls = 'w-full rounded border border-neutral-300 px-3 py-2';
 
+// One save-status line per form, given the entry for its form from `msg`.
+//
+// At module level, not inside ContactManager. Defined inside, it was a NEW
+// component type on every render, so React threw away and remounted it each
+// time state changed (react-hooks/static-components). Harmless for a span,
+// but the same habit on anything with an input loses what was typed.
+function Status({ s }) {
+  if (!s) return null;
+  if (s.state === 'saving') return <span className="text-sm text-neutral-500">Saving…</span>;
+  return (
+    <span className={`text-sm ${s.state === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
+      {s.text}
+    </span>
+  );
+}
+
 export default function ContactManager({ email, profile }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -29,17 +45,6 @@ export default function ContactManager({ email, profile }) {
       router.refresh();
     });
   }
-
-  const Status = ({ k }) => {
-    const s = msg[k];
-    if (!s) return null;
-    if (s.state === 'saving') return <span className="text-sm text-neutral-500">Saving…</span>;
-    return (
-      <span className={`text-sm ${s.state === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
-        {s.text}
-      </span>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -81,7 +86,7 @@ export default function ContactManager({ email, profile }) {
         </div>
         <div className="mt-4 flex items-center gap-3">
           <button type="submit" className="btn-primary !py-2">Save</button>
-          <Status k="profile" />
+          <Status s={msg.profile} />
         </div>
       </form>
 
@@ -108,7 +113,7 @@ export default function ContactManager({ email, profile }) {
           <button type="submit" className="btn-outline !py-2">Send confirmation</button>
         </div>
         <div className="mt-2">
-          <Status k="email" />
+          <Status s={msg.email} />
         </div>
       </form>
 
@@ -129,7 +134,7 @@ export default function ContactManager({ email, profile }) {
           <span>Ministry news &amp; updates (camp announcements, newsletters)</span>
         </label>
         <div className="mt-2">
-          <Status k="news" />
+          <Status s={msg.news} />
         </div>
       </div>
     </div>

@@ -9,6 +9,29 @@ import { useState, useTransition } from 'react';
 import { createCheckout } from './pay/actions';
 import { coverFeeCents, dollars } from '@/lib/payments';
 
+// One choice in a pill-shaped radio group. Takes everything it needs as props
+// and lives at module level: defined inside PayPanel it was a new component
+// type on every render, which remounted every radio each time the family
+// changed an amount or method (react-hooks/static-components).
+function Radio({ name, value, cur, set, children }) {
+  return (
+    <label
+      className={`flex-1 cursor-pointer rounded border px-3 py-2 text-sm ${
+        cur === value ? 'border-brand bg-brand-light font-semibold' : 'border-neutral-300'
+      }`}
+    >
+      <input
+        type="radio"
+        name={name}
+        className="sr-only"
+        checked={cur === value}
+        onChange={() => set(value)}
+      />
+      {children}
+    </label>
+  );
+}
+
 export default function PayPanel({
   registrationId,
   balanceCents,
@@ -114,23 +137,6 @@ export default function PayPanel({
       </div>
     );
   }
-
-  const Radio = ({ name, value, cur, set, children }) => (
-    <label
-      className={`flex-1 cursor-pointer rounded border px-3 py-2 text-sm ${
-        cur === value ? 'border-brand bg-brand-light font-semibold' : 'border-neutral-300'
-      }`}
-    >
-      <input
-        type="radio"
-        name={name}
-        className="sr-only"
-        checked={cur === value}
-        onChange={() => set(value)}
-      />
-      {children}
-    </label>
-  );
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 w-full">

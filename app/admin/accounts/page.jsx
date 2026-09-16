@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
+import { sinceISO } from '@/lib/events';
 import AccountsManager from './AccountsManager';
 
 export const metadata = { title: 'Accounts — Staff Admin' };
@@ -64,6 +65,10 @@ export default async function AccountsPage() {
         unclaimedPeople={unclaimedPeople ?? []}
         selfId={staff.userId}
         loadError={Boolean(error)}
+        // "New this week" for the quick filter, decided here on the server so
+        // the table never reads the clock while rendering. Mirrors the nav
+        // badge, which asks the database for the same seven days.
+        newSince={sinceISO(7)}
       />
     </div>
   );

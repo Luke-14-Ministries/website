@@ -13,6 +13,199 @@ import { updateStaffMember, addStaffMember, removeStaffMember } from './actions'
 
 const ROLE_LABEL = { registrar: 'Registrar', coordinator: 'Coordinator', admin: 'Administrator' };
 
+// The table and its parts live at MODULE level, with everything they need
+// passed in as props. Until 16 September 2026 they were defined inside
+// StaffManager, which made each a brand-new component type on every render.
+// React treats a new type as a different element: it unmounted the whole
+// table and mounted a fresh one every time any state changed -- typing one
+// letter in the filter box, for instance. Mostly invisible, but the job-title
+// box in each row is uncontrolled (defaultValue + onBlur), so anything typed
+// there and not yet blurred was lost on every remount. The lint rule that
+// caught it is react-hooks/static-components.
+
+function SortTh({ k, children, center, sortKey, sortDir, onSort }) {
+  return (
+    <th className={`px-4 py-2 font-semibold ${center ? 'text-center' : ''}`}>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        className="inline-flex items-center gap-1 hover:text-neutral-800"
+        title={`Sort by ${typeof children === 'string' ? children.toLowerCase() : 'this column'}`}
+      >
+        {children}
+        <span aria-hidden="true" className="text-xs">
+          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+function Row({ m, selfId, busyId, onPatch, onRemove }) {
+    const isSelf = m.profileId === selfId;
+    const busy = busyId === m.profileId;
+    return (
+      <tr className={`border-t border-neutral-100 align-top ${m.active ? '' : 'opacity-60'}`}>
+        <td className="px-4 py-3">
+                    <span className="font-medium">{m.name}</span>
+          {isSelf && <span className="ml-2 text-xs text-neutral-500">(you)</span>}
+          {/* The login this access belongs to. Shown on its own line so it can be
+              read and compared at a glance -- "which address did you sign in
+              with?" is the first question when someone says they have no access. */}
+          {m.email ? (
+            <div className="text-xs text-neutral-500 break-all" title="The login this access belongs to">
+              {m.email}
+            </div>
+          ) : (
+            <div className="text-xs text-amber-700" title="No login found for this profile">
+              (login not found)
+            </div>
+          )}
+          <input
+            defaultValue={m.title}
+            placeholder="Job title, e.g. Camp Director (optional)"
+            title="A display-only job title shown alongside their name. Does not affect access."
+            disabled={busy}
+            onBlur={(e) => {
+              if (e.target.value.trim() !== m.title) onPatch(m.profileId, { title: e.target.value });
+            }}
+            className="mt-1 block w-full max-w-[14rem] rounded border border-neutral-200 px-2 py-1 text-xs"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <div
+            className="flex flex-col gap-1"
+            title={isSelf && m.role === 'admin' ? 'You cannot remove your own admin role.' : undefined}
+          >
+            {Object.entries(ROLE_LABEL).map(([v, l]) => (
+              <label key={v} className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={`role-${m.profileId}`}
+                  checked={m.role === v}
+                  disabled={busy || (isSelf && m.role === 'admin')}
+                  onChange={() => onPatch(m.profileId, { role: v })}
+                  className="h-4 w-4"
+                />
+                {l}
+              </label>
+            ))}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            checked={m.sensitive}
+            disabled={busy}
+            onChange={(e) => onPatch(m.profileId, { can_view_sensitive: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          {/* Editable for every role, admins included (migration 0025): like
+              Sensitive, Giving is an explicit grant -- protection for the
+              room, not a barrier against the person. */}
+          <input
+            type="checkbox"
+            checked={m.giving}
+            disabled={busy}
+            onChange={(e) => onPatch(m.profileId, { can_view_giving: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          {/* Background checks -- a third explicit grant (migration 0058).
+              Separate from Sensitive because knowing somebody was screened, and
+              what came back, is a different kind of knowledge from knowing their
+              medical needs, and the people who need each are not the same set.
+              Every change here is written to staff_access_log with who did it,
+              including when that is the same person. */}
+          <input
+            type="checkbox"
+            checked={m.backgroundChecks}
+            disabled={busy}
+            onChange={(e) =>
+              onPatch(m.profileId, { can_view_background_checks: e.target.checked })
+            }
+            className="h-4 w-4"
+          />
+        </td>
+        <td className="px-4 py-3 text-right">
+          {m.active ? (
+            <button
+              onClick={() => {
+                if (isSelf) return;
+                if (window.confirm(`Deactivate ${m.name}? They keep their account but lose all staff access. This is reversible.`)) {
+                  onPatch(m.profileId, { active: false });
+                }
+              }}
+              disabled={busy || isSelf}
+              title={isSelf ? 'You cannot deactivate yourself.' : undefined}
+              className="rounded border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-700 hover:border-red-400 hover:text-red-700 disabled:opacity-40"
+            >
+              {busy ? '…' : 'Deactivate'}
+            </button>
+          ) : (
+            <div className="flex flex-col items-end gap-1.5">
+              <button
+                onClick={() => onPatch(m.profileId, { active: true })}
+                disabled={busy}
+                className="rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-800"
+              >
+                {busy ? '…' : 'Reactivate'}
+              </button>
+              {/* For someone who has genuinely moved on. Deliberately only
+                  offered AFTER deactivation -- two distinct clicks stand
+                  between "active admin" and "gone from the list", and the
+                  deactivated row is the natural place to decide. */}
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Remove ${m.name} from the staff list entirely? Their account and family records are untouched, and they can be re-added later — but their role and access grants here will be forgotten.`
+                    )
+                  ) {
+                    onRemove(m);
+                  }
+                }}
+                disabled={busy}
+                className="rounded border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:border-red-400 hover:text-red-700 disabled:opacity-40"
+              >
+                {busy ? '…' : 'Remove'}
+              </button>
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+}
+
+function Table({ rows, sortKey, sortDir, onSort, selfId, busyId, onPatch, onRemove }) {
+  const sortProps = { sortKey, sortDir, onSort };
+  const rowProps = { selfId, busyId, onPatch, onRemove };
+  return (
+    <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-neutral-50 text-neutral-500">
+                    <tr>
+            <SortTh k="name" {...sortProps}>Person</SortTh>
+            <SortTh k="role" {...sortProps}>Role</SortTh>
+            <SortTh k="sensitive" center {...sortProps}>Sensitive</SortTh>
+            <SortTh k="giving" center {...sortProps}>Giving</SortTh>
+            <SortTh k="checks" center {...sortProps}>Checks</SortTh>
+            <th className="px-4 py-2" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((m) => (
+            <Row key={m.profileId} m={m} {...rowProps} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function StaffManager({ members, selfId, accounts = [] }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -126,21 +319,6 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
     return [...filtered].sort((a, b) => dir * cmp(a, b));
   }
 
-  const SortTh = ({ k, children, center }) => (
-    <th className={`px-4 py-2 font-semibold ${center ? 'text-center' : ''}`}>
-      <button
-        type="button"
-        onClick={() => toggleSort(k)}
-        className="inline-flex items-center gap-1 hover:text-neutral-800"
-        title={`Sort by ${typeof children === 'string' ? children.toLowerCase() : 'this column'}`}
-      >
-        {children}
-        <span aria-hidden="true" className="text-xs">
-          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
   // Said once at the top, because it is the mistake that actually happens:
   // access is granted to a LOGIN, and a person with two logins has it on one.
   const loginNote = (
@@ -152,166 +330,17 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
     </p>
   );
 
-  const Row = ({ m }) => {
-    const isSelf = m.profileId === selfId;
-    const busy = busyId === m.profileId;
-    return (
-      <tr className={`border-t border-neutral-100 align-top ${m.active ? '' : 'opacity-60'}`}>
-        <td className="px-4 py-3">
-                    <span className="font-medium">{m.name}</span>
-          {isSelf && <span className="ml-2 text-xs text-neutral-500">(you)</span>}
-          {/* The login this access belongs to. Shown on its own line so it can be
-              read and compared at a glance -- "which address did you sign in
-              with?" is the first question when someone says they have no access. */}
-          {m.email ? (
-            <div className="text-xs text-neutral-500 break-all" title="The login this access belongs to">
-              {m.email}
-            </div>
-          ) : (
-            <div className="text-xs text-amber-700" title="No login found for this profile">
-              (login not found)
-            </div>
-          )}
-          <input
-            defaultValue={m.title}
-            placeholder="Job title, e.g. Camp Director (optional)"
-            title="A display-only job title shown alongside their name. Does not affect access."
-            disabled={busy}
-            onBlur={(e) => {
-              if (e.target.value.trim() !== m.title) patch(m.profileId, { title: e.target.value });
-            }}
-            className="mt-1 block w-full max-w-[14rem] rounded border border-neutral-200 px-2 py-1 text-xs"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <div
-            className="flex flex-col gap-1"
-            title={isSelf && m.role === 'admin' ? 'You cannot remove your own admin role.' : undefined}
-          >
-            {Object.entries(ROLE_LABEL).map(([v, l]) => (
-              <label key={v} className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name={`role-${m.profileId}`}
-                  checked={m.role === v}
-                  disabled={busy || (isSelf && m.role === 'admin')}
-                  onChange={() => patch(m.profileId, { role: v })}
-                  className="h-4 w-4"
-                />
-                {l}
-              </label>
-            ))}
-          </div>
-        </td>
-        <td className="px-4 py-3 text-center">
-          <input
-            type="checkbox"
-            checked={m.sensitive}
-            disabled={busy}
-            onChange={(e) => patch(m.profileId, { can_view_sensitive: e.target.checked })}
-            className="h-4 w-4"
-          />
-        </td>
-        <td className="px-4 py-3 text-center">
-          {/* Editable for every role, admins included (migration 0025): like
-              Sensitive, Giving is an explicit grant -- protection for the
-              room, not a barrier against the person. */}
-          <input
-            type="checkbox"
-            checked={m.giving}
-            disabled={busy}
-            onChange={(e) => patch(m.profileId, { can_view_giving: e.target.checked })}
-            className="h-4 w-4"
-          />
-        </td>
-        <td className="px-4 py-3 text-center">
-          {/* Background checks -- a third explicit grant (migration 0058).
-              Separate from Sensitive because knowing somebody was screened, and
-              what came back, is a different kind of knowledge from knowing their
-              medical needs, and the people who need each are not the same set.
-              Every change here is written to staff_access_log with who did it,
-              including when that is the same person. */}
-          <input
-            type="checkbox"
-            checked={m.backgroundChecks}
-            disabled={busy}
-            onChange={(e) =>
-              patch(m.profileId, { can_view_background_checks: e.target.checked })
-            }
-            className="h-4 w-4"
-          />
-        </td>
-        <td className="px-4 py-3 text-right">
-          {m.active ? (
-            <button
-              onClick={() => {
-                if (isSelf) return;
-                if (window.confirm(`Deactivate ${m.name}? They keep their account but lose all staff access. This is reversible.`)) {
-                  patch(m.profileId, { active: false });
-                }
-              }}
-              disabled={busy || isSelf}
-              title={isSelf ? 'You cannot deactivate yourself.' : undefined}
-              className="rounded border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-700 hover:border-red-400 hover:text-red-700 disabled:opacity-40"
-            >
-              {busy ? '…' : 'Deactivate'}
-            </button>
-          ) : (
-            <div className="flex flex-col items-end gap-1.5">
-              <button
-                onClick={() => patch(m.profileId, { active: true })}
-                disabled={busy}
-                className="rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-800"
-              >
-                {busy ? '…' : 'Reactivate'}
-              </button>
-              {/* For someone who has genuinely moved on. Deliberately only
-                  offered AFTER deactivation -- two distinct clicks stand
-                  between "active admin" and "gone from the list", and the
-                  deactivated row is the natural place to decide. */}
-              <button
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Remove ${m.name} from the staff list entirely? Their account and family records are untouched, and they can be re-added later — but their role and access grants here will be forgotten.`
-                    )
-                  ) {
-                    remove(m);
-                  }
-                }}
-                disabled={busy}
-                className="rounded border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:border-red-400 hover:text-red-700 disabled:opacity-40"
-              >
-                {busy ? '…' : 'Remove'}
-              </button>
-            </div>
-          )}
-        </td>
-      </tr>
-    );
-  };
 
-  const Table = ({ rows }) => (
-    <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-neutral-50 text-neutral-500">
-                    <tr>
-            <SortTh k="name">Person</SortTh>
-            <SortTh k="role">Role</SortTh>
-            <SortTh k="sensitive" center>Sensitive</SortTh>
-            <SortTh k="giving" center>Giving</SortTh>
-            <SortTh k="checks" center>Checks</SortTh>
-            <th className="px-4 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((m) => (
-            <Row key={m.profileId} m={m} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  // Everything the module-level Table needs from this component's state.
+  const tableProps = {
+    sortKey,
+    sortDir,
+    onSort: toggleSort,
+    selfId,
+    busyId,
+    onPatch: patch,
+    onRemove: remove,
+  };
 
   return (
     <div>
@@ -359,12 +388,12 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
         </span>
       </div>
 
-      <Table rows={view(activeMembers)} />
+      <Table rows={view(activeMembers)} {...tableProps} />
 
       {inactiveMembers.length > 0 && (
         <div className="mt-6">
           <h3 className="font-semibold text-neutral-700 mb-2">Deactivated</h3>
-          <Table rows={view(inactiveMembers)} />
+          <Table rows={view(inactiveMembers)} {...tableProps} />
         </div>
       )}
 

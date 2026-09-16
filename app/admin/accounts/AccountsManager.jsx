@@ -54,7 +54,38 @@ const ageOf = (dob) => {
 };
 const fmtFull = (iso) => (iso ? fullFmt.format(new Date(iso)) : '');
 
-export default function AccountsManager({ accounts, households = [], unclaimedPeople = [], selfId, loadError }) {
+// A sortable column heading. Module level, with the sort state passed in:
+// defined inside AccountsManager it was a new component type on every render
+// (react-hooks/static-components).
+function Th({ k, children, right, sort, onSort }) {
+  return (
+    <th
+      onClick={() => onSort(k)}
+      className={`px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap hover:text-brand ${
+        right ? 'text-right' : 'text-left'
+      }`}
+    >
+      {children}
+      {sort.key === k && (
+        <span className="ml-1 text-xs">{sort.dir === 'asc' ? '▲' : '▼'}</span>
+      )}
+    </th>
+  );
+}
+
+// `newSince` is an ISO timestamp decided on the SERVER (app/admin/accounts/
+// page.jsx, seven days ago via sinceISO) and passed down, so this component
+// never reads the clock while rendering -- which react-hooks/purity forbids,
+// and rightly: a table that filters on a value that moves between renders is
+// a table whose rows can change with no click.
+export default function AccountsManager({
+  accounts,
+  households = [],
+  unclaimedPeople = [],
+  selfId,
+  loadError,
+  newSince = null,
+}) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
@@ -65,6 +96,7 @@ export default function AccountsManager({ accounts, households = [], unclaimedPe
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const newSinceMs = newSince ? new Date(newSince).getTime() : 0;
     let out = accounts.filter((a) => {
       if (q) {
         const hay = `${a.email ?? ''} ${a.first_name ?? ''} ${a.last_name ?? ''} ${
@@ -75,10 +107,7 @@ export default function AccountsManager({ accounts, households = [], unclaimedPe
       switch (filter) {
         case 'new7':
           // Mirrors the nav badge: created in the last 7 days.
-          return (
-            a.created_at &&
-            Date.now() - new Date(a.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
-          );
+          return Boolean(a.created_at) && new Date(a.created_at).getTime() >= newSinceMs;
         case 'unconfirmed':
           return !a.email_confirmed_at;
         case 'no2fa':
@@ -115,7 +144,7 @@ export default function AccountsManager({ accounts, households = [], unclaimedPe
       return 0;
     });
     return out;
-  }, [accounts, query, filter, sort]);
+  }, [accounts, query, filter, sort, newSince]);
 
   function toggleSort(key) {
     setSort((s) =>
@@ -158,20 +187,6 @@ export default function AccountsManager({ accounts, households = [], unclaimedPe
       );
     });
   }
-
-  const Th = ({ k, children, right }) => (
-    <th
-      onClick={() => toggleSort(k)}
-      className={`px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap hover:text-brand ${
-        right ? 'text-right' : 'text-left'
-      }`}
-    >
-      {children}
-      {sort.key === k && (
-        <span className="ml-1 text-xs">{sort.dir === 'asc' ? '▲' : '▼'}</span>
-      )}
-    </th>
-  );
 
   return (
     <div>
@@ -268,10 +283,18 @@ export default function AccountsManager({ accounts, households = [], unclaimedPe
                   onChange={toggleAllVisible}
                 />
               </th>
-              <Th k="name">Account</Th>
-              <Th k="created_at">Created</Th>
-              <Th k="last_sign_in_at">Last sign-in</Th>
-              <Th k="mfa_factor_count">2FA</Th>
+              <Th k="name" sort={sort} onSort={toggleSort}>
+                Account
+              </Th>
+              <Th k="created_at" sort={sort} onSort={toggleSort}>
+                Created
+              </Th>
+              <Th k="last_sign_in_at" sort={sort} onSort={toggleSort}>
+                Last sign-in
+              </Th>
+              <Th k="mfa_factor_count" sort={sort} onSort={toggleSort}>
+                2FA
+              </Th>
               <th className="px-3 py-2 text-left font-semibold">Household</th>
               <th className="px-3 py-2 w-10" />
             </tr>

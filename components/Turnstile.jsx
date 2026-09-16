@@ -83,17 +83,23 @@ function loadTurnstile() {
 export default function Turnstile({ onToken, resetKey = 0, className = '', action = 'auth' }) {
   const boxRef = useRef(null);
   const widgetIdRef = useRef(null);
-  // Held in a ref so the render effect never re-runs just because the parent
-  // re-rendered with a new callback identity — re-rendering the widget would
-  // throw away a perfectly good token.
+  // Held in refs so the render effect never re-runs just because the parent
+  // re-rendered with a new callback identity -- re-rendering the widget would
+  // throw away a perfectly good token. Same for `action`: naming it in the
+  // effect's dependency array would tear down and rebuild the widget, and a
+  // form's action never changes anyway (it is a literal at the call site).
+  //
+  // The refs are brought up to date from an effect, not during render.
+  // Writing a ref while rendering is what react-hooks/refs forbids, and
+  // nothing here needs the value any sooner: Cloudflare calls back long after
+  // render and reads whatever was current at the last commit, which is the
+  // right answer. (The dependency-less effect runs after every commit.)
   const onTokenRef = useRef(onToken);
-  onTokenRef.current = onToken;
-  // Same reason as onTokenRef above: the render effect must not re-run. Naming
-  // `action` in its dependency array would tear down and rebuild the widget,
-  // discarding a token that was perfectly good. A form's action never changes
-  // anyway -- it is a literal at the call site.
   const actionRef = useRef(action);
-  actionRef.current = action;
+  useEffect(() => {
+    onTokenRef.current = onToken;
+    actionRef.current = action;
+  });
 
   useEffect(() => {
     if (!SITE_KEY) return;

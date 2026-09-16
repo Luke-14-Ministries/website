@@ -18,7 +18,7 @@
 // Every event stays reachable either way. Nothing is hidden in the database;
 // this is about which few are one click away.
 
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { eventWindow } from '@/lib/events';
 
@@ -119,15 +119,18 @@ export default function EventFilter({
 
   // Matching on the whole visible string, so typing "2025" finds every event
   // that ran in 2025 even when the year is only in the dates.
-  const matches = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const withDates = past.map((e) => ({
-      ...e,
-      haystack: `${e.name} ${e.startsOn ?? ''} ${e.endsOn ?? ''}`.toLowerCase(),
-    }));
-    if (!needle) return withDates;
-    return withDates.filter((e) => e.haystack.includes(needle));
-  }, [past, q]);
+  //
+  // Not memoised, on purpose. `past` is rebuilt on every render, so a useMemo
+  // keyed on it re-ran every time anyway -- React's compiler lint said as much
+  // (react-hooks/preserve-manual-memoization). The list is at most every
+  // event the ministry has ever run, a few dozen strings, and filtering it
+  // once per keystroke costs nothing.
+  const needle = q.trim().toLowerCase();
+  const withDates = past.map((e) => ({
+    ...e,
+    haystack: `${e.name} ${e.startsOn ?? ''} ${e.endsOn ?? ''}`.toLowerCase(),
+  }));
+  const matches = needle ? withDates.filter((e) => e.haystack.includes(needle)) : withDates;
 
   const selectedPast = past.find((e) => e.id === selected) ?? null;
 

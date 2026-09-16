@@ -13,16 +13,17 @@
 // keep it switched on.
 //
 // Flat config (eslint.config.mjs) rather than .eslintrc, because ESLint 9
-// requires it. FlatCompat is the bridge that lets the flat file consume
-// eslint-config-next, which is still written in the old format.
+// requires it. Until 16 September 2026 this file needed FlatCompat (from
+// @eslint/eslintrc) as a bridge, because eslint-config-next 15 was still
+// written in the old format. eslint-config-next 16 ships flat config
+// natively, so the bridge and that package are gone. If you see FlatCompat
+// come back in a diff, somebody is downgrading eslint-config-next.
 //
 // Run it with `npm run lint`. `npm run lint:fix` fixes what is safely
 // fixable. Neither is wired into a git hook on purpose -- see the note in
 // .github/workflows/build.yml about where checks belong here.
 
-import { FlatCompat } from '@eslint/eslintrc';
-
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+import nextVitals from 'eslint-config-next/core-web-vitals';
 
 export default [
   {
@@ -51,7 +52,7 @@ export default [
     // Naming .jsx in `files` is what adds it to the discovery set.
     files: ['**/*.{js,mjs,cjs,jsx}'],
   },
-  ...compat.extends('next/core-web-vitals'),
+  ...nextVitals,
   {
     // no-undef needs to know what legitimately exists without being declared.
     // Browser and Node globals, plus the handful this project actually uses.
@@ -105,6 +106,34 @@ export default [
       // none of the cost. Do not turn it off to silence a single case; add the
       // missing global to languageOptions below instead.
       'no-undef': 'error',
+
+      // WARNINGS, not errors, and deliberately so -- added 16 September 2026
+      // with the move to Next.js 16.
+      //
+      // eslint-config-next 16 pulls in eslint-plugin-react-hooks 7, which
+      // adds the React Compiler's analysis as lint rules. On the day it
+      // arrived it flagged 40 places in 23 files that had passed lint the day
+      // before: components declared inside render, Date.now() read during
+      // render, setState called straight from an effect, refs read during
+      // render. None of them was a reported bug; the login form and the
+      // two-factor page among them had just been through a week of testing.
+      //
+      // They are real advice, and the right way to act on it is one file at a
+      // time with the page open in a browser -- not as a side-effect of a
+      // dependency bump, and not by a volunteer racing a red CI. So: visible,
+      // counted, not blocking. When a file is cleaned up, nothing here needs
+      // to change; when they are all gone, delete this block and the rules go
+      // back to the preset's errors on their own.
+      //
+      // preserve-manual-memoization is the odd one out: it reports that the
+      // React Compiler could not optimise a component. This project does not
+      // enable the React Compiler, so today that is information, not a defect.
+      'react-hooks/static-components': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
     },
   },
 ];

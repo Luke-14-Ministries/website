@@ -178,8 +178,10 @@ the "still mock" line and half of item 4 in the list above.
 
 ## Stack
 
-Next.js (App Router, JavaScript — not TypeScript), Tailwind CSS, deployed on Vercel.
-Supabase (Postgres + Auth) from Phase 1. Stripe from Phase 2.
+Next.js 16 (App Router, JavaScript — not TypeScript; upgraded from 15 on 16 September 2026, see
+`DECISIONS.md`), Tailwind CSS, deployed on Vercel. Supabase (Postgres + Auth) from Phase 1. Stripe
+from Phase 2. The request-time hook at the repository root is `proxy.js` — Next 16's name for what
+was `middleware.js`; older comments that say "the middleware" mean that file.
 
 `app/` holds routes, `components/` shared UI, `lib/` helpers, `public/` static assets.
 

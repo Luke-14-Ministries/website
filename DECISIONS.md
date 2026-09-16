@@ -1559,3 +1559,48 @@ only a passkey beside its emailed code, so for those three the `admin@` mailbox 
 factor — which makes Larry's own Authenticator registration on `admin@` (done 5 September) the
 single most important two-factor on the ministry's books.
 
+
+---
+
+## 2026-09-16 — Next.js 15 → 16, done for one reason: the last two `npm audit` findings had no other fix
+
+Upgraded on 16 September 2026, from 15.5.25 to 16.3.5, with `eslint-config-next` moved with it
+and React from 19.0 to 19.3. A fresh clone that day showed five audit findings. Plain
+`npm audit fix` (never `--force`; see `CONTRIBUTING.md` §6) cleared three. The remaining two —
+postcss, high, and Next itself, moderate — were the same finding seen twice: Next 15 carries its
+*own* copy of postcss 8.4.31 under `node_modules/next/node_modules/`, older than the 8.4.49 this
+project installs, and the only release that replaces it is Next 16. No lockfile change could reach
+it. The postcss advisories are about source-map path traversal and a `</style>` escaping gap, and
+postcss runs here at build time on our own CSS, so the practical risk was low. It was still a
+"critical" on the audit report a volunteer would read, and the honest fix was a major version.
+
+**Why it was safe to do now, in September.** The one truly breaking change in 16 — synchronous
+`params` and `searchParams` are gone — was already handled: all 35 pages that read them were
+awaiting them. Node 24 is above the new floor of 20.9. There is no webpack config, so Turbopack
+becoming the default builder changed nothing. No AMP, no runtime config, no PPR, no `next lint`.
+The build passed first time.
+
+**What changed in the repository, in full:**
+
+- `middleware.js` is now `proxy.js`, and the export is `proxy`. Next 16 renamed the convention;
+  the old name is deprecated. Nothing it does changed. `lib/supabase/middleware.js` **kept its
+  name** — it is our helper, not a Next.js convention, and the 6 August entry and a dozen comments
+  point at it. Older text that says "the middleware" means `proxy.js`. One real difference: `proxy`
+  runs on the Node.js runtime, where middleware ran on Edge. `updateSession` never depended on Edge.
+- `eslint.config.mjs` imports `eslint-config-next/core-web-vitals` directly. `eslint-config-next`
+  16 ships flat config, so `FlatCompat` and the `@eslint/eslintrc` package it came from are removed.
+- `eslint-config-next` 16 pulls in `eslint-plugin-react-hooks` 7, which adds the React Compiler's
+  analysis as lint rules and flagged **40 places in 23 files** that had passed lint the day before.
+  **Those six rules are set to `warn`, not `error`,** in `eslint.config.mjs`, with the reasoning in
+  the comment there. Short version: they are advice worth taking one file at a time with a browser
+  open, not a thing to rewrite across the login form and the two-factor page inside a dependency
+  bump. The count is visible in every lint run so it is a decision somebody makes, not a warning
+  somebody deleted.
+
+*Alternative considered:* stay on 15 and accept the two findings. Rejected because 15 is now the
+previous major, the fixes only ever land in 16, and the gap to 16 was small *today* — every month
+on 15 makes it wider, and the maintainer's time gets scarcer from here. *Also considered:* fixing
+the 40 lint findings in the same change. Rejected for the reason above.
+
+**Do not `npm audit fix --force`.** It is still the thing that downgraded Next by six major versions
+once. The same page of `CONTRIBUTING.md` still applies.

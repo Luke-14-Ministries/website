@@ -147,11 +147,28 @@ export async function grantProgramLeader({ email, programId, eventId }) {
   // for a week they have nothing to do with.
   //
   // people.profile_id is the link from a login to the person themselves.
+  //
+  // Found 29 Sep 2026 (Testing Script 3 §5.3): nothing had ever SET that
+  // link, so this check refused every leader since the day it was added.
+  // Migration 0074 now links each household owner to its primary contact and
+  // backfilled the existing rows. Belt and braces, the same rule is applied
+  // here for any household the link has not reached: the login's household
+  // memberships -> that household's primary contact person.
   const { data: mePeople } = await supabase
     .from('people')
     .select('id')
     .eq('profile_id', profile.id);
-  const myPersonIds = (mePeople ?? []).map((r) => r.id);
+  let myPersonIds = (mePeople ?? []).map((r) => r.id);
+  if (myPersonIds.length === 0) {
+    const { data: mine } = await supabase
+      .from('household_members')
+      .select('role, households ( primary_contact_person_id )')
+      .eq('profile_id', profile.id)
+      .eq('role', 'owner');
+    myPersonIds = (mine ?? [])
+      .map((m) => m.households?.primary_contact_person_id)
+      .filter(Boolean);
+  }
 
   let myRoles = [];
   if (myPersonIds.length) {

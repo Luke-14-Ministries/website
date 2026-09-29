@@ -6,9 +6,11 @@ export const metadata = { title: 'Link Expired' };
 // emailed link did not work. Since 21 Aug 2026 there are only two ways to get
 // here: the link was already used, or it expired (about an hour). The old
 // third cause -- "opened in a different browser than the one that signed up"
-// -- was the PKCE device-binding bug, fixed by the switch to the implicit
-// flow; do not resurrect that wording, it sends people chasing a cause that
-// no longer exists.
+// -- was the PKCE device-binding bug, fixed by the email templates pointing at
+// /auth/confirm/, whose button verifies the token on the server. (Not by "the
+// switch to the implicit flow", as this said until 29 Sep 2026; that setting
+// never took effect -- see lib/supabase/client.js.) Do not resurrect that
+// wording, it sends people chasing a cause that no longer exists.
 export default function LinkExpiredPage() {
   return (
     <section className="bg-brand-light min-h-[60vh] py-14">

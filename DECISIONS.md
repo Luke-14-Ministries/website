@@ -1646,3 +1646,46 @@ login page renders and a wrong-password attempt produces the deliberately vague 
 exercised in a browser:** every staff page, the two-factor page, the photo uploader and the payment
 panel, all of which sit behind a login this session did not have credentials for. Testing Script 3
 covers them; the next person through it is the real check on this work.
+
+---
+
+## 2026-09-29 — Emailed links: the `/auth/confirm/` button page is the cross-device fix, and the `implicit` flow setting is removed because it never applied
+
+**What was believed.** Since 21 August, `lib/supabase/client.js` passed `flowType: 'implicit'`, with
+a long comment saying that is what lets a sign-up or reset link requested on one device be opened on
+another. `/account/link-expired` and `CLAUDE.md` repeated it, and `CLAUDE.md` still listed "switch the
+email templates to `token_hash`" as open.
+
+**What is true, checked 29 September from a real password-reset email.** The link was
+`/auth/confirm/?token_hash=pkce_…&type=recovery`, so the templates had been switched already, and
+the token was still a PKCE one. The reason is in `@supabase/ssr` 0.12.4:
+`createBrowserClient` spreads the caller's `auth` options first and then writes
+`flowType: "pkce"` after them, so no option can change it. The setting was dead from the day it was
+added.
+
+The links work across devices anyway, because of the page, not the flow. `/auth/confirm/` renders a
+button, and the button's server action calls `verifyOtp({ type, token_hash })`. Verifying a token
+hash on the server needs no code verifier — only the `?code=` exchange does — so the verifier that
+PKCE leaves in the requesting browser is simply never used. That is also the shape Supabase's own
+server-side-auth guide uses. The same page is the scanner fix: SafeLinks and spam filters send GETs,
+the page spends nothing on a GET, and the token is still there for the person's POST.
+
+**Tested the same day, across devices.** The reset was requested from Edge on Windows and the
+emailed link opened, through SafeLinks, in Edge on Android. The card rendered; pressing its button
+produced a `POST /verify` 200 from our server (logged as an `otp` login), and the phone went
+straight to the two-factor prompt. That last part is correct and worth knowing: **a reset link does
+not skip two-factor** on an account that has it — email access alone is not enough to get in.
+
+**Changed:** the option is removed from `lib/supabase/client.js` and its comment rewritten to say
+the above; the `link-expired` note and the `CLAUDE.md` paragraph are corrected. No behaviour changes —
+the removed line was already being overridden.
+
+**The thing to protect is the two Supabase email templates** (Confirm sign up, Reset password),
+whose text is in `supabase/EMAIL-TEMPLATE-SNIPPETS.md`. If either is ever reset to Supabase's
+default `{{ .ConfirmationURL }}`, links go back through `/auth/callback` as `?code=`, and those are
+tied to the requesting browser and spendable by scanners. `app/auth/callback/route.js` still
+accepts them so an old email keeps working, but it is the fallback, not the design.
+
+*Alternative considered:* force the implicit flow by building the browser client with
+`@supabase/supabase-js`'s own `createClient` instead of `@supabase/ssr`. Rejected: it would give up
+the cookie session storage the server pages read, to fix a problem the button page already solves.

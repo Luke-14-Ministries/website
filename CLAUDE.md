@@ -50,14 +50,19 @@ goes in `0002_*.sql`.
 → callback → session → dashboard rendering the person's own name out of `public.profiles`, with
 `handle_new_user()` creating that row automatically. Login, logout and password reset are wired.
 
-**Known limitation, now fixable.** Confirmation links use PKCE (`?code=`), so opening one in a
-*different browser* from the one that signed up fails — the code verifier lives in the original
-browser. The account is still confirmed (Supabase verifies server-side before redirecting), so the
-recovery is simply to log in, which is why `/account/link-expired` leads with a Log In button. The
-real fix is switching the Supabase email templates to `token_hash` — `app/auth/callback/route.js`
-already handles both shapes — and the old blocker is gone: **custom SMTP is set up** (auth email
-sends through Resend from `registration@luke14ministries.net`), so template edits are now allowed. Making
-that template switch is an open, unblocked task.
+**Emailed links work from any device, and survive mail scanners — the button page is the fix**
+*(corrected 29 September 2026; this paragraph called the template switch an open task for weeks
+after it was done)*. Sign-up and password-reset emails point at `/auth/confirm/?token_hash=…`, a
+page with one button; pressing it verifies the token on the server with `verifyOtp()`. Scanners
+such as Outlook SafeLinks only fetch the page, so the one-time token is still unspent when the
+person arrives, and verifying needs no code verifier, so a link requested on a laptop works on a
+phone. The templates were checked from a real reset email on 29 September; their wording is in
+`supabase/EMAIL-TEMPLATE-SNIPPETS.md`, and editing them is allowed because auth email sends through
+Resend from `registration@luke14ministries.net`. The tokens still start with `pkce_` — `@supabase/ssr`
+forces PKCE in the browser client whatever it is told, so the `flowType: 'implicit'` that
+`lib/supabase/client.js` carried from 21 August never took effect and was removed. **Protect the
+templates, not a flow setting:** pointed back at `/auth/callback` with `{{ .ConfirmationURL }}`,
+the links become `?code=` links tied to one browser again. `DECISIONS.md`, 2026-09-29.
 
 **Update, 26 August 2026 — the platform is built and in staff testing.** Migrations now run
 through `0061` (never edit a migration that has been run; new work goes in the next number).

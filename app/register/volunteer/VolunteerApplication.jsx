@@ -81,12 +81,10 @@ export default function VolunteerApplication({
     // Checked here so the person is told before a round trip, and again on the
     // server, which is the one that actually holds -- a server action is a
     // public endpoint whatever the form in front of it does.
-    if (creed && !creedOk) {
-      setError(
-        'Please read and affirm the Apostles’ Creed below — it is required of everyone serving at camp.'
-      );
-      return;
-    }
+    // The Creed affirmation is asked of every volunteer but no longer blocks
+    // the form (board decision, relayed 29 Sep 2026): somebody who is not
+    // comfortable affirming it is asked to speak with Larry, and the
+    // omission is flagged to staff at review rather than refused here.
     setPending(true);
     setError('');
     const res = await submitVolunteerApplication({
@@ -106,6 +104,9 @@ export default function VolunteerApplication({
       return;
     }
     setSaved(true);
+    // A saved application whose Creed affirmation did not record says so,
+    // rather than silently asking for the affirmation again next time.
+    if (res.warning) setError(res.warning);
     setOpen(false);
     router.refresh();
   }
@@ -252,11 +253,16 @@ export default function VolunteerApplication({
                   checked={creedOk}
                   onChange={(e) => setCreedOk(e.target.checked)}
                 />
-                <span className="text-sm">
-                  I have read the Apostles&rsquo; Creed and I affirm it.{' '}
-                  <span className="text-red-700 font-semibold">(required)</span>
-                </span>
+                <span className="text-sm">I have read the Apostles&rsquo; Creed and I affirm it.</span>
               </label>
+              <p className="mt-2.5 text-sm text-neutral-700">
+                If you are not comfortable affirming this, leave the box unticked and please speak
+                with Larry (
+                <a href="mailto:larry@luke14ministries.net" className="text-brand underline">
+                  larry@luke14ministries.net
+                </a>
+                ) — the volunteer team will follow up with you before your application is reviewed.
+              </p>
             </div>
           )}
 

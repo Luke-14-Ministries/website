@@ -90,6 +90,27 @@ export default async function AdminVolunteersPage() {
     (adultPeople ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`.trim()])
   );
 
+  // Who has affirmed the Apostles' Creed. The affirmation is asked of every
+  // volunteer but does not block the form (board decision, 29 Sep 2026):
+  // somebody not comfortable with it is told to speak with Larry, and the
+  // omission is made conspicuous HERE, at review, so nobody is approved
+  // without that conversation having happened.
+  const { data: creedRows } = await supabase
+    .from('agreements')
+    .select('id')
+    .eq('key', 'apostles_creed')
+    .eq('active', true);
+  const creedIds = (creedRows ?? []).map((c) => c.id);
+  const { data: creedSigs } =
+    creedIds.length && personIds.length
+      ? await supabase
+          .from('agreement_signatures')
+          .select('person_id')
+          .in('agreement_id', creedIds)
+          .in('person_id', personIds)
+      : { data: [] };
+  const creedAffirmedBy = new Set((creedSigs ?? []).map((s) => s.person_id));
+
   const appByPart = new Map((apps ?? []).map((a) => [a.registration_participant_id, a]));
   const clearanceByPerson = new Map((clearances ?? []).map((c) => [c.person_id, c]));
 
@@ -101,6 +122,7 @@ export default async function AdminVolunteersPage() {
         ? { ...app, accompanyingAdultName: adultName.get(app.accompanying_adult_person_id) ?? null }
         : null,
       clearance: clearanceByPerson.get(v.person?.id) ?? null,
+      creedAffirmed: creedAffirmedBy.has(v.person?.id),
     };
   });
 

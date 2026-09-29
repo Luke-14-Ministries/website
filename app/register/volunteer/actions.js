@@ -41,13 +41,10 @@ export async function submitVolunteerApplication(payload) {
     return { ok: false, error: 'That registration could not be found on your account.' };
   }
 
-  // The Apostles' Creed affirmation (migration 0062, item L2). Required of
+  // The Apostles' Creed affirmation (migration 0062, item L2). Asked of
   // volunteers, never of families or campers -- which is why it is looked up
   // by key here rather than through agreement_requirements.
   //
-  // Checked on the SERVER as well as in the form. The form's check is a
-  // courtesy that names the problem early; this one is the one that holds,
-  // because a server action is a public endpoint whatever page fronts it.
   const { data: creedRows } = await supabase
     .from('agreements')
     .select('id, version')
@@ -57,24 +54,12 @@ export async function submitVolunteerApplication(payload) {
     .limit(1);
   const creed = creedRows?.[0] ?? null;
 
-  if (creed && payload?.creedAffirmed !== true) {
-    // Unless they have already affirmed this exact version, in which case the
-    // form arrives pre-ticked and an edit to the skills box should not demand
-    // a fresh affirmation of something already on record.
-    const { data: already } = await supabase
-      .from('agreement_signatures')
-      .select('id')
-      .eq('agreement_id', creed.id)
-      .eq('person_id', owned.personId)
-      .limit(1);
-    if (!already?.length) {
-      return {
-        ok: false,
-        error:
-          'Please read and affirm the Apostles’ Creed — it is required of everyone serving at camp.',
-      };
-    }
-  }
+  // NOT REQUIRED. Until 29 Sep 2026 an application without the affirmation
+  // was refused here. The board's decision, relayed that day: ask everyone,
+  // let somebody who is not comfortable leave it unticked and speak with
+  // Larry, and make the omission conspicuous to staff at review (see the
+  // Volunteers page) rather than a wall on the form. So the affirmation is
+  // recorded when given and merely absent when not.
 
   const clean = (v, max = 4000) => (typeof v === 'string' ? v.trim().slice(0, max) : '') || null;
 
@@ -120,15 +105,37 @@ export async function submitVolunteerApplication(payload) {
       .limit(1);
 
     if (!already?.length) {
+      // SIGNED WITH A NAME. Found 29 Sep 2026 (Testing Script 3 §3.5): this
+      // insert carried no signer_name, the 0049 trigger refused it ("A
+      // signature must be signed with a name"), the refusal was logged and
+      // swallowed, and every volunteer was asked to affirm the Creed again on
+      // every edit -- with nothing on record. An affirmation is signed by the
+      // person affirming it, so the name is theirs (migration 0073 lets a
+      // 'self' signature name the person rather than the household contact).
+      const { data: who } = await supabase
+        .from('people')
+        .select('first_name, last_name')
+        .eq('id', owned.personId)
+        .maybeSingle();
+      const signerName = `${who?.first_name ?? ''} ${who?.last_name ?? ''}`.trim();
       const { error: sigError } = await supabase.from('agreement_signatures').insert({
         agreement_id: creed.id,
         person_id: owned.personId,
         registration_id: owned.registrationId ?? null,
         status: 'signed_here',
         signer_role: 'self',
+        signer_name: signerName || null,
       });
       if (sigError) {
         console.error('creed signature not recorded:', sigError.message);
+        // Still not fatal (the application is saved), but no longer silent:
+        // the form can say the affirmation did not stick instead of asking
+        // for it again next time as though nothing happened.
+        return {
+          ok: true,
+          warning:
+            'Your application was saved, but the Creed affirmation could not be recorded. Please tell the volunteer team.',
+        };
       }
     }
   }

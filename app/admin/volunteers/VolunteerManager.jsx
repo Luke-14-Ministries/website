@@ -224,6 +224,24 @@ function VolunteerRow({ row, maySeeChecks }) {
         </div>
         <span className="flex flex-wrap items-center gap-2 text-xs">
           <span className={`rounded-full px-2.5 py-0.5 font-semibold ${chip[1]}`}>{chip[0]}</span>
+          {/* The Creed is asked, not enforced (29 Sep 2026). An application
+              without it is a conversation with Larry that has to happen
+              before approval, so the gap is loud here rather than a wall on
+              the form. Red on purpose: it must not read as "not asked". */}
+          {app && app.status !== 'withdrawn' && (
+            <span
+              className={`rounded-full px-2.5 py-0.5 font-semibold ${
+                row.creedAffirmed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}
+              title={
+                row.creedAffirmed
+                  ? 'Affirmed the Apostles’ Creed on the volunteer application'
+                  : 'Did not affirm the Apostles’ Creed — they were asked to speak with Larry; confirm that has happened before approving'
+              }
+            >
+              {row.creedAffirmed ? 'Creed affirmed' : '⚠ Creed not affirmed — speak with Larry'}
+            </span>
+          )}
           <span
             /* "Not shown to you" must never wear the same grey as "none on
                file". Someone glancing down this column has to be able to tell

@@ -142,7 +142,30 @@ Anything already saved is untouched.`
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
+
+    // beforeunload never fires for the site's OWN links -- "Back to
+    // dashboard" is a client-side Next.js navigation, and following it with
+    // two edited cards threw the edits away without a word (found 29 Sep
+    // 2026, Testing Script 3 §19.4). Same question, asked at the click,
+    // before the router sees it. Only same-site links; a modified click
+    // (new tab) leaves this page open and needs no warning.
+    const guardLinks = (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
+      if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+      const href = a.getAttribute('href') ?? '';
+      if (/^(https?:)?\/\//.test(href) && !href.startsWith(window.location.origin)) return;
+      if (href.startsWith('#')) return;
+      if (!window.confirm('You have unsaved changes on this page. Leave without saving them?')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('click', guardLinks, true);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      document.removeEventListener('click', guardLinks, true);
+    };
   }, [dirtyKeys.length]);
 
   // Fields tidy themselves on blur, exactly like the wizard's -- same helpers,

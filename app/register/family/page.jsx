@@ -191,7 +191,7 @@ export default async function FamilyRegisterPage({ searchParams }) {
         .select(
           `id, event_id, family_notes, created_at,
            registration_participants ( camp_role, status, tshirt_size, first_time_attending,
-             people ( id, first_name, last_name, date_of_birth, gender ) )`
+             people ( id, first_name, last_name, preferred_name, date_of_birth, gender ) )`
         )
         .eq('household_id', householdId)
         .order('created_at', { ascending: false }),
@@ -275,6 +275,9 @@ export default async function FamilyRegisterPage({ searchParams }) {
         personId: p.people?.id ?? null,
         firstName: p.people?.first_name ?? '',
         lastName: p.people?.last_name ?? '',
+        // Carried like the name: reopening a registration showed a blank
+        // preferred-name box for everyone already on it (29 Sep, §20.1).
+        preferredName: p.people?.preferred_name ?? '',
         dob: p.people?.date_of_birth ?? '',
         sex: p.people?.gender ?? '',
         // No fallback label: an unrecognised role must be re-chosen, not

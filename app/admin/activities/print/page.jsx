@@ -116,8 +116,19 @@ export default async function ActivityPrintPage({ searchParams }) {
     slotsByActivity.get(sl.activity_id).push(sl);
   }
 
+  // "12:00:00–17:00:00" printed raw on the sheet (29 Sep, §18). Clock times
+  // read as a person would say them; a value that is not HH:MM[:SS] is
+  // shown as it came.
+  const clock = (t) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t ?? '');
+    if (!m) return t ?? '';
+    const h = Number(m[1]);
+    const suffix = h >= 12 ? 'pm' : 'am';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${m[2]} ${suffix}`;
+  };
   const timeOf = (sl) =>
-    [sl.slot_date, [sl.start_time, sl.end_time].filter(Boolean).join('–')]
+    [sl.slot_date, [sl.start_time, sl.end_time].filter(Boolean).map(clock).join('–')]
       .filter(Boolean)
       .join(' · ');
 

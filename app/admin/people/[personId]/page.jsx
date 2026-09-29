@@ -262,7 +262,7 @@ export default async function PersonPage({ params }) {
       {!sensitive && (
         <p className="mt-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <strong>Some of this person&rsquo;s information is hidden.</strong> Allergies,
-          medical flags and the emergency contact need the <em>sensitive information</em>
+          medical flags and the emergency contact need the <em>sensitive information</em>{' '}
           permission. An administrator grants it on Staff &amp; Access.
         </p>
       )}

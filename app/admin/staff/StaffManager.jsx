@@ -285,7 +285,11 @@ export default function StaffManager({ members, selfId, accounts = [] }) {
   // any edit -- unchecking a grant re-fetched the list and she "sank to the
   // bottom" (2 Sep). Default here is role (administrators first), then name,
   // and it is stable: only sorting BY a grant moves anyone when a grant changes.
-  const ROLE_ORDER = Object.keys(ROLE_LABEL);
+  // Administrators first, then coordinators, then registrars -- the order the
+  // page describes. Object.keys(ROLE_LABEL) gave the reverse (found 29 Sep
+  // 2026, Testing Script 3 §20.9): the table opened with the registrars on
+  // top and every administrator at the bottom.
+  const ROLE_ORDER = ['admin', 'coordinator', 'registrar'];
   const [sortKey, setSortKey] = useState('role');
   const [sortDir, setSortDir] = useState('asc');
   const [filterText, setFilterText] = useState('');

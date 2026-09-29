@@ -1747,3 +1747,21 @@ database, which is the opposite of the usual order and worth knowing if a page m
   The warning is non-blocking by design — a standing note on the page and on the control, not a
   dialog — and says the value must come from the family or the camp doctor, never from a reading of
   the text. The 0068 change log records every such edit, whoever makes it.
+
+## 2026-09-29 — The docs-only build skip compares against the last DEPLOYED commit, not the last commit
+
+**What happened.** The git watcher pushed the Testing Script 3 fixes as six commits, code first and the
+`DECISIONS.md` entry last. Vercel builds one deployment per push, from the head commit, and
+`vercel.json`'s `ignoreCommand` was `git diff --quiet HEAD^ HEAD -- ':!*.md' ':!LICENSE'` — the head
+commit against its parent. That diff was Markdown only, so Vercel cancelled the deployment and the five
+code commits underneath never went live. Nothing said so; the site simply stayed on the previous build.
+
+**The fix.** Vercel sets `VERCEL_GIT_PREVIOUS_SHA` to the commit of the last successful deployment,
+which is the right base: "has anything other than docs changed since what is live?" The command is now
+`git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- ':!*.md' ':!LICENSE'`, falling back to the
+old behaviour on a first deployment where the variable is unset. The same command was also set as the
+project's Ignored Build Step in the Vercel dashboard, but `vercel.json` wins whenever it is present —
+which is why a dashboard-only change did nothing and this file is the one that counts.
+
+**Rule for anyone grouping commits.** Docs-last is still fine. What is not fine is assuming the push
+deployed: check Vercel, or the site, before reporting a fix as live.

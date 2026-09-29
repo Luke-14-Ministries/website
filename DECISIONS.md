@@ -1689,3 +1689,61 @@ accepts them so an old email keeps working, but it is the fallback, not the desi
 *Alternative considered:* force the implicit flow by building the browser client with
 `@supabase/supabase-js`'s own `createClient` instead of `@supabase/ssr`. Rejected: it would give up
 the cookie session storage the server pages read, to fix a problem the button page already solves.
+
+
+## 2026-09-29 — Testing Script 3, run by bots: eight defects, two money, one that had switched off program leaders
+
+Five Playwright bots (Claude, in a Cowork cloud session, supervised by Lawrence) ran Testing Script 3
+against the preview with six purpose-made bot accounts; 128 items, 114 passed. The report with the
+per-item evidence is on the team site (`00 Comments and Critiques\Testing notes\2026-09-29 - Claude
+bots - …`). What changed in the repository, and why:
+
+- **Checkout charged the old per-event deposit (§12.2).** `app/account/dashboard/pay/actions.js` still
+  read `events.deposit_cents`; the 31 August per-person correction had reached every *display* of the
+  deposit and not the action that creates the Stripe session, so the panel said $150 and Stripe opened
+  at $50. It now uses `registrationDepositCents` like everything else.
+- **Deposit heads are counted by person, not by participant row (§14.3).** A parent who also volunteers
+  holds two rows (0069) and one place; the row count charged a family of two a deposit for three.
+  `registrationHeads()` in `lib/payments.js`, used by the dashboard, Checkout, the staff confirm-gate
+  and the staff registration screen.
+- **`people.profile_id` was never set, so no program leader could be named (§5.3).** The 31 August
+  "must be registered for this event" check reads it; 0 of 28 rows carried it. Migration `0074` adopts
+  the rule the site already assumes — the household owner's login is the household's primary-contact
+  person — backfills it, and keeps it true by trigger. `grantProgramLeader` applies the same rule as a
+  fallback.
+- **The Apostles' Creed affirmation was never recorded (§3.5), and the rule around it changed.** The
+  insert carried no `signer_name`, the 0049 trigger refused it, the action swallowed the refusal, and
+  volunteers were asked again on every edit with nothing on file. Migration `0073` lets a `self`
+  signature name the person rather than the household contact, and the action signs with the
+  volunteer's own name. Separately, **the board's decision, relayed by Lawrence the same day: the
+  affirmation is asked of everyone but does not block the application.** Somebody not comfortable with
+  it leaves the box unticked and is told to speak with Larry (`larry@luke14ministries.net`); the
+  Volunteers review page then shows a red "Creed not affirmed — speak with Larry" pill on that person
+  until a signature exists. The gap is meant to be loud at review, not a wall on the form.
+- Smaller: Staff & Access opened registrars-first (§20.9); Manage household lost unsaved edits on its
+  own "Back" link (§19.4, same-site links now ask); reopened registrations showed blank preferred
+  names (§20.1); activity sheets printed raw `HH:MM:SS` sittings; the staff registration screen printed
+  "$247.5"; a missing space in the person page's hidden-information banner.
+
+**Two limits the bots ran into, recorded so the next round does not rediscover them.** Cloudflare
+Turnstile never issues a token inside the sandbox, so Supabase's captcha check was switched off for
+the round and the bots logged in through the Auth API with the session cookie injected (turn captcha
+back on when the round ends). And migrations could not be applied from the session — Lawrence applies
+them from the Supabase SQL editor; `0073` and `0074` are in the repository before they are in the
+database, which is the opposite of the usual order and worth knowing if a page misbehaves in between.
+
+**Three rulings, given by Lawrence the same evening, and built:**
+
+- **"Home church (optional)" stays** on the family wizard's household card. It is a household field,
+  not the per-volunteer faith question §3.4 is about; the script's wording was broader than the intent.
+- **Parents, guardians and caregivers are never listed on the Buddy board.** They are the support, not
+  the supported. Campers are listed by default (the 31 Aug rule stands). **Siblings are listed and may
+  be paired when a volunteer is free, but a sibling's buddy is a preference, never a promise** — the
+  board tags them "sibling — if available", and the family dashboard says the same under each
+  sibling, with the registration@ address for a family whose sibling has particular needs. The
+  support form still does not ask about buddies (31 Aug).
+- **Staff with the Sensitive grant may set or correct allergy severity** on Dietary & Allergies, from
+  an amber select beside each allergy pill (`app/admin/dietary/SeverityPicker.jsx`, `actions.js`).
+  The warning is non-blocking by design — a standing note on the page and on the control, not a
+  dialog — and says the value must come from the family or the camp doctor, never from a reading of
+  the text. The 0068 change log records every such edit, whoever makes it.

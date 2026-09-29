@@ -12,6 +12,7 @@ import Link from 'next/link';
 // The same card the Scholarship Requests queue uses. Shared deliberately: a
 // decision has to mean the same thing wherever a registrar makes it.
 import ScholarshipReview from '@/app/admin/scholarships/ScholarshipReview';
+import { registrationHeads } from '@/lib/payments';
 import {
   setParticipantStatus,
   updatePerson,
@@ -143,7 +144,10 @@ const PAY_METHOD_LABEL = {
   other: 'Other',
 };
 
-const money = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
+// Always two decimals: "$247.5" (the half-dollar both-weeks discount) read as
+// a typo to the 29 Sep testers, and Event Payments already prints "$247.50".
+const money = (c) =>
+  `$${((c ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const inputCls =
   'w-full rounded border border-neutral-300 px-3 py-1.5 text-sm';
@@ -1467,7 +1471,10 @@ export default function RegistrationManager({
   // is really one third of a first step.
   //
   // Cancelled people are not counted: they are not holding a place.
-  const livePeople = parts.filter((p) => p.status !== 'cancelled').length;
+  //
+  // Counted by PERSON (29 Sep 2026, §14.2/§14.3): a parent who is also
+  // volunteering has two rows here and holds one place.
+  const livePeople = registrationHeads(parts);
   const depositEach = registration.event?.deposit_cents ?? 0;
   const depositDue = depositEach * livePeople;
   const depositPaid = balance?.paid_cents ?? 0;

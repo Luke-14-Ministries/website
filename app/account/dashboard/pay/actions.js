@@ -11,7 +11,7 @@
 import { headers } from 'next/headers';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
-import { coverFeeCents } from '@/lib/payments';
+import { coverFeeCents, registrationDepositCents } from '@/lib/payments';
 
 export async function createCheckout({ registrationId, kind, method, coverFee, customCents }) {
   const user = await getCurrentUser();
@@ -49,9 +49,24 @@ export async function createCheckout({ registrationId, kind, method, coverFee, c
 
   let base;
   if (kind === 'deposit') {
-    const deposit = ev?.deposit_cents ?? 0;
+    // PER PERSON, the same figure the dashboard banner and PayPanel show.
+    //
+    // Found 29 Sep 2026 (Testing Script 3 §12.2): the 31 Aug per-person
+    // correction reached every display of the deposit but not this action,
+    // so the panel said "$150 — $50 for each of the 3 people" and Stripe
+    // Checkout opened at $50. A family paying "the deposit" would have been
+    // $100 short with nothing on screen to say so. Same helper, same rows.
+    const { data: parts } = await supabase
+      .from('registration_participants')
+      .select('id, person_id, status')
+      .eq('registration_id', registrationId);
+    const deposit = registrationDepositCents({
+      perPersonCents: ev?.deposit_cents,
+      participants: parts,
+      balanceCents: balance,
+    });
     if (deposit <= 0) return { ok: false, error: 'No deposit amount is set for this camp yet.' };
-    base = Math.min(deposit, balance);
+    base = deposit;
   } else if (kind === 'custom') {
     // A whole number of cents, validated HERE -- never trusted from the browser
     // beyond being the family's chosen figure. At least $1, never more than the

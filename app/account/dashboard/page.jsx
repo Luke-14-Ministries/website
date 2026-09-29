@@ -6,7 +6,7 @@ import PayPanel from './PayPanel';
 import RegistrationCard from './RegistrationCard';
 import CancelRequest from './CancelRequest';
 import SupportDetailsCard from './SupportDetailsCard';
-import { registrationDepositCents } from '@/lib/payments';
+import { registrationDepositCents, registrationHeads } from '@/lib/payments';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -805,7 +805,10 @@ export default async function DashboardPage({ searchParams }) {
                       eventName={r.events?.name ?? 'Camp registration'}
                       dateLabel={eventDates(r.events)}
                       past={isPast(r)}
-                      peopleLabel={`${parts.length} ${parts.length === 1 ? 'person' : 'people'}`}
+                      peopleLabel={(() => {
+                        const n = registrationHeads(parts);
+                        return `${n} ${n === 1 ? 'person' : 'people'}`;
+                      })()}
                       totalLabel={money(total)}
                       status={status}
                       defaultOpen={defaultOpen}
@@ -1030,9 +1033,9 @@ export default async function DashboardPage({ searchParams }) {
                           participants: r.registration_participants,
                           balanceCents: b?.balance_cents,
                         });
-                        const heads = (r.registration_participants ?? []).filter(
-                          (x) => x?.status !== 'cancelled'
-                        ).length;
+                        // Distinct people, not participant rows -- a parent who is
+                        // also volunteering is one head (§14.3, 29 Sep).
+                        const heads = registrationHeads(r.registration_participants);
                         const nothingPaid =
                           b && (b.paid_cents ?? 0) === 0 && (pendingByReg.get(r.id) ?? 0) === 0;
                         if (!(dep > 0 && nothingPaid && (b?.balance_cents ?? 0) > 0)) return null;

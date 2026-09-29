@@ -128,7 +128,7 @@ export async function setParticipantStatus(
     const [{ data: reg }, { data: bal }] = await Promise.all([
       supabaseCheck
         .from('registrations')
-        .select('id, events ( deposit_cents ), registration_participants ( id, status )')
+        .select('id, events ( deposit_cents ), registration_participants ( id, person_id, status )')
         .eq('id', registrationId)
         .maybeSingle(),
       supabaseCheck
@@ -146,7 +146,8 @@ export async function setParticipantStatus(
     const paid = bal?.paid_cents ?? 0;
 
     if (due > 0 && paid < due) {
-      const fmt = (c) => `$${((c ?? 0) / 100).toLocaleString('en-US')}`;
+      const fmt = (c) =>
+        `$${((c ?? 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       return {
         ok: false,
         needsOverride: true,

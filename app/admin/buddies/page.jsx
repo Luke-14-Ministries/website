@@ -124,8 +124,17 @@ export default async function BuddiesPage({ searchParams }) {
     };
   };
 
+  // WHO IS ON THE BOARD (ruling 29 Sep 2026, Testing Script 3 §17.1). The
+  // 31 Aug default -- everyone needs a buddy until a coordinator says
+  // otherwise -- was applying to every non-volunteer, so four parents and a
+  // caregiver were listed as "asking for a buddy". Parents, guardians and
+  // caregivers are the support, not the supported: they are never listed.
+  // Campers are listed by default. Siblings are listed too, and MAY be paired
+  // when a volunteer is free, but a sibling's buddy is a preference, never a
+  // promise -- the card says so, and the family dashboard says the same.
+  const BUDDY_ROLES = new Set(['camper', 'sibling']);
   const allCampers = rows
-    .filter((r) => r.camp_role !== 'volunteer')
+    .filter((r) => BUDDY_ROLES.has(r.camp_role))
     .map(shape)
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -157,7 +166,8 @@ export default async function BuddiesPage({ searchParams }) {
     <div>
       <h2 className="text-xl font-bold mb-1">Buddy Assignments</h2>
       <p className="text-sm text-neutral-500 mb-4">
-        Campers who asked for a one-to-one buddy, and the volunteers who can be one.
+        Campers who need a one-to-one buddy, and the volunteers who can be one. Siblings are
+        listed too and may be paired when a volunteer is free — a preference, not a promise.
         Families see nothing here until you publish.
       </p>
 

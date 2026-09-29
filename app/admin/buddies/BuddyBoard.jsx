@@ -352,6 +352,17 @@ export default function BuddyBoard({
                     <span className="ml-2 text-sm font-normal text-neutral-500">
                       {c.household}
                     </span>
+                    {/* A sibling's buddy is a preference, not a promise (29 Sep
+                        2026): pair them when a volunteer is free, after the
+                        campers. */}
+                    {c.role === 'sibling' && (
+                      <span
+                        title="Siblings may be paired with a buddy when a volunteer is free — this is a preference, not a promise. Campers come first."
+                        className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 align-middle"
+                      >
+                        sibling — if available
+                      </span>
+                    )}
                   </h3>
                   {mine.length === 0 ? (
                     <span className="flex items-center gap-2">

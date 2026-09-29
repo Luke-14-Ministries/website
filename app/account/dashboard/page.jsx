@@ -843,6 +843,29 @@ export default async function DashboardPage({ searchParams }) {
                                   </span>
                                 </p>
                               )}
+                              {/* Siblings and buddies (ruling 29 Sep 2026): a
+                                  sibling MAY be paired with a buddy when a
+                                  volunteer is free, and the family must not
+                                  read that as a promise. Said here, on the one
+                                  page every family sees, because the support
+                                  form no longer asks about buddies at all. */}
+                              {p.camp_role === 'sibling' &&
+                                p.status !== 'cancelled' &&
+                                !buddyNameByParticipant.get(p.id) && (
+                                  <p className="mt-1 text-xs text-neutral-500">
+                                    Buddies are for campers. A sibling may be paired with a buddy
+                                    when a volunteer is free — a preference we note, not a promise.
+                                    If {p.people?.first_name ?? 'this sibling'} has particular
+                                    needs, please tell us at{' '}
+                                    <a
+                                      href="mailto:registration@luke14ministries.net"
+                                      className="text-brand underline"
+                                    >
+                                      registration@luke14ministries.net
+                                    </a>{' '}
+                                    so we can talk it through.
+                                  </p>
+                                )}
                               {/* Volunteers keep a permanent path back to their
                                   application — the amber banner only covers the
                                   not-yet-filed case. */}

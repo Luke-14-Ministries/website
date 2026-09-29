@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import EventFilter from '@/components/EventFilter';
 import { allergyPill } from '@/lib/format';
+import SeverityPicker from './SeverityPicker';
 
 export const metadata = { title: 'Dietary & Allergies — Staff Admin' };
 
@@ -25,7 +26,7 @@ export default async function DietaryPage({ searchParams }) {
         `id, event_id,
          households ( display_name, phone ),
          registration_participants ( camp_role, status,
-           people ( first_name, last_name,
+           people ( id, first_name, last_name,
              person_support ( dietary_needs, allergy_detail, has_allergies, allergy_severity ) ) )`
       ),
   ]);
@@ -39,6 +40,7 @@ export default async function DietaryPage({ searchParams }) {
       if (!s.dietary_needs && !s.allergy_detail && !s.has_allergies) continue;
       if (!byEvent.has(r.event_id)) byEvent.set(r.event_id, []);
       byEvent.get(r.event_id).push({
+        personId: p.people?.id ?? null,
         name: `${p.people?.first_name ?? ''} ${p.people?.last_name ?? ''}`.trim(),
         sortName: `${p.people?.last_name ?? ''} ${p.people?.first_name ?? ''}`,
         household: r.households?.display_name ?? '',
@@ -97,6 +99,14 @@ export default async function DietaryPage({ searchParams }) {
       <p className="text-sm text-neutral-500 mb-6">
         Everyone with dietary needs or allergies, per event — the kitchen list. This page is a
         separate permission; treat printouts with the same care as the screen.
+      </p>
+      {/* Staff may set severity (ruling 29 Sep 2026, Testing Script 3 §13.3) --
+          with this reminder in view rather than a dialog in the way. */}
+      <p className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <strong>Severity is a medical fact, not a reading of the text.</strong> The amber box beside
+        each allergy lets staff record or correct <em>Mild / Severe / Anaphylaxis</em> — set it only
+        from what the family or the camp doctor has told you, and say so in the notes. It changes
+        what the kitchen sees.
       </p>
 
 
@@ -169,6 +179,13 @@ export default async function DietaryPage({ searchParams }) {
                               </span>
                             ) : null;
                           })()}
+                          {r.hasAllergies && r.personId && (
+                            <SeverityPicker
+                              personId={r.personId}
+                              value={r.allergySeverity ?? ''}
+                              name={r.name}
+                            />
+                          )}
                         </td>
                         <td className="px-4 py-2 whitespace-pre-wrap">{r.allergies || '—'}</td>
                         <td className="px-4 py-2 whitespace-pre-wrap">{r.dietary || '—'}</td>

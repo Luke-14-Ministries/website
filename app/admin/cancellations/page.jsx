@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import CancellationList from './CancellationList';
 
@@ -17,7 +17,7 @@ export const metadata = { title: 'Cancellation Requests — Staff Admin' };
 export default async function CancellationsPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/cancellations/');
+  if (!staff) await bounceNonStaff('/admin/cancellations/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const showHandled = params?.handled === '1';

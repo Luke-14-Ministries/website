@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import PrintButton from './PrintButton';
 
@@ -25,7 +25,7 @@ export default async function GivingStatementsPage({ searchParams }) {
   const params = await searchParams;
 
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/giving/statements/');
+  if (!staff) await bounceNonStaff('/admin/giving/statements/');
   if (!can(staff, 'giving')) redirect('/admin');
 
   const year = new Date().getFullYear();

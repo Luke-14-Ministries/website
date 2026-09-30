@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import BuddyBoard from './BuddyBoard';
@@ -20,7 +20,7 @@ export const metadata = { title: 'Buddy Assignments — Staff Admin' };
 export default async function BuddiesPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/buddies/');
+  if (!staff) await bounceNonStaff('/admin/buddies/');
   if (!can(staff, 'coordinator')) redirect('/admin');
 
   const supabase = await createClient();

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import EventFilter from '@/components/EventFilter';
@@ -17,7 +17,7 @@ export const metadata = { title: 'Programs — Staff Admin' };
 export default async function ProgramsPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/programs/');
+  if (!staff) await bounceNonStaff('/admin/programs/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();

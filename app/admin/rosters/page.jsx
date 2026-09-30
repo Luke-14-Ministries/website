@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import RosterTable from './RosterTable';
 
@@ -10,7 +10,7 @@ export const metadata = { title: 'Rosters — Staff Admin' };
 // exactly what's on screen.
 export default async function RostersPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/rosters/');
+  if (!staff) await bounceNonStaff('/admin/rosters/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import VolunteerManager from './VolunteerManager';
 
@@ -12,7 +12,7 @@ export const metadata = { title: 'Volunteers — Staff Admin' };
 // never here. That is a board-level rule, not a preference.
 export default async function AdminVolunteersPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/volunteers/');
+  if (!staff) await bounceNonStaff('/admin/volunteers/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   // Background-check records are their own grant (migration 0058). A registrar

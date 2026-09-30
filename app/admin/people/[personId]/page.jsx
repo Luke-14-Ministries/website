@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { allergyPill, statusPill } from '@/lib/format';
 
@@ -75,7 +75,7 @@ export default async function PersonPage({ params }) {
   const { personId } = await params;
 
   const staff = await getStaff();
-  if (!staff) redirect(`/account/?next=/admin/people/${personId}/`);
+  if (!staff) await bounceNonStaff(`/admin/people/${personId}/`);
   if (!can(staff, 'staff')) redirect('/admin');
 
   const sensitive = can(staff, 'sensitive');

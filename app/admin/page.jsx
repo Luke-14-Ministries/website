@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Overview — Staff Admin' };
@@ -32,7 +32,7 @@ function Stat({ label, sub, value, tone }) {
 
 export default async function AdminOverview() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/');
+  if (!staff) await bounceNonStaff('/admin/');
 
   const supabase = await createClient();
 

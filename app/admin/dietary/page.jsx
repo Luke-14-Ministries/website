@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import EventFilter from '@/components/EventFilter';
@@ -14,7 +14,7 @@ export const metadata = { title: 'Dietary & Allergies — Staff Admin' };
 export default async function DietaryPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/dietary/');
+  if (!staff) await bounceNonStaff('/admin/dietary/');
   if (!can(staff, 'sensitive')) redirect('/admin');
 
   const supabase = await createClient();

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import SetupManager from './SetupManager';
 import { enrollmentOption } from '@/lib/events';
@@ -16,7 +16,7 @@ export const metadata = { title: 'Setup — Staff Admin' };
 // and join this page as the need arises.
 export default async function SetupPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/setup/');
+  if (!staff) await bounceNonStaff('/admin/setup/');
   if (!can(staff, 'admin')) redirect('/admin');
 
   // Staff read ALL events under RLS, published or not -- that's the point:

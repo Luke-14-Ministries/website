@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import ChangesList from './ChangesList';
 
@@ -27,7 +27,7 @@ const fmtWhen = (ts) =>
 // blank this page. Any query error is shown, not swallowed.
 export default async function RecentChangesPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/changes/');
+  if (!staff) await bounceNonStaff('/admin/changes/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import StaffManager from './StaffManager';
 
@@ -10,7 +10,7 @@ export const metadata = { title: 'Staff & Access — Staff Admin' };
 // a person DOES, while sensitive/giving are separate need-to-know grants.
 export default async function StaffAccessPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/staff/');
+  if (!staff) await bounceNonStaff('/admin/staff/');
   if (!can(staff, 'admin')) redirect('/admin');
 
   const supabase = await createClient();

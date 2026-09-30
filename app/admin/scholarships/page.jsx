@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import ScholarshipReview from './ScholarshipReview';
 
@@ -33,7 +33,7 @@ const ROLE_LABEL = {
 export default async function ScholarshipRequestsPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/scholarships/');
+  if (!staff) await bounceNonStaff('/admin/scholarships/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const showSettled = params?.settled === '1';

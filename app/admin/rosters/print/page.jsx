@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import PrintButton from '@/components/PrintButton';
 
@@ -24,7 +24,7 @@ export default async function PrintRostersPage({ searchParams }) {
   const fStatus = typeof params?.status === 'string' ? params.status : '';
 
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/rosters/print/');
+  if (!staff) await bounceNonStaff('/admin/rosters/print/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();

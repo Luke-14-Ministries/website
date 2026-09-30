@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import { ActivityEditor, AddActivity, ActivityCard, SlotEditor, slotLabel } from './ActivityEditor';
@@ -22,7 +22,7 @@ const MODE_LABEL = {
 export default async function AdminActivitiesPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/activities/');
+  if (!staff) await bounceNonStaff('/admin/activities/');
   if (!can(staff, 'coordinator')) redirect('/admin');
 
   const supabase = await createClient();

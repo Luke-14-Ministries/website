@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import CheckinList from './CheckinList';
@@ -16,7 +16,7 @@ export default async function CheckinPage({ searchParams }) {
   const params = await searchParams;
 
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/checkin/');
+  if (!staff) await bounceNonStaff('/admin/checkin/');
   if (!can(staff, 'door')) redirect('/admin');
 
   // Parsed by parts, never through new Date(iso): a date-only string is UTC

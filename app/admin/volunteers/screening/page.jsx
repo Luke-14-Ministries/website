@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import BackLink from '@/components/BackLink';
 import ScreeningBoard from './ScreeningBoard';
@@ -14,7 +14,7 @@ export const metadata = { title: 'Background screening — Staff Admin' };
 // real person being asked for their Social Security number.
 export default async function ScreeningPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/volunteers/screening/');
+  if (!staff) await bounceNonStaff('/admin/volunteers/screening/');
   if (!can(staff, 'registrar')) redirect('/admin');
   // Ordering a check is at least as sensitive as reading the result, so it
   // takes the same grant (migration 0058).

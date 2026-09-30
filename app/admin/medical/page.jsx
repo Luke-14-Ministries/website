@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 
@@ -12,7 +12,7 @@ export const metadata = { title: 'Medical & Support — Staff Admin' };
 export default async function MedicalPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/medical/');
+  if (!staff) await bounceNonStaff('/admin/medical/');
   if (!can(staff, 'sensitive')) redirect('/admin');
 
   const supabase = await createClient();

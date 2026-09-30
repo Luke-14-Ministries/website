@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { dateISO } from '@/lib/events';
 import RecordPaymentForm from './RecordPaymentForm';
@@ -33,7 +33,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
   const eventFilter = typeof params?.event === 'string' ? params.event : '';
 
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/payments/');
+  if (!staff) await bounceNonStaff('/admin/payments/');
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();

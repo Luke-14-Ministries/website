@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import RegistrationManager from './RegistrationManager';
 
@@ -13,7 +13,7 @@ export default async function RegistrationDetailPage({ params }) {
   const { id } = await params;
 
   const staff = await getStaff();
-  if (!staff) redirect(`/account/?next=/admin/registrations/${id}/`);
+  if (!staff) await bounceNonStaff(`/admin/registrations/${id}/`);
   if (!can(staff, 'registrar')) redirect('/admin');
 
   const supabase = await createClient();

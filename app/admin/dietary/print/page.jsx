@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import PrintButton from '@/components/PrintButton';
@@ -13,7 +13,7 @@ export const metadata = { title: 'Kitchen List — Staff Admin' };
 export default async function KitchenListPage({ searchParams }) {
   const params = await searchParams;
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/dietary/print/');
+  if (!staff) await bounceNonStaff('/admin/dietary/print/');
   if (!can(staff, 'sensitive')) redirect('/admin');
 
   const supabase = await createClient();

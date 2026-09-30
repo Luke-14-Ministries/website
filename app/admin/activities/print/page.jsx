@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import PrintButton from '@/components/PrintButton';
 
@@ -28,7 +28,7 @@ export default async function ActivityPrintPage({ searchParams }) {
   const params = await searchParams;
 
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/activities/print/');
+  if (!staff) await bounceNonStaff('/admin/activities/print/');
   if (!can(staff, 'coordinator')) redirect('/admin');
 
   const supabase = await createClient();

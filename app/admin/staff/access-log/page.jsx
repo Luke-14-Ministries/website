@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import BackLink from '@/components/BackLink';
 
@@ -38,7 +38,7 @@ const name = (p) =>
 
 export default async function AccessLogPage() {
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/staff/access-log/');
+  if (!staff) await bounceNonStaff('/admin/staff/access-log/');
   if (!can(staff, 'admin')) redirect('/admin');
 
   const supabase = await createClient();

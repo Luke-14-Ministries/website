@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getStaff, can } from '@/lib/staff';
+import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import RecordGiftForm from './RecordGiftForm';
 
@@ -34,7 +34,7 @@ export default async function AdminGivingPage({ searchParams }) {
   const fMethod = typeof params?.method === 'string' ? params.method : '';
 
   const staff = await getStaff();
-  if (!staff) redirect('/account/?next=/admin/giving/');
+  if (!staff) await bounceNonStaff('/admin/giving/');
   if (!can(staff, 'giving')) redirect('/admin');
 
   const supabase = await createClient();

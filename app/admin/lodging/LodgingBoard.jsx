@@ -12,8 +12,26 @@ const KIND_LABEL = {
   room: 'Room',
   tent: 'Tent',
   lodge: 'Lodge',
+  building: 'Building',
+  rv: 'RV site',
   offsite: 'Off site',
 };
+
+// Roles that count against a room's STAFF capacity rather than its bed count
+// (0076: CampSite tracked "2 / 10 campers - 0 / 3 staff" per room).
+const STAFF_ROLES = new Set(['volunteer', 'support_team', 'childcare']);
+
+// A hint, not a label: the gender word stays on the chip. The tint is there
+// so a coordinator scanning forty chips for "is this room mixed?" sees it at
+// a glance, the way CampSite's board did (29 Sep 2026). Gender is free text
+// on the household form ("Female", "male", "F"), so it is read
+// case-insensitively; anything else stays neutral.
+function sexTint(gender) {
+  const g = String(gender ?? '').trim().toLowerCase();
+  if (g === 'female' || g === 'f') return 'border-pink-200 bg-pink-50';
+  if (g === 'male' || g === 'm') return 'border-blue-200 bg-blue-50';
+  return 'border-neutral-200 bg-white';
+}
 
 const ROLE_SHORT = {
   camper: 'camper',
@@ -27,7 +45,11 @@ const ROLE_SHORT = {
 
 function PersonChip({ person, onRemove, onMove, pending, accessWarning, moving }) {
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded border border-neutral-200 bg-white px-3 py-1.5 text-sm">
+    <li
+      className={`flex flex-wrap items-center gap-2 rounded border px-3 py-1.5 text-sm ${sexTint(
+        person.gender
+      )}`}
+    >
       <span className="font-medium">{person.name}</span>
       <span className="text-xs text-neutral-500">{ROLE_SHORT[person.role] ?? person.role}</span>
       {person.gender && <span className="text-xs text-neutral-400">{person.gender}</span>}
@@ -152,6 +174,14 @@ export default function LodgingBoard({
     return own + kids.reduce((s, k) => s + occupancyOf(k), 0);
   }
 
+  // The staff share of that, counted the same way, so a room's "campers"
+  // figure is occupancy minus staff and the two always add up.
+  function staffOf(lodging) {
+    const own = (byLodging.get(lodging.id) ?? []).filter((p) => STAFF_ROLES.has(p.role)).length;
+    const kids = childrenOf.get(lodging.id) ?? [];
+    return own + kids.reduce((s, k) => s + staffOf(k), 0);
+  }
+
   function needsAccess(person) {
     return Boolean(person.mobility && person.mobility.trim());
   }
@@ -254,10 +284,17 @@ export default function LodgingBoard({
       );
       if (!ok) return;
     }
-    const occ = occupancyOf(lodging);
-    if (lodging.capacity != null && occ >= lodging.capacity) {
+    // Same arithmetic as the card: where a staff capacity is tracked, a
+    // volunteer counts against THAT and a camper against the bed count.
+    const splitStaff = lodging.staffCapacity != null;
+    const isStaff = splitStaff && STAFF_ROLES.has(person.role);
+    const occ = isStaff
+      ? staffOf(lodging)
+      : occupancyOf(lodging) - (splitStaff ? staffOf(lodging) : 0);
+    const limit = isStaff ? lodging.staffCapacity : lodging.capacity;
+    if (limit != null && occ >= limit) {
       const ok = window.confirm(
-        `${lodging.name} is at capacity (${occ} of ${lodging.capacity}).\n\nAdd ${person.name} anyway?`
+        `${lodging.name} is at ${isStaff ? 'staff ' : ''}capacity (${occ} of ${limit}).\n\nAdd ${person.name} anyway?`
       );
       if (!ok) return;
     }
@@ -309,7 +346,16 @@ export default function LodgingBoard({
     const here = byLodging.get(lodging.id) ?? [];
     const kids = childrenOf.get(lodging.id) ?? [];
     const occ = occupancyOf(lodging);
-    const over = lodging.capacity != null && occ > lodging.capacity;
+    // With a staff capacity set (0076), the card reads the way CampSite's did:
+    // "2 of 10 campers · 0 of 3 staff", campers being everyone who is not a
+    // volunteer, support-team member or childcare worker. Without one, the
+    // single count stays -- most places do not track staff separately.
+    const splitStaff = lodging.staffCapacity != null;
+    const staffHere = splitStaff ? staffOf(lodging) : 0;
+    const campersHere = occ - staffHere;
+    const over =
+      lodging.capacity != null && (splitStaff ? campersHere : occ) > lodging.capacity;
+    const staffOver = splitStaff && staffHere > lodging.staffCapacity;
 
     return (
       <div className={depth > 0 ? 'ml-4 border-l-2 border-neutral-100 pl-4' : ''}>
@@ -336,11 +382,36 @@ export default function LodgingBoard({
                 </span>
               )}
             </h3>
-            <span className={`text-sm ${over ? 'font-semibold text-amber-700' : 'text-neutral-500'}`}>
-              {lodging.capacity != null ? `${occ} of ${lodging.capacity}` : `${occ} placed`}
-              {over ? ' — over' : ''}
+            <span className="text-sm">
+              {splitStaff ? (
+                <>
+                  <span className={over ? 'font-semibold text-amber-700' : 'text-neutral-500'}>
+                    {lodging.capacity != null
+                      ? `${campersHere} of ${lodging.capacity} campers`
+                      : `${campersHere} campers`}
+                    {over ? ' — over' : ''}
+                  </span>
+                  <span
+                    className={`ml-1 ${staffOver ? 'font-semibold text-amber-700' : 'text-neutral-500'}`}
+                    title="Volunteers, support team and childcare placed here, against the room's staff capacity"
+                  >
+                    · {staffHere} of {lodging.staffCapacity} staff
+                    {staffOver ? ' — over' : ''}
+                  </span>
+                </>
+              ) : (
+                <span className={over ? 'font-semibold text-amber-700' : 'text-neutral-500'}>
+                  {lodging.capacity != null ? `${occ} of ${lodging.capacity}` : `${occ} placed`}
+                  {over ? ' — over' : ''}
+                </span>
+              )}
             </span>
           </div>
+
+          {/* The venue's own words -- "2 Double beds", "10 bunks" -- which is
+              what a coordinator thinks in when deciding whether a family of
+              four fits. Capacity is the arithmetic; this is the fact. */}
+          {lodging.beds && <p className="mt-0.5 text-xs text-neutral-600">{lodging.beds}</p>}
 
           {lodging.accessibleNotes && (
             <p className="mt-0.5 text-xs text-neutral-500">{lodging.accessibleNotes}</p>
@@ -421,13 +492,20 @@ export default function LodgingBoard({
             {publishedAt && ` · published ${publishedAt.slice(0, 10)}`}
           </p>
         </div>
-        <button
-          onClick={togglePublish}
-          disabled={pending}
-          className={publishedAt ? 'btn-outline !py-2' : 'btn-primary !py-2'}
-        >
-          {publishedAt ? 'Unpublish' : 'Publish assignments'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Carries the event through, same rule as the kitchen list and the
+              activity sheets: the paper says what the screen said. */}
+          <a href={`/admin/lodging/print/?event=${eventId}`} className="btn-outline !py-2">
+            Print room list
+          </a>
+          <button
+            onClick={togglePublish}
+            disabled={pending}
+            className={publishedAt ? 'btn-outline !py-2' : 'btn-primary !py-2'}
+          >
+            {publishedAt ? 'Unpublish' : 'Publish assignments'}
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 rounded-lg border border-neutral-200 bg-white p-4">
@@ -516,7 +594,7 @@ export default function LodgingBoard({
                     className={`flex w-full flex-wrap items-center gap-2 rounded border px-3 py-2 text-left text-sm disabled:opacity-50 ${
                       placing === p.participantId
                         ? 'border-brand bg-brand-light font-semibold'
-                        : 'border-neutral-200 hover:bg-neutral-50'
+                        : `${sexTint(p.gender)} hover:bg-neutral-50`
                     }`}
                   >
                     <span className="font-medium">{p.name}</span>

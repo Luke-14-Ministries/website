@@ -3,6 +3,7 @@ import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { eventWindow } from '@/lib/events';
 import LodgingBoard from './LodgingBoard';
+import LodgingSetup from './LodgingSetup';
 import EventFilter from '@/components/EventFilter';
 
 export const metadata = { title: 'Rooms & Cabins — Staff Admin' };
@@ -36,19 +37,27 @@ export default async function LodgingPage({ searchParams }) {
   const selectedId = params?.event || visible[0]?.id || null;
   const selected = (events ?? []).find((e) => e.id === selectedId) ?? null;
 
-  const { data: lodgingRows } = selectedId
+  // Every place on the event, inactive ones included: the board draws the
+  // active ones, and the set-up panel below the board needs the rest so a
+  // room retired by mistake can be brought back (29 Sep 2026).
+  //
+  // Query errors are logged, never dropped (the programs-page lesson, 29 Sep):
+  // a failed query here would draw an empty board that looks like "no rooms".
+  const { data: lodgingRows, error: lodgingError } = selectedId
     ? await supabase
         .from('lodgings')
-        .select('id, parent_id, name, kind, capacity, accessible, accessible_notes, notes')
+        .select(
+          'id, parent_id, name, kind, capacity, staff_capacity, beds, accessible, accessible_notes, notes, sort_order, active'
+        )
         .eq('event_id', selectedId)
-        .eq('active', true)
         .order('sort_order')
-    : { data: [] };
+    : { data: [], error: null };
+  if (lodgingError) console.error('lodging: lodgings query failed:', lodgingError.message);
 
   // Everyone on the roster, with the facts a bed assignment turns on:
   // mobility (does this place work for them), gender (sleeping arrangements),
   // household (keep families together), role (volunteers often take a cabin).
-  const { data: participantRows } = selectedId
+  const { data: participantRows, error: participantError } = selectedId
     ? await supabase
         .from('registration_participants')
         .select(
@@ -60,24 +69,35 @@ export default async function LodgingPage({ searchParams }) {
         )
         .eq('registrations.event_id', selectedId)
         .neq('status', 'cancelled')
-    : { data: [] };
+    : { data: [], error: null };
+  if (participantError) {
+    console.error('lodging: participants query failed:', participantError.message);
+  }
 
-  const { data: assignmentRows } = selectedId
+  const { data: assignmentRows, error: assignmentError } = selectedId
     ? await supabase
         .from('lodging_assignments')
         .select('id, lodging_id, registration_participant_id, note')
-    : { data: [] };
+    : { data: [], error: null };
+  if (assignmentError) {
+    console.error('lodging: assignments query failed:', assignmentError.message);
+  }
 
-  const lodgings = (lodgingRows ?? []).map((l) => ({
+  const allLodgings = (lodgingRows ?? []).map((l) => ({
     id: l.id,
     parentId: l.parent_id,
     name: l.name,
     kind: l.kind,
     capacity: l.capacity,
+    staffCapacity: l.staff_capacity,
+    beds: l.beds,
     accessible: l.accessible,
     accessibleNotes: l.accessible_notes,
     notes: l.notes,
+    sortOrder: l.sort_order,
+    active: l.active,
   }));
+  const lodgings = allLodgings.filter((l) => l.active);
   const lodgingIds = new Set(lodgings.map((l) => l.id));
 
   const people = (participantRows ?? []).map((r) => {
@@ -131,8 +151,8 @@ export default async function LodgingPage({ searchParams }) {
     <div>
       <h2 className="text-xl font-bold mb-1">Rooms &amp; Cabins</h2>
       <p className="text-sm text-neutral-500 mb-4">
-        Cabins can be assigned whole, or hold rooms that are assigned instead. Families see
-        nothing here until you publish.
+        Cabins can be assigned whole, or hold rooms that are assigned instead. Set up or correct
+        the rooms under &lsquo;Set up rooms&rsquo;. Families see nothing here until you publish.
       </p>
 
       <EventFilter
@@ -150,7 +170,8 @@ export default async function LodgingPage({ searchParams }) {
         <p className="text-neutral-500">No events to show.</p>
       ) : lodgings.length === 0 ? (
         <p className="text-neutral-500">
-          No cabins or rooms are set up for this event yet.
+          No cabins or rooms are set up for this event yet — add them below, or copy them from
+          another event.
         </p>
       ) : (
         <LodgingBoard
@@ -160,6 +181,21 @@ export default async function LodgingPage({ searchParams }) {
           lodgings={lodgings}
           people={people}
           assignments={assignments}
+        />
+      )}
+
+      {/* Below the board, collapsed: assigning people is the job this page is
+          for, and the rooms are set up once before camp. Opens itself only
+          when there is nothing to assign into yet. */}
+      {selected && (
+        <LodgingSetup
+          eventId={selected.id}
+          eventName={selected.name}
+          lodgings={allLodgings}
+          otherEvents={(events ?? [])
+            .filter((e) => e.id !== selected.id)
+            .map((e) => ({ id: e.id, name: e.name, startsOn: e.starts_on }))}
+          defaultOpen={lodgings.length === 0}
         />
       )}
     </div>

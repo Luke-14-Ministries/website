@@ -1791,3 +1791,36 @@ code) still says the affirmation is "required … as a condition of participatin
 the new "speak with Larry" note — the body wants rewording to match the ruling; and unticking the
 Creed after signing is accepted but does not withdraw the signature, which is probably right (an
 affirmation once given stays on record) but is a ruling, not a given.
+
+## 2026-09-29 — Evening: an untick re-flags the Creed, two loops closed, and the real rooms at Carson Springs
+
+- **Unticking the Creed re-flags the application (`0075`).** Families cannot change or delete a
+  signature row, deliberately, so a volunteer who affirmed and later re-saved with the box unticked
+  still read "affirmed" at review. Lawrence's ruling: it must re-flag. The application now carries
+  `creed_affirmed`, the answer as last given; the signature stays as history. Review shows three
+  states — *affirmed*, *affirmation withdrawn — speak with Larry*, *not affirmed — speak with Larry*
+  — and the form reopens the box as it was last saved. The stored agreement text is unchanged: the
+  ruling is that the wording may keep its emphasis towards affirming.
+- **Any signed-in family account that typed `/admin` looped (§7.5, wave 3).** Same class as the
+  leader loop fixed earlier in the day, one layer up: the layout sent a non-staff, non-leader to the
+  login page, which sent a signed-in person straight back. The layout and `bounceNonStaff` now send
+  a signed-in person to their dashboard and only a logged-out visitor to `/account/?next=`.
+- **Removing a leader clears the lead badge.** `revokeProgramLeader` set `active = false` and left
+  `is_lead`, so re-naming the same person later brought the badge back unasked.
+- **Rooms & Cabins now holds the venue's real rooms, and staff can change them (`0076`).** Larry's
+  Carson Springs list (and CampSite's board for comparison) gave the buildings, rooms and beds:
+  Lodge 101–112/201–212/301–312 (only the rooms on the list — 111 and 207 are not invented), Ginn
+  114–120, Maple 121–128, Cedar 1–3, Dogwood 1–7, Pine 1–6, Carson Hall's nurse's room, RV sites
+  1–11 and an Off Campus place, for both Camp Celebrate 2027 weeks; the 0043 placeholders are
+  retired, not deleted. `beds` (the venue's words) and an optional `staff_capacity` are new columns;
+  `building` and `rv` are new kinds. Only Lodge 101 and 102 are marked accessible, because only they
+  were described so. The page gains **Set up rooms** (add, edit, retire — refused while anyone is
+  placed there — restore, and copy another event's inventory into an empty one), a **printable room
+  list** with tick boxes that carries names, roles, ages and households only, bed descriptions on
+  the cards, and a light sex tint on occupant chips as CampSite has. The Adult Adventure Retreat
+  keeps its placeholders: different venue, no list yet.
+
+**Questions for Larry, recorded here so they are not lost:** which rooms besides Lodge 101/102 are
+step-free with an accessible bathroom; whether Lodge 111 and 207 exist; the nurse's room's capacity
+and who it is for; whether camp wants a separate staff count per room (CampSite's "0 / 3 staff") or
+one number; what CampSite's red dot beside a name meant; and how many people an RV site counts as.

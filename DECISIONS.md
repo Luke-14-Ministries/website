@@ -1856,3 +1856,14 @@ time for everyone on the event); the map and plan links appear only after check-
 no longer repeats the building — "Lodge 103", not "Lodge — Lodge 103" — since the venue names rooms
 with the building in them; a room named without it still gets the building in front. The set-up
 editor gained the *Floor plan link* box so staff can fill in the Lodge's when it turns up.
+
+## 2026-09-29 — Lodge 111 and 207 exist; check-in reveal verified end to end
+
+Lawrence, late evening: the main Lodge is three floors of twelve hotel-style rooms, 36 in all; the two
+missing from Larry's sheet were an omission. `0079` adds Lodge 111 and 207 for both weeks (Staff
+Questions §11.2 is answered; §11.3, the Lodge's floor plan, is still open). The bots then ran the
+check-in reveal on the deployed build: assigned but unpublished and not checked in → nothing on the
+family dashboard; Ada checked in → "Staying in: Maple 121 · Campus map · Building plan" under Ada only,
+with the venue's two PDFs; published → the room under all four, the links still only under Ada; moved
+to Lodge 111 → "Lodge 111 · Campus map" and no plan link; un-checked, unpublished, removed → nothing.
+Six of six.

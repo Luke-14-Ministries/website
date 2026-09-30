@@ -437,10 +437,16 @@ export default async function DashboardPage({ searchParams }) {
   // unpublished draft returns nothing and no client-side gate is needed.
   const lodgingByParticipant = new Map();
   if (myParticipantIds.length) {
-    const { data: bedRows } = await supabase
+    // `parent:parent_id ( name )` is the self-join spelling PostgREST accepts
+    // for lodgings' own parent_id; the constraint-name hint used here until
+    // 29 Sep 2026 was refused (PGRST200) and the error was dropped, so no
+    // family ever saw "Staying in" -- Testing Script 4 §11.10. The RLS side
+    // of the same fault is migration 0077. Errors here are logged, not lost.
+    const { data: bedRows, error: bedError } = await supabase
       .from('lodging_assignments')
-      .select('registration_participant_id, lodgings ( name, parent:lodgings!lodgings_parent_id_fkey ( name ) )')
+      .select('registration_participant_id, lodgings ( name, parent:parent_id ( name ) )')
       .in('registration_participant_id', myParticipantIds);
+    if (bedError) console.error('dashboard: lodging query failed:', bedError.message);
     for (const b of bedRows ?? []) {
       const room = b.lodgings?.name;
       if (!room) continue;

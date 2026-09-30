@@ -14,6 +14,8 @@ import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { sendEmail, registrationConfirmationEmail } from '@/lib/email';
+import { balanceDueOn } from '@/lib/events';
+import { requiresPaymentChoice } from '@/lib/plans';
 
 // Wizard's human-readable roles -> the camp_role enum in 0001_core_schema.sql.
 const ROLE_MAP = {
@@ -177,7 +179,7 @@ export async function submitFamilyRegistration(payload) {
     const origin = host ? `${proto}://${host}` : '';
     const { data: ev } = await supabase
       .from('events')
-      .select('name, deposit_cents')
+      .select('name, deposit_cents, event_type, starts_on')
       .eq('id', eventId)
       .maybeSingle();
     const to = (family.email || '').trim() || user.email;
@@ -192,6 +194,14 @@ export async function submitFamilyRegistration(payload) {
         // family arrives believing they have paid what was asked.
         depositCents: (ev?.deposit_cents ?? 0) * (data?.saved ?? mapped.length),
         depositPerPersonCents: ev?.deposit_cents ?? 0,
+        // Two weeks before a camp week starts; null for other events, and the
+        // email then says nothing about a due date (lib/events.js).
+        balanceDueOn: balanceDueOn(ev),
+        // Camp weeks: point at the last step instead of "pay whenever".
+        finishHref:
+          requiresPaymentChoice(ev) && data?.registrationId
+            ? `${origin}/account/finish/${data.registrationId}/`
+            : null,
       });
       await sendEmail({ to, subject, html });
     }
@@ -321,6 +331,18 @@ export async function submitFamilyRegistration(payload) {
     console.error('multi-week discount recalc:', e?.message);
   }
 
+  // The early-registration discount (0080) is recomputed too: adding someone
+  // to a registration that is already on a plan earns them their share.
+  try {
+    if (data?.registrationId) {
+      await supabase.rpc('recalc_early_registration_discount', {
+        p_registration_id: data.registrationId,
+      });
+    }
+  } catch (e) {
+    console.error('early discount recalc:', e?.message);
+  }
+
   // Whether the deposit is still outstanding, so the success card asks for it
   // only when it is genuinely unpaid. The panel used to be hidden on any
   // update, which meant editing an unpaid registration silently dropped the
@@ -328,6 +350,9 @@ export async function submitFamilyRegistration(payload) {
   // "already paid" are different facts. A failure here leaves this undefined
   // and the card errs toward asking, which is the safe direction.
   let depositDue;
+  let balanceDue = null;
+  let needsPaymentChoice = false;
+  let paymentChosen = false;
   try {
     const regId = data?.registrationId;
     if (regId) {
@@ -337,9 +362,23 @@ export async function submitFamilyRegistration(payload) {
           .select('paid_cents, balance_cents')
           .eq('registration_id', regId)
           .maybeSingle(),
-        supabase.from('events').select('deposit_cents').eq('id', eventId).maybeSingle(),
+        supabase
+          .from('events')
+          .select('deposit_cents, event_type, starts_on')
+          .eq('id', eventId)
+          .maybeSingle(),
       ]);
       const deposit = ev2?.deposit_cents ?? 0;
+      balanceDue = balanceDueOn(ev2);
+      needsPaymentChoice = requiresPaymentChoice(ev2);
+      if (needsPaymentChoice) {
+        const { data: rt } = await supabase
+          .from('registration_payment_routes')
+          .select('route')
+          .eq('registration_id', regId)
+          .maybeSingle();
+        paymentChosen = Boolean(rt?.route && rt.route !== 'none');
+      }
       depositDue =
         deposit > 0 && (bal?.paid_cents ?? 0) === 0 && (bal?.balance_cents ?? 0) > 0;
     }
@@ -353,5 +392,10 @@ export async function submitFamilyRegistration(payload) {
     saved: data?.saved ?? mapped.length,
     signed: data?.signed ?? 0,
     depositDue,
+    balanceDue,
+    // Camp weeks: the registration is not finished until the family chooses
+    // pay in full / payment plan / scholarship (Larry, 30 Sep 2026).
+    needsPaymentChoice,
+    paymentChosen,
   };
 }

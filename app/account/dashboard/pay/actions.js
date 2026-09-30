@@ -83,7 +83,16 @@ export async function createCheckout({ registrationId, kind, method, coverFee, c
     }
     base = amt;
   } else {
-    base = balance;
+    // Paying everything now: the balance less any early-registration discount
+    // that paying in full earns (0080). Charging the undiscounted balance and
+    // letting the discount turn it into a credit would mean a refund for
+    // every early family who pays in one go.
+    const { data: full, error: fullErr } = await supabase.rpc('pay_in_full_amount', {
+      p_registration_id: registrationId,
+    });
+    if (fullErr) console.error('pay_in_full_amount:', fullErr.message);
+    base = Math.min(balance, fullErr || full == null ? balance : full);
+    if (base <= 0) return { ok: false, error: 'This registration is already paid in full.' };
   }
 
   const fee = coverFee ? coverFeeCents(base, method) : 0;

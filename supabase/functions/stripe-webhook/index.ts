@@ -222,6 +222,15 @@ Deno.serve(async (req) => {
       `[stripe-webhook] recorded ${status} ${method} payment of ${base}¢ for registration ${registrationId}`
     );
 
+    // Any payment can change whether the early-registration discount is
+    // earned (0080): paying in full earns it, a bounced transfer can take it
+    // away. Recomputed from stored facts, so calling it every time is safe.
+    // Payment PLANS themselves are handled by stripe-plans-webhook, not here.
+    const { error: recalcErr } = await admin.rpc('recalc_early_registration_discount', {
+      p_registration_id: registrationId,
+    });
+    if (recalcErr) console.error(`[stripe-webhook] early-discount recalc: ${recalcErr.message}`);
+
     // Branded receipt, sent from the ministry's own address via Resend. A
     // failure here must never fail the webhook -- the payment IS recorded --
     // so this logs and moves on. No RESEND_API_KEY set = receipts quietly off.
@@ -233,7 +242,13 @@ Deno.serve(async (req) => {
           const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
           const eventName = md.event_name ?? 'Event registration';
           const kindLabel =
-            md.kind === 'deposit' ? 'Deposit' : md.kind === 'custom' ? 'Payment' : 'Balance payment';
+            md.kind === 'deposit'
+              ? 'Deposit'
+              : md.kind === 'plan_deposit'
+                ? 'Deposit (first payment of your payment plan)'
+                : md.kind === 'custom'
+                  ? 'Payment'
+                  : 'Balance payment';
           const received = status === 'succeeded';
           const subject = received
             ? `Receipt: ${dollars(base)} received — ${eventName}`

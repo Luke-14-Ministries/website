@@ -25,7 +25,7 @@ export default async function SetupPage() {
   const { data: events } = await supabase
     .from('events')
     .select(
-      'id, name, starts_on, ends_on, published, registration_opens_at, registration_closes_at, capacity, event_options ( id, fee_cents, published )'
+      'id, name, starts_on, ends_on, published, registration_opens_at, registration_closes_at, capacity, early_registration_ends_on, early_registration_discount_cents, event_options ( id, fee_cents, published, participant_role )'
     )
     .order('starts_on', { ascending: true });
 
@@ -38,6 +38,8 @@ export default async function SetupPage() {
     opensAt: e.registration_opens_at,
     closesAt: e.registration_closes_at,
     capacity: e.capacity,
+    earlyEndsOn: e.early_registration_ends_on,
+    earlyCents: e.early_registration_discount_cents ?? 0,
     // The enrollment option's fee (0069 published a second, zero-fee volunteer
     // option per event, and "the first published one" could return either).
     feeCents: enrollmentOption(e)?.fee_cents ?? null,

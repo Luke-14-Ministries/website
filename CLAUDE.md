@@ -155,6 +155,19 @@ inline and then continues. Testing Script 3, item 20.10.
    placeholders — "Email balance reminders (all shown)" and "Email selected families" render but
    do nothing.
 
+**Built 30 September 2026 — migration `0080`, payment plans (read before touching money).** A
+camp week's balance is due two weeks before it starts (`balanceDueOn()` in `lib/events.js`
+and `balance_due_on()` in SQL: change both together). A camp-week registration is **not
+finished** until the family pays in full, sets up an automatic payment plan, or requests a
+scholarship (`registration_payment_routes` view; `/account/finish/[registrationId]`). The early-
+registration discount lives in its own column, `early_discount_cents`, written only by
+`recalc_early_registration_discount()`. Plans are created only by `stripe-plans-webhook`, and
+families can read them but not write them. The daily `charge-payment-plans` function charges
+what falls due, sharing its logic with the webhook through `supabase/functions/_shared/`.
+`0080` also stops families editing money columns on `registration_participants`, which they
+could do before. Switch-on steps are in `supabase/PAYMENT-PLANS-SETUP.md`; tests are in
+`supabase/tests/`. Not live until those steps are done.
+
 ### Program leaders are not staff — a second kind of person now reaches `/admin`
 
 Added 29 August in migration `0061`, and easy to miss: a **program leader** has **no row in

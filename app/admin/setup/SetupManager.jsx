@@ -56,6 +56,9 @@ function EventRow({ e }) {
   const [endsOn, setEndsOn] = useState(e.endsOn ?? '');
   const [capacity, setCapacity] = useState(e.capacity == null ? '' : String(e.capacity));
   const [fee, setFee] = useState(e.feeCents == null ? '' : (e.feeCents / 100).toFixed(2));
+  // Early registration (0080): last day + $ off per person. Blank = none.
+  const [earlyEndsOn, setEarlyEndsOn] = useState(e.earlyEndsOn ?? '');
+  const [early, setEarly] = useState(e.earlyCents ? (e.earlyCents / 100).toFixed(2) : '');
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailNotice, setDetailNotice] = useState(null);
 
@@ -68,6 +71,8 @@ function EventRow({ e }) {
         endsOn,
         capacity,
         feeDollars: fee,
+        earlyEndsOn,
+        earlyDollars: early,
       });
       setDetailBusy(false);
       setDetailNotice(
@@ -196,7 +201,7 @@ function EventRow({ e }) {
         onClick={() => setEditing((v) => !v)}
         className="mt-3 text-sm font-semibold text-brand underline"
       >
-        {editing ? 'Close event details' : 'Edit dates, capacity and price'}
+        {editing ? 'Close event details' : 'Edit dates, capacity, price and early registration'}
       </button>
 
       {editing && (
@@ -241,6 +246,32 @@ function EventRow({ e }) {
             </label>
           </div>
 
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <label className="text-sm">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Early registration ends</span>
+              <input
+                type="date"
+                value={earlyEndsOn}
+                onChange={(ev) => setEarlyEndsOn(ev.target.value)}
+                className="w-full rounded border border-neutral-300 px-2 py-1"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block font-semibold text-neutral-700 mb-0.5">Early discount ($/person)</span>
+              <input
+                inputMode="decimal"
+                value={early}
+                onChange={(ev) => setEarly(ev.target.value)}
+                placeholder="none"
+                className="w-full rounded border border-neutral-300 px-2 py-1"
+              />
+            </label>
+            <p className="text-xs text-neutral-600 sm:col-span-2 self-end">
+              People registered by the last day get this much off each, once the family is on
+              a payment plan or has paid in full. A scholarship request alone does not earn it.
+            </p>
+          </div>
+
           {/* Said plainly, because the alternative behaviour is the one people
               assume: changing a price here does NOT re-price anyone already
               registered. Their fee was copied onto their row when they signed
@@ -280,6 +311,8 @@ function EventRow({ e }) {
                 setEndsOn(e.endsOn ?? '');
                 setCapacity(e.capacity == null ? '' : String(e.capacity));
                 setFee(e.feeCents == null ? '' : (e.feeCents / 100).toFixed(2));
+                setEarlyEndsOn(e.earlyEndsOn ?? '');
+                setEarly(e.earlyCents ? (e.earlyCents / 100).toFixed(2) : '');
                 setDetailNotice(null);
               }}
               disabled={detailBusy}

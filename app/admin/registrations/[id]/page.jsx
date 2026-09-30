@@ -2,6 +2,8 @@ import { notFound, redirect } from 'next/navigation';
 import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import RegistrationManager from './RegistrationManager';
+import StaffPlanPanel from './StaffPlanPanel';
+import { requiresPaymentChoice } from '@/lib/plans';
 
 export const metadata = { title: 'Registration — Staff Admin' };
 
@@ -25,7 +27,7 @@ export default async function RegistrationDetailPage({ params }) {
        households ( id, display_name, email, phone,
                     address_line1, address_line2, city, state, postal_code,
                     home_church, how_did_you_hear, how_did_you_hear_from ),
-       events ( id, name, starts_on, ends_on, deposit_cents ),
+       events ( id, name, event_type, starts_on, ends_on, deposit_cents ),
        registration_participants (
          id, camp_role, status, fee_cents, scholarship_cents, discount_cents, discount_reason,
          tshirt_size, first_time_attending,
@@ -42,7 +44,7 @@ export default async function RegistrationDetailPage({ params }) {
   // one that sets the fee.
   const { data: options } = await supabase
     .from('event_options')
-    .select('id, name, participant_role, fee_cents, early_bird_fee_cents, early_bird_ends_on')
+    .select('id, name, participant_role, fee_cents')
     .eq('event_id', reg.events?.id)
     .order('sort_order');
 
@@ -165,7 +167,7 @@ export default async function RegistrationDetailPage({ params }) {
   // what is still owed. Full payment history stays on Event Payments.
   const { data: balanceRow } = await supabase
     .from('registration_balances')
-    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents, refund_pending_cents')
+    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents, refund_pending_cents, early_discount_cents')
     .eq('registration_id', id)
     .maybeSingle();
 
@@ -272,7 +274,27 @@ export default async function RegistrationDetailPage({ params }) {
       ),
   };
 
+  // How it is being paid (0080). Errors are shown, never swallowed.
+  const [{ data: routeRow, error: routeError }, { data: planRow, error: planError }] = await Promise.all([
+    supabase.from('registration_payment_routes').select('route').eq('registration_id', id).maybeSingle(),
+    supabase
+      .from('payment_plans')
+      .select(
+        `id, schedule, status, payment_method_label, keeps_early_discount, consent_text, consented_at,
+         payment_installments ( id, due_on, amount_cents, status, attempts, last_error, next_attempt_on )`
+      )
+      .eq('registration_id', id)
+      .maybeSingle(),
+  ]);
+  if (routeError || planError) {
+    throw new Error(`Payment plan lookup failed: ${(routeError ?? planError).message}`);
+  }
+  const planInstallments = [...(planRow?.payment_installments ?? [])].sort((a, b) =>
+    a.due_on.localeCompare(b.due_on)
+  );
+
   return (
+    <>
     <RegistrationManager
       registration={registration}
       options={options ?? []}
@@ -284,5 +306,14 @@ export default async function RegistrationDetailPage({ params }) {
       stripeBase={stripeBase}
       scholarshipRequests={scholarshipRequests}
     />
+    <StaffPlanPanel
+      registrationId={id}
+      route={routeRow?.route ?? null}
+      plan={planRow ?? null}
+      installments={planInstallments}
+      earlyDiscountCents={balanceRow?.early_discount_cents ?? 0}
+      requiresChoice={requiresPaymentChoice(reg.events)}
+    />
+    </>
   );
 }

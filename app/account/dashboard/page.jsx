@@ -7,6 +7,9 @@ import RegistrationCard from './RegistrationCard';
 import CancelRequest from './CancelRequest';
 import SupportDetailsCard from './SupportDetailsCard';
 import { registrationDepositCents, registrationHeads } from '@/lib/payments';
+import { balanceDueOn, formatDueDate, formatDueDateShort } from '@/lib/events';
+import { requiresPaymentChoice } from '@/lib/plans';
+import PlanPanel from './PlanPanel';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -190,7 +193,7 @@ export default async function DashboardPage({ searchParams }) {
         .from('registrations')
         .select(
           `id, family_notes, created_at,
-           events ( id, name, starts_on, ends_on, deposit_cents, campus_map_url ),
+           events ( id, name, event_type, starts_on, ends_on, deposit_cents, campus_map_url ),
            registration_participants ( id, camp_role, status, fee_cents, checked_in_at,
              people ( id, first_name, last_name ) )`
         )
@@ -496,6 +499,49 @@ export default async function DashboardPage({ searchParams }) {
     }
   }
 
+  // Payment plans and "has this family finished registering?" (0080). Both
+  // scoped by the household's own registration ids, never by RLS alone.
+  const [{ data: routeRows }, { data: planRows }] = regIds.length
+    ? await Promise.all([
+        supabase
+          .from('registration_payment_routes')
+          .select('registration_id, route')
+          .in('registration_id', regIds),
+        supabase
+          .from('payment_plans')
+          .select(
+            `id, registration_id, schedule, status, payment_method_label,
+             payment_installments ( id, due_on, amount_cents, status, last_error, next_attempt_on )`
+          )
+          .in('registration_id', regIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const routeByReg = new Map((routeRows ?? []).map((x) => [x.registration_id, x.route]));
+  const planByReg = new Map(
+    (planRows ?? []).map((p) => [
+      p.registration_id,
+      {
+        ...p,
+        payment_installments: [...(p.payment_installments ?? [])].sort((a, b) =>
+          a.due_on.localeCompare(b.due_on)
+        ),
+      },
+    ])
+  );
+  // What paying in full right now costs, early discount included, for every
+  // registration that still owes something.
+  const owingIds = regIds.filter((id) => (balanceByReg.get(id) ?? 0) > 0);
+  const fullRows = await Promise.all(
+    owingIds.map((id) => supabase.rpc('pay_in_full_amount', { p_registration_id: id }))
+  );
+  const payInFullByReg = new Map(owingIds.map((id, i) => [id, fullRows[i]?.data ?? null]));
+  // Not finished: a camp week with nobody cancelled-out, where the family has
+  // not yet chosen pay in full / plan / scholarship.
+  const unfinished = (r) =>
+    requiresPaymentChoice(r.events) &&
+    routeByReg.get(r.id) === 'none' &&
+    (r.registration_participants ?? []).some((p) => p.status !== 'cancelled');
+
   // This person's own giving history. The explicit profile filter matters:
   // staff can read ALL gifts under RLS, but "My Giving" must only ever show
   // their own -- even for an administrator wearing their family hat.
@@ -786,6 +832,9 @@ export default async function DashboardPage({ searchParams }) {
                   const depositDue =
                     depositCents > 0 && nothingPaid && (bal?.balance_cents ?? 0) > 0;
                   const owes = (bal?.balance_cents ?? 0) > 0;
+                  // Two weeks before a camp week starts (30 Sep 2026); null
+                  // for other events, whose pill stays as it was.
+                  const dueOn = balanceDueOn(r.events);
 
                   // The balance pill comes first on EVERY card that owes
                   // anything, so the same slot always answers the same
@@ -796,9 +845,17 @@ export default async function DashboardPage({ searchParams }) {
                   // "$50 deposit due" look like the same measurement taken on
                   // two registrations (flagged 26 Aug: "not wrong, just
                   // inconsistent").
-                  const status = owes
+                  const notFinished = unfinished(r);
+                  const status = notFinished
+                    ? [{ text: 'Not finished — choose how to pay', tone: 'ask' }]
+                    : owes
                     ? [
-                        { text: `${money(bal.balance_cents)} balance`, tone: 'amber' },
+                        {
+                          text: dueOn
+                            ? `${money(bal.balance_cents)} balance · due ${formatDueDateShort(dueOn)}`
+                            : `${money(bal.balance_cents)} balance`,
+                          tone: 'amber',
+                        },
                         ...(depositDue
                           ? [{ text: `${money(depositCents)} deposit due now`, tone: 'ask' }]
                           : []),
@@ -811,7 +868,7 @@ export default async function DashboardPage({ searchParams }) {
 
                   // Open by default when something is outstanding, or when
                   // there is only one registration (nothing to tidy away).
-                  const defaultOpen = depositDue || owes || regs.length === 1;
+                  const defaultOpen = notFinished || depositDue || owes || regs.length === 1;
 
                   return (
                     <RegistrationCard
@@ -1086,6 +1143,30 @@ export default async function DashboardPage({ searchParams }) {
                         );
                       })()}
 
+                      {/* Not finished (30 Sep 2026): camp weeks need a
+                          payment choice. Replaces the deposit banner below,
+                          because the deposit is now part of that choice. */}
+                      {unfinished(r) && (
+                        <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          <p className="font-semibold">Your registration isn&rsquo;t finished yet.</p>
+                          <p className="mt-1">
+                            Choose how you&rsquo;ll pay: in full, with a payment plan, or by
+                            requesting help with the fee.
+                          </p>
+                          <Link href={`/account/finish/${r.id}/`} className="btn-primary mt-2 inline-block !py-2">
+                            Choose how to pay
+                          </Link>
+                        </div>
+                      )}
+                      {planByReg.get(r.id) && planByReg.get(r.id).status !== 'pending' && (
+                        <PlanPanel
+                          registrationId={r.id}
+                          plan={planByReg.get(r.id)}
+                          installments={planByReg.get(r.id).payment_installments}
+                          balanceCents={balanceByReg.get(r.id)}
+                        />
+                      )}
+
                       {/* Deposit-due banner (Larry, 24 Aug: the $50 deposit is
                           REQUIRED). Implemented as a strong, explained ask
                           rather than a hard gate -- the registration is
@@ -1106,6 +1187,9 @@ export default async function DashboardPage({ searchParams }) {
                         const nothingPaid =
                           b && (b.paid_cents ?? 0) === 0 && (pendingByReg.get(r.id) ?? 0) === 0;
                         if (!(dep > 0 && nothingPaid && (b?.balance_cents ?? 0) > 0)) return null;
+                        // Camp weeks ask for the deposit through "choose how
+                        // to pay" (and a plan takes it as its first payment).
+                        if (unfinished(r) || planByReg.get(r.id)) return null;
                         return (
                           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                             <p className="font-semibold">
@@ -1117,8 +1201,16 @@ export default async function DashboardPage({ searchParams }) {
                             <p className="mt-1">
                               The deposit is your family&rsquo;s commitment to come — and it lets
                               the ministry book vendors and reserve locations with real numbers.
-                              The rest of the balance can be paid in one go or in parts; camp
-                              staff will be in touch about the due date.
+                              The rest of the balance can be paid in one go or in parts
+                              {balanceDueOn(r.events) ? (
+                                <>
+                                  , and is due by{' '}
+                                  <strong>{formatDueDate(balanceDueOn(r.events))}</strong> — two
+                                  weeks before camp starts.
+                                </>
+                              ) : (
+                                '; camp staff will be in touch about the due date.'
+                              )}
                             </p>
                           </div>
                         );
@@ -1143,6 +1235,7 @@ export default async function DashboardPage({ searchParams }) {
                           })}
                           pendingCents={pendingByReg.get(r.id)}
                           paidCents={balByReg.get(r.id)?.paid_cents}
+                          payInFullCents={payInFullByReg.get(r.id) ?? undefined}
                         />
                         {/* Offered plainly beside Pay rather than hidden behind
                             "having trouble?" — the ministry raises money for

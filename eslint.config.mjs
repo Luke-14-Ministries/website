@@ -36,6 +36,8 @@ export default [
       'out/**',
       'next-env.d.ts',
       'supabase/functions/**',
+      // Deno test rig for the functions above (payment plans, 30 Sep 2026).
+      'supabase/tests/**',
     ],
   },
   {

@@ -28,6 +28,7 @@ import {
   emailLooksValid,
 } from '@/lib/format';
 import { submitFamilyRegistration } from './actions';
+import { formatDueDate } from '@/lib/events';
 
 const emptyMember = {
   personId: null,
@@ -497,24 +498,57 @@ export default function FamilyWizard({
             hid the deposit panel). "Update" and "already paid" are different
             facts, and only the second means the ask is finished. The server
             returns depositDue with the save; undefined errs toward asking. */}
-        {result.depositDue !== false && (
+        {/* Camp weeks: the last step is choosing how to pay, and the
+            registration is not finished until they do (Larry, 30 Sep 2026).
+            It replaces the deposit ask below, because the deposit is now the
+            first payment of a plan -- or is covered by paying in full. */}
+        {result.needsPaymentChoice && !result.paymentChosen && result.registrationId && (
+          <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
+            <p className="font-semibold">One last step: choose how you&rsquo;ll pay.</p>
+            <p className="mt-1 text-sm">
+              Pay in full, set up a payment plan, or request help with the fee. Your
+              registration isn&rsquo;t finished until you choose.
+              {result.balanceDue && (
+                <>
+                  {' '}The balance is due by <strong>{formatDueDate(result.balanceDue)}</strong>.
+                </>
+              )}
+            </p>
+            <Link
+              href={`/account/finish/${result.registrationId}/`}
+              className="btn-primary mt-3 inline-block !py-2"
+            >
+              Choose how to pay
+            </Link>
+          </div>
+        )}
+        {!result.needsPaymentChoice && result.depositDue !== false && (
           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
             <p className="font-semibold">
               {isUpdate
                 ? 'Still outstanding: the deposit holds your spots.'
                 : 'Next step: the deposit holds your spots.'}
             </p>
-            {/* Careful with the second sentence: the site does NOT know the
-                ministry's balance-due date, and "any time before the event"
-                was a promise nobody had authorised (flagged 24 Aug). Until
-                staff set a due date -- Staff Questions §3 (Events & pricing)
-                -- this says only what is certainly true. */}
+            {/* The due date: a camp week's balance is due two weeks before
+                that week starts (Larry, 30 Sep 2026; balanceDueOn() in
+                lib/events.js, returned by the save as result.balanceDue).
+                Other events have no rule yet, so they keep the old wording --
+                "any time before the event" was a promise nobody had
+                authorised (flagged 24 Aug). */}
             <p className="mt-1 text-sm">
               The deposit is your family&rsquo;s (or group&rsquo;s) commitment to come — and it lets the
               ministry book vendors and reserve locations with real numbers. You can pay
               it from your dashboard in about a minute, and the rest of the balance can
-              be paid in one go or in parts. Camp staff will be in touch about the
-              balance due date.
+              be paid in one go or in parts.{' '}
+              {result.balanceDue ? (
+                <>
+                  The balance is due by{' '}
+                  <strong>{formatDueDate(result.balanceDue)}</strong>, two weeks before camp
+                  starts.
+                </>
+              ) : (
+                'Camp staff will be in touch about the balance due date.'
+              )}
             </p>
           </div>
         )}

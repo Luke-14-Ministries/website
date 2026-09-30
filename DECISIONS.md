@@ -1867,3 +1867,58 @@ family dashboard; Ada checked in → "Staying in: Maple 121 · Campus map · Bui
 with the venue's two PDFs; published → the room under all four, the links still only under Ada; moved
 to Lodge 111 → "Lodge 111 · Campus map" and no plan link; un-checked, unpublished, removed → nothing.
 Six of six.
+
+## 2026-09-30 — A camp week's balance is due two weeks before that week starts
+
+Larry's rule. It is computed from `events.starts_on` by `balanceDueOn()` in `lib/events.js` rather
+than stored, so it cannot drift from the camp dates and nobody has to enter it. Each week is its
+own event and gets its own date. Camp weeks (`event_type = 'camp_week'`) only; retreats, dinners
+and other events return null and keep the "staff will be in touch about the due date" wording.
+The lead time (`BALANCE_DUE_DAYS_BEFORE`) and the event types are two constants in that file.
+
+Shown on the wizard's confirmation card, the dashboard (balance pill and deposit box), both
+printable statements ("Due by"), the confirmation email, and a Due column on Event Payments,
+marked Overdue once Morristown's calendar passes the date with a balance still owed. Nothing is
+enforced — no late fee, no automatic reminder (the reminder buttons are still placeholders).
+
+This replaces the 29 September ruling not to build due dates because each event's date was
+unknown: a rule makes a per-event date unnecessary.
+
+## 2026-09-30 — Payment plans, a payment choice to finish registering, and the early-registration discount
+
+Larry's rules. For camp weeks, a registration is **not finished** until the family either
+pays in full, sets up a payment plan, or requests a scholarship. Early registration earns a flat
+amount off per person (Camp Celebrate: $50) for people registered by the event's early date,
+**when the family pays in full or is on a plan**; a scholarship request alone does not earn it.
+A plan charges a saved card or bank account automatically: the deposit is the first payment, and
+the rest is split monthly or twice a month (the family chooses), with the last charge on the due
+date. Built in migration `0080`, `app/account/finish/`, `stripe-plans-webhook`,
+`charge-payment-plans` and `supabase/functions/_shared/`. The steps to switch it on are in
+`supabase/PAYMENT-PLANS-SETUP.md`.
+
+The choices under it:
+
+- **A daily charger, not Stripe subscriptions.** Stripe Billing adds a percentage on top of the
+  normal fees (the fee saving is the whole case for this platform). Its fixed amounts go stale the
+  moment a scholarship or discount changes a balance, and it cannot do "the 1st and 15th". Each
+  charge here is worked out on the day as what is still owed divided by the charges left, so a
+  plan always ends on exactly $0.
+- **"Finished" is worked out, not stored.** The `registration_payment_routes` view decides it from
+  what happened: a plan that got past its deposit, a paid balance, or a scholarship request. A
+  stored "chose a plan" flag could be true with no plan behind it.
+- **Plans come into existence only from Stripe.** Families read their plan and never write it. The
+  webhook creates the plan when the deposit and saved payment method are confirmed.
+- **The early discount is a rule recomputed from stored facts**, the same pattern as `0070`, and
+  sits in its own column (`early_discount_cents`) so the two rules can never overwrite each
+  other. The old per-option early-bird *price* is retired.
+- **Failures:** retried after 3 days, 3 tries in all, then the plan stops as `failed` and staff are
+  emailed. **Staff decide** whether a failed or cancelled plan keeps the early discount. It keeps
+  it until a registrar unticks the box.
+- **A separate webhook endpoint** for plans, following `stripe-refund-webhook`'s reasoning: the
+  payment webhook only gained one call, to recompute the discount after any payment.
+
+Found and fixed along the way: **a family could change their own fee through the database API**
+(proved on a scratch copy: an ordinary family login set a camper's fee to $0). A trigger now
+refuses any family-side change to fees, discounts or scholarships. Separately, the Setup page's
+price box could have re-priced the zero-fee volunteer option instead of the camp fee; it now
+targets the enrollment option only.

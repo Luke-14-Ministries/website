@@ -38,6 +38,10 @@ export default function PayPanel({
   depositCents,
   pendingCents,
   paidCents,
+  // What paying everything RIGHT NOW costs -- the balance less any
+  // early-registration discount that paying in full would earn (0080's
+  // pay_in_full_amount). Defaults to the balance.
+  payInFullCents,
 }) {
   const [open, setOpen] = useState(false);
   // The $50 deposit is REQUIRED (Larry, 24 Aug), so until a family has paid
@@ -97,7 +101,9 @@ export default function PayPanel({
   // The base amount for the chosen kind, in cents. For custom, parse the typed
   // dollars; invalid input shows as $0 until it parses.
   const customCents = Math.round((parseFloat(customAmount) || 0) * 100);
-  const base = kind === 'deposit' ? deposit : kind === 'custom' ? customCents : balance;
+  const full = Math.min(payInFullCents ?? balance, balance);
+  const earnsEarly = full < balance;
+  const base = kind === 'deposit' ? deposit : kind === 'custom' ? customCents : full;
   const fee = method === 'card' && coverFee && base > 0 ? coverFeeCents(base, 'card') : 0;
   const total = base + fee;
 
@@ -129,7 +135,7 @@ export default function PayPanel({
     return (
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => setOpen(true)} className="btn-primary !py-2">
-          {depositFirst ? `Pay deposit — ${dollars(deposit)}` : `Pay ${dollars(balance)}`}
+          {depositFirst ? `Pay deposit — ${dollars(deposit)}` : `Pay ${dollars(full)}`}
         </button>
         {clearing > 0 && (
           <span className="text-sm text-amber-700">{dollars(clearing)} clearing the bank ⏳</span>
@@ -145,7 +151,7 @@ export default function PayPanel({
       <p className="text-xs font-semibold text-neutral-500 mb-1">Amount</p>
       <div className="flex flex-wrap gap-2 mb-2">
         <Radio name="kind" value="balance" cur={kind} set={setKind}>
-          Full balance — {dollars(balance)}
+          Full balance — {dollars(full)}
         </Radio>
         {hasDeposit && (
           <Radio name="kind" value="deposit" cur={kind} set={setKind}>
@@ -156,6 +162,11 @@ export default function PayPanel({
           Other amount…
         </Radio>
       </div>
+      {kind === 'balance' && earnsEarly && (
+        <p className="mb-3 text-xs text-green-700">
+          Paying in full now includes your {dollars(balance - full)} early-registration discount.
+        </p>
+      )}
       {kind === 'custom' && (
         <div className="mb-3">
           <label className="sr-only" htmlFor="custom-amt">

@@ -98,6 +98,22 @@ function revalidateAll(registrationId) {
   revalidatePath('/admin/checkin');
 }
 
+// The early-registration discount (0080) depends on who is on a registration,
+// their fees and reductions, and the payment plan -- so anything here that
+// changes one of those re-runs it. Never fatal, for the same reason as the
+// both-weeks recalc: the change itself has saved.
+async function recalcEarly(registrationId) {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc('recalc_early_registration_discount', {
+      p_registration_id: registrationId,
+    });
+    if (error) console.error('early discount recalc:', error.message);
+  } catch (e) {
+    console.error('early discount recalc:', e?.message);
+  }
+}
+
 // #14 -- move a participant off "submitted / pending review" (or anywhere else).
 export async function setParticipantStatus(
   registrationId,
@@ -193,6 +209,7 @@ export async function setParticipantStatus(
   } catch (e) {
     console.error('multi-week discount recalc:', e?.message);
   }
+  await recalcEarly(registrationId);
 
   revalidateAll(registrationId);
   return { ok: true };
@@ -372,23 +389,19 @@ export async function addParticipant(registrationId, input) {
   if (regError) return { ok: false, error: regError.message };
   if (!reg) return { ok: false, error: 'Registration not found.' };
 
-  // The fee is copied from the option at the moment of adding, honouring an
-  // in-date early-bird price -- the same rule the family wizard follows.
+  // The fee is copied from the option at the moment of adding. The old
+  // early-bird PRICE is retired (0080): early registration is now a flat
+  // per-person discount worked out by recalc_early_registration_discount(),
+  // the same for staff-added and family-added people.
   const { data: opt, error: optError } = await supabase
     .from('event_options')
-    .select('fee_cents, early_bird_fee_cents, early_bird_ends_on')
+    .select('fee_cents')
     .eq('id', optionId)
     .maybeSingle();
   if (optError) return { ok: false, error: optError.message };
   if (!opt) return { ok: false, error: 'That camp option no longer exists.' };
 
-  const today = new Date().toISOString().slice(0, 10);
-  const fee =
-    opt.early_bird_fee_cents != null &&
-    opt.early_bird_ends_on &&
-    today <= opt.early_bird_ends_on
-      ? opt.early_bird_fee_cents
-      : opt.fee_cents;
+  const fee = opt.fee_cents;
 
   // Staff can SELECT any person (people_select allows is_staff), so the insert
   // may safely return the new id -- the RETURNING-under-RLS pitfall that bites
@@ -416,6 +429,7 @@ export async function addParticipant(registrationId, input) {
     fee_cents: fee,
   });
   if (partError) return { ok: false, error: partError.message };
+  await recalcEarly(registrationId);
 
   revalidateAll(registrationId);
   return { ok: true };
@@ -556,6 +570,7 @@ export async function setAdjustments(registrationId, participantId, input) {
       error: `The amounts saved, but the grant record did not: ${auditError.message}`,
     };
   }
+  await recalcEarly(registrationId);
 
   revalidateAll(registrationId);
   return { ok: true };
@@ -741,4 +756,85 @@ export async function refundPayment(registrationId, input) {
   revalidatePath('/admin/payments');
   revalidatePath('/account/dashboard');
   return { ok: true, status, stripeRefundId };
+}
+
+
+// ---------------------------------------------------------------------------
+// Payment plans (0080). Staff can pause, resume, retry or cancel a plan.
+// Nobody on staff ever sees or enters card details: changing the payment
+// method is the family's, on their dashboard, through Stripe's own page.
+// ---------------------------------------------------------------------------
+
+export async function setPlanStatus(registrationId, { action, keepsEarlyDiscount }) {
+  const { staff, error: authError } = await requireRegistrar();
+  if (authError) return { ok: false, error: authError };
+  const supabase = await createClient();
+
+  const { data: plan, error: readError } = await supabase
+    .from('payment_plans')
+    .select('id, status')
+    .eq('registration_id', registrationId)
+    .maybeSingle();
+  if (readError) return { ok: false, error: readError.message };
+  if (!plan) return { ok: false, error: 'This registration has no payment plan.' };
+
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  let update;
+  if (action === 'pause') {
+    if (plan.status !== 'active') return { ok: false, error: 'Only an active plan can be paused.' };
+    update = { status: 'paused' };
+  } else if (action === 'resume') {
+    if (!['paused', 'failed'].includes(plan.status)) {
+      return { ok: false, error: 'Only a paused or stopped plan can be resumed.' };
+    }
+    update = { status: 'active' };
+  } else if (action === 'cancel') {
+    if (['cancelled', 'completed'].includes(plan.status)) {
+      return { ok: false, error: 'This plan has already ended.' };
+    }
+    update = {
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: staff?.userId ?? null,
+      // Staff decide (agreed 30 Sep): does the family keep the early discount?
+      keeps_early_discount: Boolean(keepsEarlyDiscount),
+    };
+  } else if (action === 'discount') {
+    update = { keeps_early_discount: Boolean(keepsEarlyDiscount) };
+  } else {
+    return { ok: false, error: 'Unknown action.' };
+  }
+
+  const { error } = await supabase.from('payment_plans').update(update).eq('id', plan.id);
+  if (error) return { ok: false, error: error.message };
+
+  if (action === 'cancel') {
+    const { error: instError } = await supabase
+      .from('payment_installments')
+      .update({ status: 'cancelled' })
+      .eq('payment_plan_id', plan.id)
+      .in('status', ['scheduled', 'failed']);
+    if (instError) return { ok: false, error: `The plan is cancelled, but its schedule was not: ${instError.message}` };
+  }
+  if (action === 'resume') {
+    // Charges that fell due while it was stopped are not all taken at once:
+    // the schedule is rebuilt from today, spreading what is owed over the
+    // dates that are left. Failed charges get a fresh set of tries.
+    const { error: failError } = await supabase
+      .from('payment_installments')
+      .update({ status: 'cancelled' })
+      .eq('payment_plan_id', plan.id)
+      .eq('status', 'failed');
+    if (failError) return { ok: false, error: failError.message };
+    const { error: buildError } = await supabase.rpc('build_plan_installments', {
+      p_plan_id: plan.id,
+      p_today: today,
+    });
+    if (buildError) return { ok: false, error: `Resumed, but the schedule was not rebuilt: ${buildError.message}` };
+  }
+
+  await recalcEarly(registrationId);
+  revalidateAll(registrationId);
+  revalidatePath('/admin/payments');
+  return { ok: true };
 }

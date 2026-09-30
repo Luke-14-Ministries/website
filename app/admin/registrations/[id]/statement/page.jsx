@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import PrintButton from './PrintButton';
+import { balanceDueOn, formatDueDateShort } from '@/lib/events';
 
 export const metadata = { title: 'Family Statement — Staff Admin' };
 
@@ -43,7 +44,7 @@ export default async function FamilyStatementPage({ params }) {
       .select(
         `id,
          households ( display_name, email, phone, address_line1, address_line2, city, state, postal_code ),
-         events ( name, starts_on, ends_on ),
+         events ( name, event_type, starts_on, ends_on ),
          registration_participants ( camp_role, status, fee_cents, scholarship_cents, discount_cents,
            people ( first_name, last_name ) )`
       )
@@ -217,6 +218,14 @@ export default async function FamilyStatementPage({ params }) {
               : money(bal?.balance_cents)}
           </span>
         </div>
+        {/* Two weeks before a camp week starts (30 Sep 2026). Only while
+            something is owed; other events have no rule and show nothing. */}
+        {(bal?.balance_cents ?? 0) > 0 && balanceDueOn(reg.events) && (
+          <div className="flex justify-between py-1 text-sm">
+            <span>Due by</span>
+            <span>{formatDueDateShort(balanceDueOn(reg.events))}</span>
+          </div>
+        )}
         {(bal?.balance_cents ?? 0) < 0 && (
           <p className="text-xs text-neutral-500 pt-1">
             This family has paid more than the amount due. The credit can be refunded or applied

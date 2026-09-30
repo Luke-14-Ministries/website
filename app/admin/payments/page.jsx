@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { dateISO } from '@/lib/events';
+import { dateISO, balanceDueOn, formatDueDateShort, todayInMorristown } from '@/lib/events';
 import RecordPaymentForm from './RecordPaymentForm';
+import { requiresPaymentChoice, ROUTE_LABEL, SCHEDULE_LABEL } from '@/lib/plans';
 
 export const metadata = { title: 'Event Payments — Staff Admin' };
 
@@ -38,20 +39,25 @@ export default async function AdminPaymentsPage({ searchParams }) {
 
   const supabase = await createClient();
 
-  const [{ data: balances }, { data: regs }, { data: pays }] = await Promise.all([
+  const [{ data: balances }, { data: regs }, { data: pays }, { data: routes, error: routesError }] = await Promise.all([
     supabase
       .from('registration_balances')
       .select('registration_id, event_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
     supabase
       .from('registrations')
-      .select('id, events ( id, name, starts_on, ends_on ), households ( display_name )'),
+      .select('id, events ( id, name, event_type, starts_on, ends_on ), households ( display_name )'),
     supabase
       .from('payments')
       .select('registration_id, amount_cents, fee_cover_cents, method, status, received_on, created_at, note')
       .order('created_at', { ascending: false }),
+    // How each registration is being paid (0080).
+    supabase.from('registration_payment_routes').select('registration_id, route, plan_status, plan_schedule'),
   ]);
+  if (routesError) throw new Error(`Payment routes: ${routesError.message}`);
+  const routeByReg = new Map((routes ?? []).map((x) => [x.registration_id, x]));
 
   const regById = new Map((regs ?? []).map((r) => [r.id, r]));
+  const dueToday = todayInMorristown();
 
   // Every event that has at least one registration, newest first, for the
   // "Specific event" section of the scope dropdown.
@@ -325,6 +331,8 @@ export default async function AdminPaymentsPage({ searchParams }) {
               <th className="px-4 py-2 font-semibold text-right">Scholarship / discount</th>
               <th className="px-4 py-2 font-semibold text-right">Paid</th>
               <th className="px-4 py-2 font-semibold text-right">Balance</th>
+              <th className="px-4 py-2 font-semibold">Due</th>
+              <th className="px-4 py-2 font-semibold">Paying by</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -333,6 +341,10 @@ export default async function AdminPaymentsPage({ searchParams }) {
               const r = regById.get(b.registration_id);
               const assist = (b.discount_cents ?? 0) + (b.scholarship_cents ?? 0) + (b.coupon_cents ?? 0);
               const bal = b.balance_cents ?? 0;
+              // Two weeks before a camp week starts (30 Sep 2026). Overdue =
+              // still owing once Morristown's calendar has passed the date.
+              const dueOn = balanceDueOn(r?.events);
+              const overdue = Boolean(dueOn) && bal > 0 && dueToday > dueOn;
               return (
                 <tr key={b.registration_id} className="border-t border-neutral-100">
                   <td className="px-4 py-2">
@@ -348,6 +360,42 @@ export default async function AdminPaymentsPage({ searchParams }) {
                   <td className="px-4 py-2 text-right">{money(b.paid_cents)}</td>
                   <td className={`px-4 py-2 text-right font-semibold ${bal > 0 ? 'text-amber-700' : 'text-green-700'}`}>
                     {bal < 0 ? `−${money(-bal)}` : money(bal)}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {!dueOn ? (
+                      <span className="text-neutral-400">—</span>
+                    ) : overdue ? (
+                      <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800">
+                        Overdue · {formatDueDateShort(dueOn)}
+                      </span>
+                    ) : (
+                      <span className={bal > 0 ? '' : 'text-neutral-400'}>{formatDueDateShort(dueOn)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm">
+                    {(() => {
+                      const rt = routeByReg.get(b.registration_id);
+                      if (!rt) return <span className="text-neutral-400">—</span>;
+                      if (rt.route === 'none') {
+                        return requiresPaymentChoice(r?.events) ? (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                            Not finished
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        );
+                      }
+                      if (rt.route === 'plan') {
+                        const bad = rt.plan_status === 'failed';
+                        return (
+                          <span className={bad ? 'font-semibold text-red-700' : ''}>
+                            Plan · {SCHEDULE_LABEL[rt.plan_schedule] ?? rt.plan_schedule}
+                            {rt.plan_status !== 'active' ? ` · ${rt.plan_status}` : ''}
+                          </span>
+                        );
+                      }
+                      return ROUTE_LABEL[rt.route] ?? rt.route;
+                    })()}
                   </td>
                   <td className="px-4 py-2 text-right">
                     {/* Per-family actions. <details> = no JavaScript needed;

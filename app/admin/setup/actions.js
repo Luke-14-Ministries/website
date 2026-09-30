@@ -50,7 +50,10 @@ export async function updateEventRegistration(eventId, { published, opensAt, clo
 // leaves every existing participant's fee exactly where it was -- which is
 // the honest behaviour. Re-pricing someone who has already registered is a
 // per-person decision with a paper trail, and that is the adjustments editor.
-export async function updateEventDetails(eventId, { startsOn, endsOn, capacity, feeDollars }) {
+export async function updateEventDetails(
+  eventId,
+  { startsOn, endsOn, capacity, feeDollars, earlyEndsOn, earlyDollars }
+) {
   const staff = await getStaff();
   if (!can(staff, 'admin')) return { ok: false, error: 'Admins only.' };
   if (!eventId) return { ok: false, error: 'Missing event.' };
@@ -86,12 +89,31 @@ export async function updateEventDetails(eventId, { startsOn, endsOn, capacity, 
     }
   }
 
+  // Early registration (0080): a last day and a per-person amount. Blank
+  // amount = no early discount. The date must fall before the event starts.
+  let earlyCents = 0;
+  if (String(earlyDollars ?? '').trim() !== '') {
+    const n = Number.parseFloat(String(earlyDollars).replace(/[$,\s]/g, ''));
+    if (Number.isNaN(n) || n < 0) {
+      return { ok: false, error: 'The early-registration discount has to be a dollar amount, or blank.' };
+    }
+    earlyCents = Math.round(n * 100);
+  }
+  if (earlyCents > 0 && !earlyEndsOn) {
+    return { ok: false, error: 'Give the early-registration discount a last day, or clear the amount.' };
+  }
+  if (earlyEndsOn && earlyEndsOn >= startsOn) {
+    return { ok: false, error: 'Early registration has to end before the event starts.' };
+  }
+
   const { error } = await supabase
     .from('events')
     .update({
       starts_on: startsOn,
       ends_on: endsOn,
       capacity: cap,
+      early_registration_ends_on: earlyEndsOn || null,
+      early_registration_discount_cents: earlyCents,
       updated_at: new Date().toISOString(),
     })
     .eq('id', eventId);
@@ -111,6 +133,10 @@ export async function updateEventDetails(eventId, { startsOn, endsOn, capacity, 
       .select('id')
       .eq('event_id', eventId)
       .eq('published', true)
+      // The ENROLLMENT option only. Without this, "the first published option"
+      // could be 0069's zero-fee volunteer row, and saving a price here would
+      // quietly charge volunteers and leave the camp fee unchanged.
+      .is('participant_role', null)
       .order('sort_order')
       .limit(1)
       .maybeSingle();

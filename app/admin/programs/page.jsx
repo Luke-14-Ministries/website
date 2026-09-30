@@ -57,13 +57,23 @@ export default async function ProgramsPage({ searchParams }) {
         .neq('status', 'cancelled')
     : { data: [] };
 
-  const { data: leaderRows } = selectedId
+  // The FK hint is not optional. program_leaders has TWO foreign keys to
+  // profiles (profile_id, the leader; granted_by, the administrator), so a
+  // bare `profiles ( ... )` is ambiguous and PostgREST refuses the whole query
+  // with PGRST201. Until 29 Sep 2026 that error was dropped on the floor and
+  // every card read "No leader named" while the grants sat in the database --
+  // Testing Script 3 §5.3/§5.6, and the "reported twice" mystery in
+  // ProgramBoard. Errors on this page are logged, never swallowed.
+  const { data: leaderRows, error: leaderError } = selectedId
     ? await supabase
         .from('program_leaders')
-        .select('id, profile_id, program_id, granted_at, is_lead, profiles ( first_name, last_name )')
+        .select(
+          'id, profile_id, program_id, granted_at, is_lead, profiles!program_leaders_profile_id_fkey ( first_name, last_name )'
+        )
         .eq('event_id', selectedId)
         .eq('active', true)
-    : { data: [] };
+    : { data: [], error: null };
+  if (leaderError) console.error('programs: leaders query failed:', leaderError.message);
 
   const people = (participantRows ?? [])
     .map((r) => ({

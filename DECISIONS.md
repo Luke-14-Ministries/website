@@ -1841,3 +1841,18 @@ and logs errors. Verified against the API as a family: empty before publish, the
 again after unpublish, and no other room visible at any point. **Rule for anyone writing a policy:**
 a subquery inside a policy does not get staff's view of the other table; go through a definer
 helper, as `my_participant_ids()` already does.
+
+## 2026-09-29 — Checking in reveals the room, the campus map and the building plan (`0078`)
+
+Lawrence, after seeing "Staying in" work for the first time: the venue's page publishes a campus
+map and a floor plan per lodge; a family arriving at camp needs the room, the map and the plan on
+their phone, and **check-in is the trigger**. Built: `events.campus_map_url` and
+`lodgings.schematic_url` (on the building; rooms inherit), seeded from tnbaptist.org for both Camp
+Celebrate weeks — Maple, Pine (the Hickory/Pine/Laurel plan), Ginn, Dogwood and Cedar. The Lodge
+(rooms 101–312), Carson Hall, the RV sites and Off Campus have no plan on the venue's page and show
+the map only; the Lodge's plan is a question for Larry. A checked-in person's bed is visible to
+their family whether or not staff have published (the 0042 publish gate still reveals rooms ahead of
+time for everyone on the event); the map and plan links appear only after check-in. The room label
+no longer repeats the building — "Lodge 103", not "Lodge — Lodge 103" — since the venue names rooms
+with the building in them; a room named without it still gets the building in front. The set-up
+editor gained the *Floor plan link* box so staff can fill in the Lodge's when it turns up.

@@ -239,7 +239,12 @@ export async function revokeProgramLeader({ grantId }) {
   const supabase = await createClient();
   const { error } = await supabase
     .from('program_leaders')
-    .update({ active: false })
+    .update({
+      active: false,
+      // A removed leader is no longer the lead: otherwise re-naming them later
+      // brought the badge back unasked (found 29 Sep 2026, Testing Script 3 §7.5).
+      is_lead: false,
+    })
     .eq('id', grantId);
 
   if (error) {

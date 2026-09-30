@@ -1824,3 +1824,20 @@ affirmation once given stays on record) but is a ruling, not a given.
 step-free with an accessible bathroom; whether Lodge 111 and 207 exist; the nurse's room's capacity
 and who it is for; whether camp wants a separate staff count per room (CampSite's "0 / 3 staff") or
 one number; what CampSite's red dot beside a name meant; and how many people an RV site counts as.
+
+## 2026-09-29 — Late: a family could never see where they were staying
+
+Found by the bots on Testing Script 4 §11.10, on the first end-to-end publish of a room assignment
+to a family, and older than anything else found today — it has been true since `0042`. Two faults,
+either one enough. The `lodging_assignments` family policy asked "is this event published?" with a
+subquery on `lodgings`, and a policy's subquery runs under the other table's policy for the same
+person; `lodgings_select` was staff-only, so the subquery found nothing and the family's own
+assignment was invisible, published or not. And the dashboard embedded the room and building names
+from `lodgings` with a constraint-name hint PostgREST refuses, dropping the error. `0077` adds two
+SECURITY DEFINER helpers (`lodging_published_for`, `my_visible_lodging_ids`), rewrites the assignment
+policy on the first and gives families a `lodgings` policy on the second — their own bed and its
+building, on a published event, nothing else — and the dashboard uses `parent:parent_id ( name )`
+and logs errors. Verified against the API as a family: empty before publish, the room after, empty
+again after unpublish, and no other room visible at any point. **Rule for anyone writing a policy:**
+a subquery inside a policy does not get staff's view of the other table; go through a definer
+helper, as `my_participant_ids()` already does.

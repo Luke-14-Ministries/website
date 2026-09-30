@@ -1506,7 +1506,7 @@ export default function RegistrationManager({
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
         <h1 className="text-2xl font-bold">{registration.event?.name ?? 'Registration'}</h1>
         <span className="text-sm text-neutral-500">
-          {parts.length} {parts.length === 1 ? 'person' : 'people'} · Fees {money(total)}
+          {livePeople} {livePeople === 1 ? 'person' : 'people'} · Fees {money(total)}
           {adjustments > 0 && (
             <span className="text-green-700"> − {money(adjustments)} scholarships/discounts</span>
           )}

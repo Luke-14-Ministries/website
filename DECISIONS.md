@@ -1765,3 +1765,29 @@ which is why a dashboard-only change did nothing and this file is the one that c
 
 **Rule for anyone grouping commits.** Docs-last is still fine. What is not fine is assuming the push
 deployed: check Vercel, or the site, before reporting a fix as live.
+
+## 2026-09-29 — Wave 2 of the bot round: leaders were being named and never shown, and a leader at `/admin` looped
+
+Two more from Testing Script 3, found once program leaders could be named again (0074):
+
+- **The Program leaders cards never showed anybody (§5.3, §5.6, §7.5).** `program_leaders` has two
+  foreign keys to `profiles` — the leader and the administrator who granted — so PostgREST refuses a
+  bare `profiles ( … )` embed as ambiguous (PGRST201). The page dropped the error and rendered "No
+  leader named" on every card while the grants sat in the database, which is also why Alastair's
+  31 August grant "was reported twice" in ProgramBoard's comments. The embed now names the constraint,
+  `profiles!program_leaders_profile_id_fkey`, and the error is logged.
+- **A program leader who typed `/admin`, or any staff URL, got ERR_TOO_MANY_REDIRECTS (§6.2, §7.1–7.2).**
+  The layout admits leaders, every page then did `redirect('/account/?next=<page>')` for non-staff,
+  and `/account/` sends a signed-in person straight back to `?next=`. Nothing leaked — the loop is
+  the browser giving up, not a page rendering — but a leader's first visit ended on an error. All
+  27 pages now call `bounceNonStaff(nextPath)` in `lib/staff.js`: a leader lands on My Program,
+  anyone else still goes to log in with `?next=`.
+- Also: the staff registration header counted rows, not people ("3 people" for a parent-plus-
+  volunteer and a camper); it now uses the same `registrationHeads` as the deposit.
+
+**Still to settle after this deploys:** the lead badge and remove control (§5.6, §7.5) could not be
+exercised because the cards were empty; the stored Creed agreement text (the `agreements` row, not
+code) still says the affirmation is "required … as a condition of participating", one paragraph above
+the new "speak with Larry" note — the body wants rewording to match the ruling; and unticking the
+Creed after signing is accepted but does not withdraw the signature, which is probably right (an
+affirmation once given stays on record) but is a ruling, not a given.

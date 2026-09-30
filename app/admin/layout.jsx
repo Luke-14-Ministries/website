@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { getProgramLeadership } from '@/lib/programs';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { sinceISO } from '@/lib/events';
 import AdminNav from './AdminNav';
 
@@ -76,7 +76,16 @@ export default async function AdminLayout({ children }) {
   // Order matters below: a person who is BOTH staff and a named leader is
   // treated as staff, because the wider view already contains the narrower one.
   const isLeaderOnly = !staff && leaderships.length > 0;
-  if (!staff && !isLeaderOnly) redirect('/account/?next=/admin/');
+  if (!staff && !isLeaderOnly) {
+    // Logged out: go and log in, then come back. Logged IN but neither staff
+    // nor a leader -- an ordinary family account that typed /admin, or a
+    // leader whose grant was just removed -- must NOT be sent to the login
+    // page: /account/ sends a signed-in person straight to ?next=, which is
+    // this layout again, and the browser gives up (ERR_TOO_MANY_REDIRECTS;
+    // Testing Script 3 §7.5, 29 Sep 2026). They go to their own dashboard.
+    const user = await getCurrentUser();
+    redirect(user ? '/account/dashboard/' : '/account/?next=/admin/');
+  }
 
   // Staff must have two-factor turned on before they can open the staff area,
   // because everything in here is other families' information. The check asks

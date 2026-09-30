@@ -131,7 +131,7 @@ export default async function VolunteerPage() {
   const { data: apps } = await supabase
     .from('volunteer_applications')
     .select(
-      'registration_participant_id, first_time_volunteering, preferred_areas, church_attendance, faith_statement, relevant_skills, disability_experience, accompanying_adult_person_id, status'
+      'registration_participant_id, first_time_volunteering, preferred_areas, church_attendance, faith_statement, relevant_skills, disability_experience, accompanying_adult_person_id, status, creed_affirmed'
     )
     .in('registration_participant_id', volIds);
   const appByPart = new Map((apps ?? []).map((a) => [a.registration_participant_id, a]));
@@ -236,7 +236,12 @@ export default async function VolunteerPage() {
               adults={adults}
               defaultChurch={defaultChurch}
               creed={creed}
-              creedAlreadySigned={creedSignedBy.has(participant.people?.id)}
+              // The box opens as it was LAST saved (0075): an applicant who
+              // unticked it stays unticked, whatever the signature history says.
+              creedAlreadySigned={
+                appByPart.get(participant.id)?.creed_affirmed ??
+                creedSignedBy.has(participant.people?.id)
+              }
             />
           ))}
         </div>

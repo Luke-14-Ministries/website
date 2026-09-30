@@ -59,7 +59,7 @@ export default async function AdminVolunteersPage() {
       ? supabase
           .from('volunteer_applications')
           .select(
-            'registration_participant_id, first_time_volunteering, preferred_areas, church_attendance, faith_statement, relevant_skills, disability_experience, accompanying_adult_person_id, status, reviewed_at, updated_at'
+            'registration_participant_id, first_time_volunteering, preferred_areas, church_attendance, faith_statement, relevant_skills, disability_experience, accompanying_adult_person_id, status, reviewed_at, updated_at, creed_affirmed'
           )
           .in('registration_participant_id', partIds)
       : Promise.resolve({ data: [] }),
@@ -122,7 +122,12 @@ export default async function AdminVolunteersPage() {
         ? { ...app, accompanyingAdultName: adultName.get(app.accompanying_adult_person_id) ?? null }
         : null,
       clearance: clearanceByPerson.get(v.person?.id) ?? null,
-      creedAffirmed: creedAffirmedBy.has(v.person?.id),
+      // Three states (0075): affirmed on the last save; withdrawn (a signature
+      // exists but the last save left the box unticked -- re-flagged, per
+      // Lawrence 29 Sep); never affirmed. The answer on the application wins;
+      // the signature only fills in for applications saved before the column.
+      creedAffirmed: app?.creed_affirmed ?? creedAffirmedBy.has(v.person?.id),
+      creedWithdrawn: app?.creed_affirmed === false && creedAffirmedBy.has(v.person?.id),
     };
   });
 

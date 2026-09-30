@@ -73,6 +73,10 @@ export async function submitVolunteerApplication(payload) {
       relevant_skills: clean(payload.skills),
       disability_experience: clean(payload.experience),
       accompanying_adult_person_id: payload.accompanyingAdultId || null,
+      // The answer AS LAST GIVEN (0075). Ticked = true; left unticked = false,
+      // which re-flags the application at review even if an earlier save
+      // recorded a signature. The signature itself is history and stays.
+      creed_affirmed: creed ? payload?.creedAffirmed === true : null,
       // Any family save (first or edit) goes back under review.
       status: 'applied',
       reviewed_by: null,

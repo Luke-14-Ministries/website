@@ -236,10 +236,16 @@ function VolunteerRow({ row, maySeeChecks }) {
               title={
                 row.creedAffirmed
                   ? 'Affirmed the Apostles’ Creed on the volunteer application'
-                  : 'Did not affirm the Apostles’ Creed — they were asked to speak with Larry; confirm that has happened before approving'
+                  : row.creedWithdrawn
+                    ? 'Affirmed the Apostles’ Creed on an earlier save and left it unticked on the latest one — speak with Larry before approving'
+                    : 'Did not affirm the Apostles’ Creed — they were asked to speak with Larry; confirm that has happened before approving'
               }
             >
-              {row.creedAffirmed ? 'Creed affirmed' : '⚠ Creed not affirmed — speak with Larry'}
+              {row.creedAffirmed
+                ? 'Creed affirmed'
+                : row.creedWithdrawn
+                  ? '⚠ Creed affirmation withdrawn — speak with Larry'
+                  : '⚠ Creed not affirmed — speak with Larry'}
             </span>
           )}
           <span

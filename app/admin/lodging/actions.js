@@ -135,6 +135,12 @@ function shapeLodging(input) {
       accessible: Boolean(input?.accessible),
       accessible_notes: String(input?.accessibleNotes ?? '').trim() || null,
       notes: String(input?.notes ?? '').trim() || null,
+      // The venue's floor plan for a BUILDING (0078); shown to a family once
+      // they are checked in. Only http(s) links, or nothing.
+      schematic_url: (() => {
+        const u = String(input?.schematicUrl ?? '').trim();
+        return /^https?:\/\//i.test(u) ? u : null;
+      })(),
     },
   };
 }
@@ -398,7 +404,7 @@ export async function copyLodgingsFrom({ fromEventId, toEventId }) {
   const { data: source, error: srcError } = await supabase
     .from('lodgings')
     .select(
-      'id, parent_id, name, kind, capacity, staff_capacity, beds, accessible, accessible_notes, notes, sort_order'
+      'id, parent_id, name, kind, capacity, staff_capacity, beds, accessible, accessible_notes, notes, schematic_url, sort_order'
     )
     .eq('event_id', fromEventId)
     .eq('active', true)
@@ -435,6 +441,7 @@ export async function copyLodgingsFrom({ fromEventId, toEventId }) {
           accessible: l.accessible,
           accessible_notes: l.accessible_notes,
           notes: l.notes,
+          schematic_url: l.schematic_url,
           sort_order: l.sort_order,
         }))
       )

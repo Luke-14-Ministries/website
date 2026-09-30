@@ -58,6 +58,7 @@ function readFields(form) {
     accessible: fd.get('accessible') === 'on',
     accessibleNotes: fd.get('accessibleNotes') ?? '',
     notes: fd.get('notes') ?? '',
+    schematicUrl: fd.get('schematicUrl') ?? '',
   };
 }
 
@@ -155,6 +156,19 @@ function LodgingForm({ initial, kinds, submitLabel, onSubmit, onCancel, pending 
             placeholder="Anything staff should know"
             className={inputCls}
           />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Floor plan link (buildings)</label>
+          <input
+            name="schematicUrl"
+            defaultValue={initial?.schematicUrl ?? ''}
+            placeholder="https://… the venue's plan of this building"
+            className={inputCls}
+          />
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Shown to a family, with the campus map, once one of them is checked in. Set it on the
+            building; its rooms use it.
+          </p>
         </div>
       </div>
       <div className="mt-2 flex items-center gap-3">

@@ -190,8 +190,8 @@ export default async function DashboardPage({ searchParams }) {
         .from('registrations')
         .select(
           `id, family_notes, created_at,
-           events ( id, name, starts_on, ends_on, deposit_cents ),
-           registration_participants ( id, camp_role, status, fee_cents,
+           events ( id, name, starts_on, ends_on, deposit_cents, campus_map_url ),
+           registration_participants ( id, camp_role, status, fee_cents, checked_in_at,
              people ( id, first_name, last_name ) )`
         )
         .in('household_id', householdIds)
@@ -444,17 +444,25 @@ export default async function DashboardPage({ searchParams }) {
     // of the same fault is migration 0077. Errors here are logged, not lost.
     const { data: bedRows, error: bedError } = await supabase
       .from('lodging_assignments')
-      .select('registration_participant_id, lodgings ( name, parent:parent_id ( name ) )')
+      .select(
+        'registration_participant_id, lodgings ( name, schematic_url, parent:parent_id ( name, schematic_url ) )'
+      )
       .in('registration_participant_id', myParticipantIds);
     if (bedError) console.error('dashboard: lodging query failed:', bedError.message);
     for (const b of bedRows ?? []) {
       const room = b.lodgings?.name;
       if (!room) continue;
       const parent = b.lodgings?.parent?.name;
-      lodgingByParticipant.set(
-        b.registration_participant_id,
-        parent ? `${parent} — ${room}` : room
-      );
+      // "Lodge 103", not "Lodge — Lodge 103": the venue names rooms with the
+      // building already in them (29 Sep 2026). Only prefix when it is not.
+      const label =
+        parent && !room.toLowerCase().startsWith(parent.toLowerCase()) ? `${parent} ${room}` : room;
+      lodgingByParticipant.set(b.registration_participant_id, {
+        label,
+        // The plan of the BUILDING the room is in (0078); a top-level place
+        // may carry its own.
+        schematicUrl: b.lodgings?.parent?.schematic_url || b.lodgings?.schematic_url || null,
+      });
     }
   }
 
@@ -837,8 +845,38 @@ export default async function DashboardPage({ searchParams }) {
                                 <p className="mt-1 text-xs text-neutral-600">
                                   Staying in:{' '}
                                   <span className="font-semibold">
-                                    {lodgingByParticipant.get(p.id)}
+                                    {lodgingByParticipant.get(p.id).label}
                                   </span>
+                                  {/* Check-in is the trigger for the map and the
+                                      building plan (0078): the room may be shown
+                                      earlier if staff published, but the way to
+                                      find it appears when you have arrived. */}
+                                  {p.checked_in_at && (r.events?.campus_map_url || lodgingByParticipant.get(p.id).schematicUrl) && (
+                                    <>
+                                      {' · '}
+                                      {r.events?.campus_map_url && (
+                                        <a
+                                          href={r.events.campus_map_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-brand underline"
+                                        >
+                                          Campus map
+                                        </a>
+                                      )}
+                                      {r.events?.campus_map_url && lodgingByParticipant.get(p.id).schematicUrl && ' · '}
+                                      {lodgingByParticipant.get(p.id).schematicUrl && (
+                                        <a
+                                          href={lodgingByParticipant.get(p.id).schematicUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-brand underline"
+                                        >
+                                          Building plan
+                                        </a>
+                                      )}
+                                    </>
+                                  )}
                                 </p>
                               )}
                               {buddyNameByParticipant.get(p.id) && (

@@ -47,7 +47,7 @@ export default async function LodgingPage({ searchParams }) {
     ? await supabase
         .from('lodgings')
         .select(
-          'id, parent_id, name, kind, capacity, staff_capacity, beds, accessible, accessible_notes, notes, sort_order, active'
+          'id, parent_id, name, kind, capacity, staff_capacity, beds, accessible, accessible_notes, notes, schematic_url, sort_order, active'
         )
         .eq('event_id', selectedId)
         .order('sort_order')
@@ -93,6 +93,7 @@ export default async function LodgingPage({ searchParams }) {
     beds: l.beds,
     accessible: l.accessible,
     accessibleNotes: l.accessible_notes,
+    schematicUrl: l.schematic_url,
     notes: l.notes,
     sortOrder: l.sort_order,
     active: l.active,

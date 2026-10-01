@@ -167,7 +167,7 @@ export default async function RegistrationDetailPage({ params }) {
   // what is still owed. Full payment history stays on Event Payments.
   const { data: balanceRow } = await supabase
     .from('registration_balances')
-    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents, refund_pending_cents, early_discount_cents')
+    .select('fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents, refund_pending_cents, early_discount_cents, family_discount_cents')
     .eq('registration_id', id)
     .maybeSingle();
 
@@ -226,7 +226,7 @@ export default async function RegistrationDetailPage({ params }) {
       : Promise.resolve({ data: [] }),
     supabase
       .from('agreement_signatures')
-      .select('id, signed_at, signer_name, signer_role, status, agreements ( key, title, version )')
+      .select('id, signed_at, signer_name, signer_role, status, person_id, agreements ( key, title, version ), people ( first_name, last_name )')
       .eq('registration_id', id)
       .order('signed_at', { ascending: true }),
   ]);
@@ -242,6 +242,8 @@ export default async function RegistrationDetailPage({ params }) {
     signerName: s.signer_name,
     signerRole: s.signer_role,
     status: s.status,
+    // Per-person signatures (30 Sep 2026) name who they were signed for.
+    personName: s.people ? `${s.people.first_name} ${s.people.last_name}` : null,
   }));
 
   // Reshape the PostgREST nesting into the names the client component expects.
@@ -275,7 +277,11 @@ export default async function RegistrationDetailPage({ params }) {
   };
 
   // How it is being paid (0080). Errors are shown, never swallowed.
-  const [{ data: routeRow, error: routeError }, { data: planRow, error: planError }] = await Promise.all([
+  const [
+    { data: routeRow, error: routeError },
+    { data: planRow, error: planError },
+    { data: reviewRow, error: reviewError },
+  ] = await Promise.all([
     supabase.from('registration_payment_routes').select('route').eq('registration_id', id).maybeSingle(),
     supabase
       .from('payment_plans')
@@ -285,9 +291,15 @@ export default async function RegistrationDetailPage({ params }) {
       )
       .eq('registration_id', id)
       .maybeSingle(),
+    // The review class and flags (0081, Lawrence 30 Sep 2026).
+    supabase
+      .from('registration_review')
+      .select('review_class, flags, confirmed_paid_cents, deposit_expected_cents')
+      .eq('registration_id', id)
+      .maybeSingle(),
   ]);
-  if (routeError || planError) {
-    throw new Error(`Payment plan lookup failed: ${(routeError ?? planError).message}`);
+  if (routeError || planError || reviewError) {
+    throw new Error(`Payment plan lookup failed: ${(routeError ?? planError ?? reviewError).message}`);
   }
   const planInstallments = [...(planRow?.payment_installments ?? [])].sort((a, b) =>
     a.due_on.localeCompare(b.due_on)
@@ -312,6 +324,8 @@ export default async function RegistrationDetailPage({ params }) {
       plan={planRow ?? null}
       installments={planInstallments}
       earlyDiscountCents={balanceRow?.early_discount_cents ?? 0}
+      familyDiscountCents={balanceRow?.family_discount_cents ?? 0}
+      review={reviewRow ?? null}
       requiresChoice={requiresPaymentChoice(reg.events)}
     />
     </>

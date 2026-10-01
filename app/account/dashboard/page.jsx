@@ -8,7 +8,7 @@ import CancelRequest from './CancelRequest';
 import SupportDetailsCard from './SupportDetailsCard';
 import { registrationDepositCents, registrationHeads } from '@/lib/payments';
 import { balanceDueOn, formatDueDate, formatDueDateShort } from '@/lib/events';
-import { requiresPaymentChoice } from '@/lib/plans';
+import { requiresPaymentChoice, offersPaymentPlan } from '@/lib/plans';
 import PlanPanel from './PlanPanel';
 
 export const metadata = { title: 'Dashboard' };
@@ -1193,10 +1193,14 @@ export default async function DashboardPage({ searchParams }) {
                         return (
                           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                             <p className="font-semibold">
-                              A {money(dep)} deposit is required to hold your spots
+                              A {money(dep)} deposit is needed before staff can approve this registration
                               {heads > 1
                                 ? ` — ${money(r.events?.deposit_cents ?? 0)} for each of the ${heads} people on this registration.`
                                 : '.'}
+                            </p>
+                            <p className="mt-1">
+                              Requesting a full scholarship instead? Use &ldquo;Request help with
+                              the fee&rdquo; and staff will be in touch &mdash; no deposit needed.
                             </p>
                             <p className="mt-1">
                               The deposit is your family&rsquo;s commitment to come — and it lets
@@ -1241,6 +1245,19 @@ export default async function DashboardPage({ searchParams }) {
                             "having trouble?" — the ministry raises money for
                             this, and a link people have to hunt for is one most
                             families will not click. */}
+                        {/* Payment plans stay on offer (0080) now that choosing one is
+                            no longer required to finish registering (30 Sep 2026). */}
+                        {offersPaymentPlan(r.events) &&
+                          !planByReg.get(r.id) &&
+                          (balanceByReg.get(r.id) ?? 0) > 0 && (
+                            <Link
+                              href={`/account/finish/${r.id}/`}
+                              title="Pay in full, or spread the balance with automatic payments."
+                              className="btn-outline !py-2"
+                            >
+                              Payment plan
+                            </Link>
+                          )}
                         <Link
                           href={`/account/scholarship/${r.id}`}
                           title="Ask for help with the fee. It will not affect anyone's place."
@@ -1459,6 +1476,11 @@ export default async function DashboardPage({ searchParams }) {
               <li>
                 <Link href="/account/contact#email-preferences" className="text-brand underline">
                   Email preferences
+                </Link>
+              </li>
+              <li>
+                <Link href="/account/delete-data" className="text-brand underline">
+                  Delete my data
                 </Link>
               </li>
               <li className="text-neutral-400" title="Coming with recurring giving">

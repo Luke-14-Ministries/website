@@ -105,6 +105,12 @@ function revalidateAll(registrationId) {
 async function recalcEarly(registrationId) {
   try {
     const supabase = await createClient();
+    // The family discount first (0081): the 3rd and later person gets $50
+    // off, and the early discount's cap leaves room for it.
+    const { error: famError } = await supabase.rpc('recalc_family_discount', {
+      p_registration_id: registrationId,
+    });
+    if (famError) console.error('family discount recalc:', famError.message);
     const { error } = await supabase.rpc('recalc_early_registration_discount', {
       p_registration_id: registrationId,
     });

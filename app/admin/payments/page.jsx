@@ -4,7 +4,7 @@ import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import { dateISO, balanceDueOn, formatDueDateShort, todayInMorristown } from '@/lib/events';
 import RecordPaymentForm from './RecordPaymentForm';
-import { requiresPaymentChoice, ROUTE_LABEL, SCHEDULE_LABEL } from '@/lib/plans';
+import { requiresPaymentChoice, ROUTE_LABEL, SCHEDULE_LABEL, REVIEW_CLASS, REVIEW_FLAG } from '@/lib/plans';
 
 export const metadata = { title: 'Event Payments — Staff Admin' };
 
@@ -39,7 +39,13 @@ export default async function AdminPaymentsPage({ searchParams }) {
 
   const supabase = await createClient();
 
-  const [{ data: balances }, { data: regs }, { data: pays }, { data: routes, error: routesError }] = await Promise.all([
+  const [
+    { data: balances },
+    { data: regs },
+    { data: pays },
+    { data: routes, error: routesError },
+    { data: reviews, error: reviewError },
+  ] = await Promise.all([
     supabase
       .from('registration_balances')
       .select('registration_id, event_id, fee_cents, discount_cents, scholarship_cents, coupon_cents, paid_cents, balance_cents'),
@@ -52,7 +58,11 @@ export default async function AdminPaymentsPage({ searchParams }) {
       .order('created_at', { ascending: false }),
     // How each registration is being paid (0080).
     supabase.from('registration_payment_routes').select('registration_id, route, plan_status, plan_schedule'),
+    // The three review classes and the flags (0081, Lawrence 30 Sep 2026).
+    supabase.from('registration_review').select('registration_id, review_class, flags'),
   ]);
+  if (reviewError) throw new Error(`Review classes: ${reviewError.message}`);
+  const reviewByReg = new Map((reviews ?? []).map((x) => [x.registration_id, x]));
   if (routesError) throw new Error(`Payment routes: ${routesError.message}`);
   const routeByReg = new Map((routes ?? []).map((x) => [x.registration_id, x]));
 
@@ -144,6 +154,13 @@ export default async function AdminPaymentsPage({ searchParams }) {
         return net > 0 && bal <= 0;
       case 'scholarship':
         return (b.scholarship_cents ?? 0) > 0 || (b.discount_cents ?? 0) > 0;
+      // The review classes (0081).
+      case 'deposit_paid':
+      case 'full_scholarship':
+      case 'neither':
+        return reviewByReg.get(b.registration_id)?.review_class === paystate;
+      case 'flagged':
+        return (reviewByReg.get(b.registration_id)?.flags ?? []).length > 0;
       default:
         return true;
     }
@@ -157,6 +174,10 @@ export default async function AdminPaymentsPage({ searchParams }) {
     ['partial', 'Partially paid'],
     ['paid', 'Fully paid'],
     ['scholarship', 'Scholarship/discount'],
+    ['deposit_paid', 'To review: deposit received'],
+    ['full_scholarship', 'To contact: full scholarship'],
+    ['neither', 'No deposit yet'],
+    ['flagged', 'Flagged'],
   ];
   // One helper builds every filter-carrying URL (pills, CSVs) so the active
   // event + payment state always travel together.
@@ -333,6 +354,7 @@ export default async function AdminPaymentsPage({ searchParams }) {
               <th className="px-4 py-2 font-semibold text-right">Balance</th>
               <th className="px-4 py-2 font-semibold">Due</th>
               <th className="px-4 py-2 font-semibold">Paying by</th>
+              <th className="px-4 py-2 font-semibold">Review</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -395,6 +417,31 @@ export default async function AdminPaymentsPage({ searchParams }) {
                         );
                       }
                       return ROUTE_LABEL[rt.route] ?? rt.route;
+                    })()}
+                  </td>
+                  <td className="px-4 py-2 text-sm">
+                    {(() => {
+                      const rv = reviewByReg.get(b.registration_id);
+                      const c = rv ? REVIEW_CLASS[rv.review_class] : null;
+                      if (!c) return <span className="text-neutral-400">—</span>;
+                      return (
+                        <div className="space-y-1">
+                          <span
+                            title={c.hint}
+                            className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold ${c.cls}`}
+                          >
+                            {c.label}
+                          </span>
+                          {(rv.flags ?? []).map((f) => (
+                            <span
+                              key={f}
+                              className="block whitespace-nowrap text-xs font-semibold text-amber-800"
+                            >
+                              ⚑ {REVIEW_FLAG[f] ?? f}
+                            </span>
+                          ))}
+                        </div>
+                      );
                     })()}
                   </td>
                   <td className="px-4 py-2 text-right">

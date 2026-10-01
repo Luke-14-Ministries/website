@@ -141,6 +141,8 @@ export default async function FamilyRegisterPage({ searchParams }) {
             name: e.name,
             startsOn: e.starts_on,
             endsOn: e.ends_on,
+            // Volunteers arrive a day early for orientation (0081).
+            volunteerArrivesOn: e.volunteer_arrives_on ?? null,
             feeCents: opt.fee_cents,
           }
         : null;
@@ -215,23 +217,53 @@ export default async function FamilyRegisterPage({ searchParams }) {
     // -- chosen deliberately, which is the whole difference.
     const reg = wanted ? (regs ?? []).find((r) => r.event_id === wanted) ?? null : null;
 
-    // Has this household already signed for THIS registration? If so the form
-    // shows the signature rather than asking for it again.
+    // Who on THIS registration has already been signed for (per person since
+    // 30 Sep 2026). Those people are not asked again -- a release's date is
+    // part of the record -- and anyone added later is. Two kinds of record:
+    //   * per-person rows (person_id), the current way;
+    //   * one household-wide row from before, which covered everyone on the
+    //     registration at the moment it was signed, and nobody added after.
     if (reg?.id) {
-      const { data: sigs } = await supabase
-        .from('agreement_signatures')
-        .select('signer_name, signed_at')
-        .eq('registration_id', reg.id)
-        .eq('household_id', householdId)
-        .order('signed_at', { ascending: true })
-        .limit(1);
-      if (sigs?.[0]) {
+      const [{ data: personSigs }, { data: householdSigs }, { data: partRows }] = await Promise.all([
+        supabase
+          .from('agreement_signatures')
+          .select('person_id, signer_name, signed_at')
+          .eq('registration_id', reg.id)
+          .not('person_id', 'is', null),
+        supabase
+          .from('agreement_signatures')
+          .select('signer_name, signed_at')
+          .eq('registration_id', reg.id)
+          .eq('household_id', householdId)
+          .order('signed_at', { ascending: true })
+          .limit(1),
+        supabase
+          .from('registration_participants')
+          .select('person_id, created_at, people ( first_name, last_name )')
+          .eq('registration_id', reg.id),
+      ]);
+      const signedIds = new Set((personSigs ?? []).map((r) => r.person_id));
+      const legacy = householdSigs?.[0] ?? null;
+      const names = new Set();
+      for (const p of partRows ?? []) {
+        const covered =
+          signedIds.has(p.person_id) ||
+          (legacy?.signed_at && p.created_at && p.created_at <= legacy.signed_at);
+        if (covered) {
+          names.add(`${p.people?.first_name ?? ''}|${p.people?.last_name ?? ''}`.trim().toLowerCase());
+        }
+      }
+      const first = [...(personSigs ?? []), ...(legacy ? [legacy] : [])].sort((a, b) =>
+        (a.signed_at ?? '').localeCompare(b.signed_at ?? '')
+      )[0];
+      if (first) {
         // eventId travels with it: a signature is given for one event, and the
         // wizard uses this to stop showing it once a different week is picked.
         signedAlready = {
-          signerName: sigs[0].signer_name,
-          signedAt: sigs[0].signed_at,
+          signerName: first.signer_name,
+          signedAt: first.signed_at,
           eventId: reg.event_id ?? null,
+          people: [...names],
         };
       }
     }

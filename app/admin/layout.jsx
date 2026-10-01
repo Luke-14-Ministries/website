@@ -48,6 +48,7 @@ const NAV = [
   // nothing, which is the failure this project keeps meeting.
   { href: '/admin/programs', label: 'Programs', need: 'registrar', ready: true, group: 'events' },
   { href: '/admin/cancellations', label: 'Cancellations', need: 'registrar', ready: true, group: 'events' },
+  { href: '/admin/deletion-requests', label: 'Deletion requests', need: 'registrar', ready: true, group: 'events' },
   // "Scholarship Requests" wrapped to two lines, dropping its badge onto a
   // line of its own (25 Aug). Shortened to match its neighbours — Rosters,
   // Volunteers, Cancellations are all one word. The page keeps its full title.
@@ -168,6 +169,7 @@ export default async function AdminLayout({ children }) {
   let recentAccounts = 0;
   let recentPayments = 0;
   let openCancellations = 0;
+  let openDeletions = 0;
   let openScholarships = 0;
   let awaitingReview = 0;
   let campersWithoutBuddy = 0;
@@ -240,6 +242,14 @@ export default async function AdminLayout({ children }) {
     volunteersAwaiting = volCount ?? 0;
     recentPayments = payCount ?? 0;
     openCancellations = cancelCount ?? 0;
+    {
+      // Deletion requests waiting on staff (0081).
+      const { count: delCount } = await supabase
+        .from('data_deletion_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'requested');
+      openDeletions = delCount ?? 0;
+    }
     openScholarships = scholCount ?? 0;
     awaitingReview = reviewCount ?? 0;
   }
@@ -392,6 +402,7 @@ export default async function AdminLayout({ children }) {
               '/admin/volunteers': volunteersAwaiting,
               '/admin/accounts': recentAccounts,
               '/admin/cancellations': openCancellations,
+              '/admin/deletion-requests': openDeletions,
               '/admin/scholarships': openScholarships,
               '/admin/buddies': campersWithoutBuddy,
               '/admin/payments': recentPayments,
@@ -402,6 +413,7 @@ export default async function AdminLayout({ children }) {
               '/admin': 'new sign-ups waiting to be confirmed or waitlisted',
               '/admin/accounts': 'created in the last 7 days',
               '/admin/cancellations': 'families waiting to hear back',
+              '/admin/deletion-requests': 'families asking for their data to be deleted',
               '/admin/scholarships': 'families waiting on a decision about the fee',
               '/admin/buddies': 'campers who asked for a buddy and still have nobody',
               '/admin/payments': 'payments in the last 7 days',

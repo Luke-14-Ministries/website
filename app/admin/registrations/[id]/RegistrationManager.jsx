@@ -755,6 +755,14 @@ function ConsentRow({ label, help, record, disabled, onSet }) {
 }
 
 // --- what this household signed ----------------------------------------------
+// Per-person signatures (30 Sep 2026): the capacity each person was signed for in.
+const PERSON_ROLE_LABEL = {
+  self: 'themselves',
+  parent_guardian: 'by parent or guardian',
+  legal_guardian: 'by legal guardian',
+  authorized_adult: 'with their permission, affirmed by the signer',
+};
+
 function AgreementsCard({ signatures }) {
   if (!signatures || signatures.length === 0) {
     return (
@@ -780,7 +788,7 @@ function AgreementsCard({ signatures }) {
     >
       <p className="text-sm text-neutral-600">
         Signed by <strong>{first.signerName}</strong>{' '}
-        {SIGNER_ROLE_LABEL[first.signerRole] ?? ''} on{' '}
+        {first.personName ? '' : SIGNER_ROLE_LABEL[first.signerRole] ?? ''} on{' '}
         {new Date(first.signedAt).toLocaleString('en-US', {
           month: 'long',
           day: 'numeric',
@@ -799,6 +807,11 @@ function AgreementsCard({ signatures }) {
             <span className="font-medium">{s.title}</span>
             {s.version != null && (
               <span className="text-xs text-neutral-400">version {s.version}</span>
+            )}
+            {s.personName && (
+              <span className="text-xs text-neutral-600">
+                for {s.personName} ({PERSON_ROLE_LABEL[s.signerRole] ?? s.signerRole})
+              </span>
             )}
             {s.status !== 'signed_here' && (
               <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-semibold text-neutral-600">

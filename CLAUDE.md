@@ -168,6 +168,39 @@ what falls due, sharing its logic with the webhook through `supabase/functions/_
 could do before. Switch-on steps are in `supabase/PAYMENT-PLANS-SETUP.md`; tests are in
 `supabase/tests/`. Not live until those steps are done.
 
+**Built 30 September 2026, later — migration `0081`, Lawrence's answers to the staff
+questions.** Read `DECISIONS.md` (same date) before touching registration or money.
+- **"Not finished" is switched off.** A family submits with nothing paid.
+  `requiresPaymentChoice()` in `lib/plans.js` returns `false`, and every banner, pill and
+  column keys off it. Plans and pay-in-full stay on offer at `/account/finish/`, now titled
+  "Ways to pay".
+- **The deposit is needed for staff approval**, unless the family requests a full scholarship.
+  Staff work from three classes in the `registration_review` view: deposit received
+  (`succeeded` money only), full scholarship requested, or neither. The view also carries flags:
+  deposit short, photo permission declined, Creed not affirmed. The classes and flags show on
+  Event Payments and on each registration.
+- **Three automatic discounts stack**, each in its own column and each capped at what the
+  person still owes:
+  - both weeks, `discount_cents` (`0070`);
+  - early registration, `early_discount_cents` (`0080`);
+  - family, `family_discount_cents` (`0081`). The 3rd and later person on a registration gets
+    $50 off, written only by `recalc_family_discount()`. Run it before the early recalc
+    (`recalcEarly()` does both).
+- **Agreements are signed per person.**
+  - One `agreement_signatures` row per person per agreement, with `signer_role` set to `self`,
+    `parent_guardian`, `legal_guardian` or `authorized_adult`. The last needs the signer's
+    explicit affirmation.
+  - The rows are written by `app/register/family/actions.js`, not the RPC. People added later
+    are signed for then. Old household-wide rows still cover whoever was on the registration
+    when they were signed.
+  - Version 2 agreements contain `{{event}}`, filled in by `agreementText()` in
+    `lib/events.js`.
+  - The scholarship and payment-by-check agreements are retired.
+- **Volunteers arrive a day early** for orientation: `events.volunteer_arrives_on`.
+- **Families can ask for their data to be deleted** at `/account/delete-data`. Staff work the
+  queue at `/admin/deletion-requests`; nothing is deleted automatically.
+- Tests: `supabase/tests/staff_answers_rules.sql`, run on a scratch database like the 0080 ones.
+
 ### Program leaders are not staff — a second kind of person now reaches `/admin`
 
 Added 29 August in migration `0061`, and easy to miss: a **program leader** has **no row in

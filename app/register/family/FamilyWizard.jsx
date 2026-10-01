@@ -28,7 +28,7 @@ import {
   emailLooksValid,
 } from '@/lib/format';
 import { submitFamilyRegistration } from './actions';
-import { formatDueDate } from '@/lib/events';
+import { formatDueDate, agreementText, formatDueDateShort } from '@/lib/events';
 
 const emptyMember = {
   personId: null,
@@ -70,7 +70,7 @@ const RECONSIDER = {
   mediaConsent: (who) =>
     `Photos are how the ministry shows people what camp is actually like — most of what you see on the website and in print came from a week like this one.\n\n` +
     `Unchecking tells us you'd rather we didn't feature ${who}, and we'll do our best to honour that. Some families have good reasons, and we'd much rather you tell us than not.\n\n` +
-    `You can change your mind at any time, and if a particular photo ever concerns you, email info@luke14ministries.net and we'll work to sort it out promptly.\n\n` +
+    `You can change your mind at any time. If you are uncomfortable, please contact Larry at larry@luke14ministries.net and we'll work it out together.\n\n` +
     // "Would you be willing" rather than "would you like" -- they have just
     // told us what they'd like by unchecking; the question being asked is
     // whether they are willing to reconsider (wording flagged 24 Aug).
@@ -217,7 +217,12 @@ export default function FamilyWizard({
   // asked for a legal category when what the release needs is a plain claim
   // about THESE people. Lawrence's wording: the signature covers everyone
   // listed above, and the signer states they are able to give it.
-  const [coversAll, setCoversAll] = useState(false);
+  // Per-person signing (Lawrence, 30 Sep 2026). The signer signs for
+  // themselves; for minors as their parent or guardian; and for each other
+  // adult either as their legal guardian or with that adult's permission --
+  // which the signer must affirm. Keyed by "first|last", lower case.
+  const [capacityFor, setCapacityFor] = useState(() => ({}));
+  const [affirmOthers, setAffirmOthers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -241,18 +246,14 @@ export default function FamilyWizard({
   // Measured at the START OF CAMP, not today: a seventeen-year-old who turns
   // eighteen in June is an adult at camp in July, and the release covers the
   // week, not the day the form was filled in.
-  const minorsOnForm = members.filter((m) => {
-    const a = ageOn(m.dob, week?.startsOn);
-    return a !== null && a < 18;
-  });
-  const hasMinor = minorsOnForm.length > 0;
+  // (Who is a minor is now decided per person -- isMinor() below.)
   // Derived, never stored: storing it would need an effect to keep it honest
   // as dates of birth are typed, and an effect that rewrites the user's answer
   // is how a form starts arguing with the person filling it in.
   // One value now, because there is one claim: this signature covers everyone
   // on this registration. Whether that includes children is a fact of the
   // list, not a separate question.
-  const effectiveSignerRole = 'all_registered';
+
 
   // Already registered for the week on screen, and this is not that
   // registration being edited? Say so, with the way in. Silence here is how a
@@ -268,9 +269,32 @@ export default function FamilyWizard({
   // could roll onto the Adult Adventure Retreat without the words ever being
   // shown again.
   const signedEventId = signedAlready?.eventId ?? existing?.eventId ?? null;
-  const alreadySigned =
+  const signedThisEvent =
     Boolean(signedAlready?.signedAt) && signedEventId != null && week?.eventId === signedEventId;
   const named = members.filter((m) => m.firstName.trim() && m.lastName.trim());
+  const personKey = (m) => `${m.firstName.trim()}|${m.lastName.trim()}`.toLowerCase();
+  const signedNames = new Set(signedThisEvent ? signedAlready?.people ?? [] : []);
+  // Who still needs signing for: everyone named who is not already signed for
+  // on this registration -- so a person added later is signed for then.
+  const toSign = named.filter((m) => !signedNames.has(personKey(m)));
+  const alreadySigned = signedThisEvent && toSign.length === 0;
+  const normName = (v) => (v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const isSigner = (m) =>
+    normName(`${m.firstName} ${m.lastName}`) ===
+    normName(`${family.contactFirst} ${family.contactLast}`);
+  const isMinor = (m) => {
+    const a = ageOn(m.dob, week?.startsOn);
+    return a !== null && a < 18;
+  };
+  const capacityOf = (m) =>
+    isSigner(m) ? 'self' : isMinor(m) ? 'parent_guardian' : capacityFor[personKey(m)] ?? '';
+  const otherAdults = toSign.filter((m) => !isSigner(m) && !isMinor(m));
+  const needsAffirmation = otherAdults.some((m) => capacityOf(m) === 'authorized_adult');
+  // The words of each agreement for THIS event (v2 agreements carry {{event}}).
+  const eventForText = week
+    ? { name: week.name, starts_on: week.startsOn, ends_on: week.endsOn }
+    : null;
+  const anyVolunteer = named.some((m) => m.role === 'Volunteer' || m.alsoVolunteering);
   const namedCount = named.length;
   const total = (week?.feeCents ?? 0) * namedCount;
 
@@ -426,9 +450,18 @@ export default function FamilyWizard({
         setError('Please type your full name as your signature at the bottom of the “Agreements” card.');
         return;
       }
-      if (!coversAll) {
+      const undecided = otherAdults.filter((m) => !capacityOf(m));
+      if (undecided.length > 0) {
         setError(
-          'Please tick the box confirming you are able to sign for everyone listed on this registration — in the “Agreements” card below.'
+          `Please say how you are signing for ${undecided
+            .map((m) => m.firstName.trim())
+            .join(', ')} — in the “Agreements” card below.`
+        );
+        return;
+      }
+      if (needsAffirmation && !affirmOthers) {
+        setError(
+          'Please confirm that the other adults you are signing for have given you permission — in the “Agreements” card below.'
         );
         return;
       }
@@ -461,8 +494,13 @@ export default function FamilyWizard({
           ? null
           : {
               signerName: signerName.trim(),
-              signerRole: effectiveSignerRole,
               keys: agreements.map((a) => a.key),
+              people: toSign.map((m) => ({
+                firstName: m.firstName.trim(),
+                lastName: m.lastName.trim(),
+                capacity: capacityOf(m),
+              })),
+              affirmOtherAdults: needsAffirmation && affirmOthers,
             },
       });
       if (res?.ok) {
@@ -498,48 +536,27 @@ export default function FamilyWizard({
             hid the deposit panel). "Update" and "already paid" are different
             facts, and only the second means the ask is finished. The server
             returns depositDue with the save; undefined errs toward asking. */}
-        {/* Camp weeks: the last step is choosing how to pay, and the
-            registration is not finished until they do (Larry, 30 Sep 2026).
-            It replaces the deposit ask below, because the deposit is now the
-            first payment of a plan -- or is covered by paying in full. */}
-        {result.needsPaymentChoice && !result.paymentChosen && result.registrationId && (
-          <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
-            <p className="font-semibold">One last step: choose how you&rsquo;ll pay.</p>
-            <p className="mt-1 text-sm">
-              Pay in full, set up a payment plan, or request help with the fee. Your
-              registration isn&rsquo;t finished until you choose.
-              {result.balanceDue && (
-                <>
-                  {' '}The balance is due by <strong>{formatDueDate(result.balanceDue)}</strong>.
-                </>
-              )}
-            </p>
-            <Link
-              href={`/account/finish/${result.registrationId}/`}
-              className="btn-primary mt-3 inline-block !py-2"
-            >
-              Choose how to pay
-            </Link>
-          </div>
+        {result.signatureError && (
+          <p className="mt-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-left text-sm text-red-800">
+            {result.signatureError}
+          </p>
         )}
-        {!result.needsPaymentChoice && result.depositDue !== false && (
+        {/* The deposit is required for APPROVAL, not to submit (Lawrence,
+            30 Sep 2026) -- unless the family asks for a full scholarship. */}
+        {result.depositDue !== false && (
           <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900">
             <p className="font-semibold">
               {isUpdate
-                ? 'Still outstanding: the deposit holds your spots.'
-                : 'Next step: the deposit holds your spots.'}
+                ? 'Still outstanding: the $50 deposit.'
+                : 'Next step: the $50 deposit.'}
             </p>
-            {/* The due date: a camp week's balance is due two weeks before
-                that week starts (Larry, 30 Sep 2026; balanceDueOn() in
-                lib/events.js, returned by the save as result.balanceDue).
-                Other events have no rule yet, so they keep the old wording --
-                "any time before the event" was a promise nobody had
-                authorised (flagged 24 Aug). */}
             <p className="mt-1 text-sm">
-              The deposit is your family&rsquo;s (or group&rsquo;s) commitment to come — and it lets the
-              ministry book vendors and reserve locations with real numbers. You can pay
-              it from your dashboard in about a minute, and the rest of the balance can
-              be paid in one go or in parts.{' '}
+              Your registration is saved, and camp staff approve it once the deposit
+              ($50 a person) arrives — unless you are requesting a full scholarship, in
+              which case use &ldquo;Request help with the fee&rdquo; on your dashboard and
+              staff will be in touch. You can pay the deposit from your dashboard in
+              about a minute; the rest can be paid in one go, in parts, or with a
+              payment plan.{' '}
               {result.balanceDue ? (
                 <>
                   The balance is due by{' '}
@@ -621,7 +638,15 @@ export default function FamilyWizard({
                   checked={weekIdx === i}
                   onChange={() => setWeekIdx(i)}
                 />
-                <span className="font-semibold">{fmtWeek(w)}</span>
+                <span>
+                  <span className="font-semibold">{fmtWeek(w)}</span>
+                  {w.volunteerArrivesOn && (
+                    <span className="block text-xs text-neutral-500">
+                      Volunteers arrive {formatDueDateShort(w.volunteerArrivesOn)}, a day
+                      early, for orientation.
+                    </span>
+                  )}
+                </span>
               </span>
               <span className="text-sm text-neutral-600 shrink-0">
                 {money(w.feeCents)}/person
@@ -982,10 +1007,19 @@ export default function FamilyWizard({
                       the subject of a picture, and with a small team and thousands of
                       photos in a week we can&rsquo;t promise nobody ever appears in a
                       wide group or whole-camp shot. If you see something you&rsquo;re
-                      not comfortable with, email{' '}
-                      <span className="font-semibold">info@luke14ministries.net</span> and
+                      not comfortable with, please contact Larry at{' '}
+                      <span className="font-semibold">larry@luke14ministries.net</span> and
                       we&rsquo;ll work to address it promptly.
                     </span>
+                    {/* Unticking flags the registration for staff review
+                        (Lawrence, 30 Sep 2026) -- it never blocks it. */}
+                    {m.mediaConsent !== 'true' && (
+                      <span className="mt-1 block rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
+                        Photo permission is off for {m.firstName.trim() || 'this person'}. A
+                        staff member will look at this with you. If you&rsquo;re uncomfortable,
+                        please contact Larry at larry@luke14ministries.net.
+                      </span>
+                    )}
                     {m.mediaWasNo && m.mediaConsent === 'true' && (
                       <span className="mt-1 block rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900">
                         Last time you told us you&rsquo;d rather we didn&rsquo;t. We ask
@@ -1096,15 +1130,16 @@ export default function FamilyWizard({
         />
       </Card>
 
-      {/* 5 — the agreements, signed once for the whole family. */}
+      {/* 5 — the agreements. Signed once by the person filling in the form,
+          and recorded for EACH person it covers (Lawrence, 30 Sep 2026). */}
       {agreements.length > 0 && (
         <Card
           n={5}
           title="Agreements"
           subtitle={
             alreadySigned
-              ? 'Already signed for this registration — nothing to do here.'
-              : 'Please read each one. Your typed name at the bottom signs all of them, for everyone listed above.'
+              ? 'Already signed for everyone on this registration — nothing to do here.'
+              : 'Please read each one. Your typed name at the bottom signs them, for each person listed below.'
           }
         >
           {alreadySigned ? (
@@ -1120,7 +1155,8 @@ export default function FamilyWizard({
               </p>
               <p className="mt-1 text-sm text-green-800">
                 Signatures aren&rsquo;t re-taken when you update a registration — the
-                date on a release is part of the record.{' '}
+                date on a release is part of the record. Anyone you add later is signed
+                for when you add them.{' '}
                 <Link href="/account/agreements/" className="underline font-semibold">
                   View or print your copy
                 </Link>
@@ -1129,6 +1165,16 @@ export default function FamilyWizard({
             </div>
           ) : (
             <>
+              {signedNames.size > 0 && (
+                <p className="mb-3 rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-900">
+                  Already signed for on this registration:{' '}
+                  {named
+                    .filter((m) => signedNames.has(personKey(m)))
+                    .map((m) => m.firstName.trim())
+                    .join(', ')}
+                  . The agreements below are for the people added since.
+                </p>
+              )}
               <div className="space-y-3">
                 {agreements.map((a) => (
                   <label
@@ -1149,7 +1195,9 @@ export default function FamilyWizard({
                       />
                       <span>
                         <span className="block font-bold">{a.title}</span>
-                        <span className="mt-1 block text-sm text-neutral-700">{a.body}</span>
+                        <span className="mt-1 block text-sm text-neutral-700">
+                          {agreementText(a.body, eventForText)}
+                        </span>
                       </span>
                     </span>
                   </label>
@@ -1157,66 +1205,63 @@ export default function FamilyWizard({
               </div>
 
               <div className="mt-6 rounded border border-neutral-300 bg-neutral-50 p-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className={label}>Type your full name to sign</label>
+                <p className={label}>Who you are signing for</p>
+                <ul className="mt-1 divide-y divide-neutral-200 rounded border border-neutral-200 bg-white text-sm">
+                  {toSign.map((m) => {
+                    const k = personKey(m);
+                    const name = `${m.firstName.trim()} ${m.lastName.trim()}`;
+                    return (
+                      <li key={k} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                        <span className="font-semibold">{name}</span>
+                        {isSigner(m) ? (
+                          <span className="text-neutral-600">Yourself</span>
+                        ) : isMinor(m) ? (
+                          <span className="text-neutral-600">As their parent or legal guardian</span>
+                        ) : (
+                          <select
+                            className="rounded border border-neutral-300 px-2 py-1"
+                            value={capacityFor[k] ?? ''}
+                            onChange={(e) => setCapacityFor({ ...capacityFor, [k]: e.target.value })}
+                          >
+                            <option value="">— how are you signing? —</option>
+                            <option value="legal_guardian">I am their legal guardian</option>
+                            <option value="authorized_adult">They have given me permission</option>
+                          </select>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {needsAffirmation && (
+                  <label className="mt-3 flex items-start gap-2 text-sm font-medium">
                     <input
-                      className={`${input} font-serif italic text-lg`}
-                      value={signerName}
-                      onChange={(e) => setSignerName(e.target.value)}
-                      placeholder="Your full name"
-                      autoComplete="name"
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={affirmOthers}
+                      onChange={(e) => setAffirmOthers(e.target.checked)}
                     />
-                  </div>
-                  <div>
-                    {/* Not a menu of legal categories. The release covers the
-                        people on this registration — that list is a few inches
-                        up the page — and what it needs from the signer is the
-                        claim that they can give it for those people.
-
-                        Two earlier attempts asked this as a choice ("myself and
-                        my household" / "people I am parent or guardian for")
-                        and both were reported as unclear, the second one after
-                        a release covering a seven-year-old recorded itself as
-                        signed "for themselves". A question nobody can answer
-                        confidently is the wrong question. */}
-                    <span className={label}>This signature covers</span>
-                    <div className="rounded border border-brand bg-brand-light px-3 py-2 text-sm">
-                      <p className="font-semibold">
-                        Everyone listed in &ldquo;Who is coming&rdquo; above
-                        {named.length > 0 && ` — ${named.length} ${
-                          named.length === 1 ? 'person' : 'people'
-                        }`}
-                      </p>
-                      {named.length > 0 && (
-                        <p className="mt-1 text-neutral-700">
-                          {named
-                            .map((m) => `${m.firstName} ${m.lastName}`.trim())
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
-                      )}
-                      <label className="mt-2 flex items-start gap-2 font-medium">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5"
-                          checked={coversAll}
-                          onChange={(e) => setCoversAll(e.target.checked)}
-                        />
-                        <span>
-                          I am legally able to sign these agreements on behalf of everyone
-                          listed above.
-                        </span>
-                      </label>
-                      {hasMinor && (
-                        <p className="mt-2 text-xs text-neutral-600">
-                          {minorsOnForm.length === 1
-                            ? `${minorsOnForm[0].firstName || 'One person'} is under 18 at camp, so this includes signing as their parent or legal guardian.`
-                            : `${minorsOnForm.length} of them are under 18 at camp, so this includes signing as their parent or legal guardian.`}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                    <span>
+                      I confirm that{' '}
+                      {otherAdults
+                        .filter((m) => capacityOf(m) === 'authorized_adult')
+                        .map((m) => m.firstName.trim())
+                        .join(', ')}{' '}
+                      {otherAdults.filter((m) => capacityOf(m) === 'authorized_adult').length === 1
+                        ? 'has'
+                        : 'have'}{' '}
+                      given me permission to sign these agreements on their behalf.
+                    </span>
+                  </label>
+                )}
+                <div className="mt-4 sm:max-w-sm">
+                  <label className={label}>Type your full name to sign</label>
+                  <input
+                    className={`${input} font-serif italic text-lg`}
+                    value={signerName}
+                    onChange={(e) => setSignerName(e.target.value)}
+                    placeholder="Your full name"
+                    autoComplete="name"
+                  />
                 </div>
                 <p className="mt-3 text-xs text-neutral-600">
                   Dated {new Date().toLocaleDateString('en-US', {
@@ -1224,10 +1269,9 @@ export default function FamilyWizard({
                     day: 'numeric',
                     year: 'numeric',
                   })}
-                  . Typing your name here has the same effect as signing on paper. We
-                  record which version of each agreement you signed, so you can always
-                  see the exact wording you agreed to — a copy is available on your
-                  dashboard afterwards.
+                  . Typing your name here has the same effect as signing on paper. Your
+                  signature is recorded separately for each person above, with the version
+                  of each agreement you saw, and a copy is on your dashboard afterwards.
                 </p>
               </div>
             </>
@@ -1288,7 +1332,11 @@ export default function FamilyWizard({
         </div>
       </div>
 
-      {/* This used to say "ask at camp@luke14ministries.net" -- written before
+      {/* DEPOSIT DECISION settled 30 Sep 2026 (Lawrence): submit freely; the
+          deposit is needed for approval unless a full scholarship is asked
+          for. The wording below says so. Older history follows.
+
+          This used to say "ask at camp@luke14ministries.net" -- written before
           the scholarship request existed in the site. It sent a family off to
           compose an email for something the platform now handles, and put the
           burden of asking on the person least likely to want to (26 Aug).
@@ -1307,9 +1355,13 @@ export default function FamilyWizard({
           button has been misled by us. The deposit paragraph in the
           confirmation email changes with it. */}
       <p className="text-center text-sm text-neutral-500 pb-2">
-        Cost shouldn&rsquo;t decide this. Submit your registration, then use
-        &ldquo;Request help with the fee&rdquo; on your dashboard &mdash; asking
-        does not affect anyone&rsquo;s place.
+        Cost shouldn&rsquo;t decide this. You can submit without paying: a $50
+        deposit per person is needed for approval, unless you request a full
+        scholarship &mdash; use &ldquo;Request help with the fee&rdquo; on your
+        dashboard after submitting. Asking does not affect anyone&rsquo;s place.
+        {anyVolunteer && week?.volunteerArrivesOn
+          ? ` Volunteers arrive ${formatDueDateShort(week.volunteerArrivesOn)}, a day before campers, for orientation.`
+          : ''}
         {isUpdate
           ? ' Updating replaces your saved answers for this session; people are matched by name and date of birth, so nobody is duplicated.'
           : ''}

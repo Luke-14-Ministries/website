@@ -1922,3 +1922,58 @@ Found and fixed along the way: **a family could change their own fee through the
 refuses any family-side change to fees, discounts or scholarships. Separately, the Setup page's
 price box could have re-priced the zero-fee volunteer option instead of the camp fee; it now
 targets the enrollment option only.
+
+---
+
+## 2026-09-30 — Lawrence's answers to the staff questions (migration `0081`)
+
+These come from the staff questions PDF and are recorded in full in the project doc
+`claude/decisions-2026-09-30-lawrence.md`.
+
+- **Refunds.** A registrar or an admin can issue one. Withdrawing a registration never refunds
+  automatically. The code already worked this way: `refundPayment` is registrar-level, and the
+  cancellation queue moves no money.
+- **Reminder emails.** Open. Ellen and Katie will decide.
+- **2027 pricing.** $495 a person, camper or volunteer. Three automatic discounts stack:
+  - the 3rd and later family member gets $50 off;
+  - a volunteer staying both weeks gets 50% off the 2nd week (`0070`, with
+    `c_require_vol_both = true`, which answers that function's open Q7);
+  - early registration, $50 (`0080`).
+
+  Each discount has its own column, so no rule can overwrite another's, and each is capped at
+  what the person still owes.
+- **The deposit is needed for approval, not to submit.** It is not needed if the family requests
+  a full scholarship. This **replaces** the 30 Sep "not finished until you choose how to pay"
+  flow; plans and pay-in-full stay available. Staff sort registrations into three classes:
+  1. deposit received, where only confirmed money counts and a bank transfer still clearing does
+     not;
+  2. full scholarship requested;
+  3. neither, where nothing needs reviewing yet but the details are kept.
+
+  A first payment of any size puts a registration in class 1, and a shortfall against $50 a
+  person is shown as a flag. *Why:* treating a family that paid $50 for three people as
+  "nothing to review" would hide a family who is clearly coming.
+- **Going public is gated on Stripe paying out to the bank.** On 30 Sep a Truist account was
+  linked but the payout schedule was manual. It must be set to automatic.
+- **Agreements are signed per person.**
+  - Each adult signs for themselves. A parent or guardian signs for minors and for adults in
+    their guardianship. Signing for another adult needs an explicit affirmation that they gave
+    permission.
+  - Anyone added later is signed for when they are added. A signature is never re-taken.
+  - Agreements name the event, filled in automatically ("Camp Celebrate, July 19–23, 2027").
+  - The scholarship and payment-by-check agreements are retired. Scholarship wording carries
+    no dates and no named person's email.
+- **Apostles' Creed.** It has Lawrence's wording, and "please contact Larry" if uncomfortable.
+  Not affirming flags the registration for staff and never blocks it.
+- **Photos.** The box starts ticked. Unticking flags the registration for staff review, with
+  "please contact Larry" alongside. **Directory:** the box starts ticked, with the same
+  encouragement pop-up on unticking. That was already how the site worked.
+- **Data retention.** The proposed policy stands, with 2 years changed to **3 years**. It is not
+  published. Families can request deletion from their dashboard, and staff act on it by hand,
+  because payments, releases and background checks must be kept.
+- **2027 dates** are confirmed. Volunteers arrive one day earlier, for orientation.
+- **The shared mailbox.** `info@` is an M365 shared mailbox owned by Lawrence, Larry, Ellen and
+  Katie. Each of them must add it in Outlook and remember to check it, because its new-mail
+  indicator is easy to miss. A forwarding group would be easier to notice, but could lose its
+  use as a "send from" address for the site's automatic emails.
+

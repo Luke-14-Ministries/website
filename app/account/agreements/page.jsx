@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import PrintButton from './PrintButton';
+import { agreementText } from '@/lib/events';
 
 export const metadata = { title: 'My Agreements — Luke 14 Ministries' };
 
@@ -43,6 +44,14 @@ const SIGNER_ROLE_LABEL = {
   account_holder: 'as the account holder',
 };
 
+// Per-person signatures (30 Sep 2026): the capacity each person was signed for in.
+const PERSON_ROLE_LABEL = {
+  self: 'themselves',
+  parent_guardian: 'parent or legal guardian',
+  legal_guardian: 'legal guardian',
+  authorized_adult: 'with their permission',
+};
+
 const CONSENT_LABEL = {
   media: 'Photos and video — may be featured in published material',
   directory: 'Included in the participant directory',
@@ -68,15 +77,27 @@ export default async function AgreementsPage() {
     // Standing rule on this project: never swallow a query error. A blank page
     // where a signature should be is exactly the kind of thing someone would
     // read as "we never signed anything".
-    const [sigRes, conRes] = await Promise.all([
+    const [sigRes, personSigRes, conRes] = await Promise.all([
       supabase
         .from('agreement_signatures')
         .select(
-          `id, signed_at, signer_name, signer_role, status,
+          `id, signed_at, signer_name, signer_role, status, agreement_id,
            agreements ( key, version, title, body ),
-           registrations ( events ( name ) )`
+           registrations ( events ( name, starts_on, ends_on ) )`
         )
         .eq('household_id', householdId)
+        .order('signed_at', { ascending: false }),
+      // Per-person signatures carry no household_id -- they belong to the
+      // person -- so they are found through the person (30 Sep 2026).
+      supabase
+        .from('agreement_signatures')
+        .select(
+          `id, signed_at, signer_name, signer_role, status, agreement_id,
+           agreements ( key, version, title, body ),
+           registrations ( events ( name, starts_on, ends_on ) ),
+           people!inner ( first_name, last_name, household_id )`
+        )
+        .eq('people.household_id', householdId)
         .order('signed_at', { ascending: false }),
       supabase
         .from('person_consents')
@@ -84,19 +105,28 @@ export default async function AgreementsPage() {
         .eq('people.household_id', householdId)
         .order('recorded_at', { ascending: false }),
     ]);
-    signatures = sigRes.data ?? [];
+    signatures = [...(sigRes.data ?? []), ...(personSigRes.data ?? [])].sort((a, b) =>
+      (b.signed_at ?? '').localeCompare(a.signed_at ?? '')
+    );
     consents = conRes.data ?? [];
-    queryError = sigRes.error?.message || conRes.error?.message || null;
+    queryError =
+      sigRes.error?.message || personSigRes.error?.message || conRes.error?.message || null;
   }
 
   // Group signatures by the event they were signed for, newest first. A family
   // that has attended three years running should see three clean blocks, not
   // eighteen rows.
+  // Within an event, one entry per agreement version, listing everyone it was
+  // signed for -- a family of four signed per person should read as one text
+  // and four names, not four copies of the same paragraph.
   const byEvent = new Map();
   for (const s of signatures) {
     const name = s.registrations?.events?.name ?? 'General';
-    if (!byEvent.has(name)) byEvent.set(name, []);
-    byEvent.get(name).push(s);
+    if (!byEvent.has(name)) byEvent.set(name, { event: s.registrations?.events ?? null, rows: [], byAgreement: new Map() });
+    const g = byEvent.get(name);
+    g.rows.push(s);
+    if (!g.byAgreement.has(s.agreement_id)) g.byAgreement.set(s.agreement_id, { agreement: s.agreements, sigs: [] });
+    g.byAgreement.get(s.agreement_id).sigs.push(s);
   }
 
   // Latest answer per person per kind -- the current permission. Earlier rows
@@ -167,29 +197,51 @@ export default async function AgreementsPage() {
           </p>
         ) : (
           <div className="space-y-8">
-            {[...byEvent.entries()].map(([eventName, rows]) => (
+            {[...byEvent.entries()].map(([eventName, { event, rows, byAgreement }]) => (
               <div
                 key={eventName}
                 className="rounded-lg border border-neutral-200 bg-white shadow-sm p-6 sm:p-8 print:border-0 print:shadow-none print:p-0"
               >
                 <h2 className="text-xl font-bold">{eventName}</h2>
                 <p className="mt-1 text-sm text-neutral-600">
-                  Signed by <strong>{rows[0].signer_name}</strong>{' '}
-                  {SIGNER_ROLE_LABEL[rows[0].signer_role] ?? ''} on{' '}
+                  Signed by <strong>{rows[0].signer_name}</strong>
+                  {rows[0].people ? '' : ` ${SIGNER_ROLE_LABEL[rows[0].signer_role] ?? ''}`} on{' '}
                   {fmtDateTime(rows[0].signed_at)}.
                 </p>
                 <div className="mt-4 space-y-4">
-                  {rows.map((s) => (
-                    <div key={s.id} className="rounded border border-neutral-200 p-4">
-                      <p className="font-bold">
-                        {s.agreements?.title}{' '}
-                        <span className="font-normal text-xs text-neutral-500">
-                          (version {s.agreements?.version})
-                        </span>
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-700">{s.agreements?.body}</p>
-                    </div>
-                  ))}
+                  {[...byAgreement.values()].map(({ agreement, sigs }) => {
+                    const people = sigs.filter((x) => x.people);
+                    return (
+                      <div key={sigs[0].id} className="rounded border border-neutral-200 p-4">
+                        <p className="font-bold">
+                          {agreement?.title}{' '}
+                          <span className="font-normal text-xs text-neutral-500">
+                            (version {agreement?.version})
+                          </span>
+                        </p>
+                        <p className="mt-1 text-sm text-neutral-700">
+                          {agreementText(agreement?.body, event)}
+                        </p>
+                        {people.length > 0 && (
+                          <p className="mt-2 text-xs text-neutral-600">
+                            Signed for:{' '}
+                            {people
+                              .map(
+                                (x) =>
+                                  `${x.people.first_name} ${x.people.last_name} (${
+                                    PERSON_ROLE_LABEL[x.signer_role] ?? x.signer_role
+                                  }, ${new Date(x.signed_at).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })})`
+                              )
+                              .join('; ')}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

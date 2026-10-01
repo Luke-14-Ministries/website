@@ -88,32 +88,46 @@ export async function submitFamilyRegistration(payload) {
     };
   }
 
-  // The signature block is only sent when this household has not already
-  // signed for this registration; the RPC also refuses to overwrite an
-  // existing signature, so a tampered payload cannot rewrite the date on a
-  // release either.
-  // The same signer-name rule the form enforces, re-checked here because the
-  // form is not a boundary: the signature must name the primary contact.
+  // SIGNATURES ARE PER PERSON (Lawrence, 30 Sep 2026). The person filling in
+  // the form signs once, and that signature is recorded against EACH person it
+  // covers, with the capacity it was given in:
+  //   self            the signer, for themselves
+  //   parent_guardian a minor at the start of the event (parent or guardian)
+  //   legal_guardian  an adult in the signer's legal guardianship
+  //   authorized_adult another adult on the registration, who has given the
+  //                   signer permission -- which the signer must affirm
+  // Anyone already signed for on this registration is not signed again: a
+  // release's date is part of the record. People added later get their own
+  // signature then. Written after the save (below), not by the RPC, which
+  // only ever knew a household-wide signature.
   const norm = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  if (
-    agreements &&
-    (agreements.signerName || '').trim() &&
-    norm(agreements.signerName) !== norm(`${family.contactFirst} ${family.contactLast}`)
-  ) {
-    return {
-      ok: false,
-      error: "The signature must match the primary contact's name.",
+  const CAPACITIES = new Set(['self', 'parent_guardian', 'legal_guardian', 'authorized_adult']);
+  let signature = null;
+  if (agreements && (agreements.signerName || '').trim() && Array.isArray(agreements.keys)) {
+    // The signature must name the primary contact -- the accountable adult.
+    if (norm(agreements.signerName) !== norm(`${family.contactFirst} ${family.contactLast}`)) {
+      return { ok: false, error: "The signature must match the primary contact's name." };
+    }
+    const people = (Array.isArray(agreements.people) ? agreements.people : [])
+      .filter((p) => CAPACITIES.has(p?.capacity) && (p.firstName || '').trim() && (p.lastName || '').trim())
+      .map((p) => ({
+        key: `${p.firstName.trim()}|${p.lastName.trim()}`.toLowerCase(),
+        capacity: p.capacity,
+      }));
+    if (people.some((p) => p.capacity === 'authorized_adult') && agreements.affirmOtherAdults !== true) {
+      return {
+        ok: false,
+        error:
+          'Please confirm that the other adults you are signing for have given you permission to sign on their behalf.',
+      };
+    }
+    signature = {
+      signerName: agreements.signerName.trim(),
+      keys: agreements.keys.filter((k) => typeof k === 'string'),
+      people,
+      affirmOtherAdults: agreements.affirmOtherAdults === true,
     };
   }
-
-  const signature =
-    agreements && (agreements.signerName || '').trim() && Array.isArray(agreements.keys)
-      ? {
-          signerName: agreements.signerName.trim(),
-          signerRole: agreements.signerRole || 'account_holder',
-          keys: agreements.keys,
-        }
-      : null;
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('submit_family_registration', {
@@ -123,7 +137,7 @@ export async function submitFamilyRegistration(payload) {
       eventId,
       optionId,
       notes: notes || '',
-      ...(signature ? { agreements: signature } : {}),
+      // No `agreements` key: signatures are written per person below.
     },
   });
 
@@ -331,6 +345,109 @@ export async function submitFamilyRegistration(payload) {
     console.error('multi-week discount recalc:', e?.message);
   }
 
+  // The family discount (0081): the 3rd and later person on a registration
+  // gets $50 off. Before the early discount, which leaves room for it.
+  try {
+    if (data?.registrationId) {
+      await supabase.rpc('recalc_family_discount', { p_registration_id: data.registrationId });
+    }
+  } catch (e) {
+    console.error('family discount recalc:', e?.message);
+  }
+
+  // Per-person signatures (see the comment at the top). Never fatal to a save
+  // that has happened -- but unlike the discounts, a signature that did not
+  // record is reported, because the registration is not complete without it.
+  let signed = 0;
+  let signatureError = null;
+  if (signature && data?.registrationId && signature.keys.length > 0) {
+    try {
+      const [{ data: agreementRows }, { data: parts }, { data: ev }] = await Promise.all([
+        supabase
+          .from('agreements')
+          .select('id, key, version')
+          .in('key', signature.keys)
+          .eq('active', true)
+          .order('version', { ascending: false }),
+        supabase
+          .from('registration_participants')
+          .select('person_id, status, people ( first_name, last_name, date_of_birth )')
+          .eq('registration_id', data.registrationId),
+        supabase.from('events').select('starts_on').eq('id', eventId).maybeSingle(),
+      ]);
+      const latest = new Map();
+      for (const a of agreementRows ?? []) if (!latest.has(a.key)) latest.set(a.key, a.id);
+      const agreementIds = [...latest.values()];
+
+      const { data: already } = await supabase
+        .from('agreement_signatures')
+        .select('agreement_id, person_id')
+        .eq('registration_id', data.registrationId)
+        .not('person_id', 'is', null);
+      const have = new Set((already ?? []).map((r) => `${r.agreement_id}|${r.person_id}`));
+
+      const capacityByName = new Map(signature.people.map((p) => [p.key, p.capacity]));
+      const startsOn = ev?.starts_on ?? null;
+      const ageAt = (dob) => {
+        if (!dob || !startsOn) return null;
+        const [by, bm, bd] = dob.split('-').map(Number);
+        const [y, m, d] = startsOn.split('-').map(Number);
+        return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
+      };
+      const NOTE = {
+        self: 'Signed for themselves.',
+        parent_guardian: 'Signed by their parent or legal guardian.',
+        legal_guardian: 'Signed by their legal guardian.',
+        authorized_adult:
+          'Signed on their behalf; the signer affirmed this adult gave permission to sign for them.',
+      };
+
+      const rows = [];
+      const seen = new Set();
+      for (const r of parts ?? []) {
+        if (!r.person_id || r.status === 'cancelled' || seen.has(r.person_id)) continue;
+        seen.add(r.person_id);
+        const key = `${r.people?.first_name ?? ''}|${r.people?.last_name ?? ''}`.toLowerCase();
+        let capacity = capacityByName.get(key);
+        if (!capacity) continue; // not on the form this time, so not signed for now
+        // The server decides what it can: a minor at camp is always signed
+        // for by a parent or guardian, whatever the form said.
+        const age = ageAt(r.people?.date_of_birth ?? null);
+        if (age !== null && age < 18) capacity = 'parent_guardian';
+        else if (capacity === 'self' && norm(`${r.people?.first_name} ${r.people?.last_name}`) !== norm(signature.signerName)) {
+          capacity = 'authorized_adult';
+        }
+        if (capacity === 'authorized_adult' && !signature.affirmOtherAdults) continue;
+        for (const agreementId of agreementIds) {
+          if (have.has(`${agreementId}|${r.person_id}`)) continue;
+          rows.push({
+            agreement_id: agreementId,
+            person_id: r.person_id,
+            registration_id: data.registrationId,
+            status: 'signed_here',
+            signer_name: signature.signerName,
+            signer_role: capacity,
+            note: NOTE[capacity],
+          });
+        }
+      }
+      if (rows.length > 0) {
+        const { error: sigError } = await supabase.from('agreement_signatures').insert(rows);
+        if (sigError) {
+          console.error('per-person signatures:', sigError.message);
+          signatureError =
+            'Your registration was saved, but the agreements could not be recorded. Please open it again from your dashboard and sign.';
+        } else {
+          signed = rows.length;
+        }
+      }
+    } catch (e) {
+      console.error('per-person signatures:', e?.message);
+      signatureError =
+        'Your registration was saved, but the agreements could not be recorded. Please open it again from your dashboard and sign.';
+    }
+  }
+
   // The early-registration discount (0080) is recomputed too: adding someone
   // to a registration that is already on a plan earns them their share.
   try {
@@ -390,11 +507,12 @@ export async function submitFamilyRegistration(payload) {
     ok: true,
     registrationId: data?.registrationId,
     saved: data?.saved ?? mapped.length,
-    signed: data?.signed ?? 0,
+    signed,
+    signatureError,
     depositDue,
     balanceDue,
-    // Camp weeks: the registration is not finished until the family chooses
-    // pay in full / payment plan / scholarship (Larry, 30 Sep 2026).
+    // Always false since 30 Sep 2026 (see requiresPaymentChoice in
+    // lib/plans.js); kept so the flow can be turned back on in one place.
     needsPaymentChoice,
     paymentChosen,
   };

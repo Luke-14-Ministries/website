@@ -112,9 +112,12 @@ export default async function FinishPage({ params }) {
         <Link href="/account/dashboard/" className="text-sm text-brand underline">
           ← Back to dashboard
         </Link>
-        <h1 className="text-3xl font-bold mt-3 mb-1">Finish registering</h1>
+        {/* Retitled 30 Sep 2026: choosing is optional now -- a registration
+            is complete when submitted; the deposit is what staff need to
+            approve it (Lawrence). This page is simply the ways to pay. */}
+        <h1 className="text-3xl font-bold mt-3 mb-1">Ways to pay</h1>
         <p className="text-neutral-600 mb-6">
-          {ev.name}. One last step: choose how you&rsquo;ll pay.
+          {ev.name}. Pay in full, set up a payment plan, or request help with the fee.
           {due && (
             <>
               {' '}The balance is due by <strong>{formatDueDate(due)}</strong>, two weeks before
@@ -125,7 +128,7 @@ export default async function FinishPage({ params }) {
 
         {done ? (
           <div className="rounded border border-green-300 bg-green-50 px-4 py-3 text-green-900">
-            <p className="font-semibold">You&rsquo;re all set — this registration is finished.</p>
+            <p className="font-semibold">You&rsquo;re all set.</p>
             <p className="mt-1 text-sm">
               {route.route === 'plan' && 'Your payment plan is in place. Its schedule is on your dashboard.'}
               {route.route === 'paid_in_full' && 'Your balance is paid in full. Thank you!'}

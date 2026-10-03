@@ -3,6 +3,17 @@ import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
 import StaffManager from './StaffManager';
 
+const SUMMARY =
+  'flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden';
+
+function Chevron() {
+  return (
+    <span aria-hidden="true" className="text-neutral-400 transition-transform group-open:rotate-180">
+      &#9662;
+    </span>
+  );
+}
+
 export const metadata = { title: 'Staff & Access — Staff Admin' };
 
 // Who is on staff, wearing which hat, holding which grants. Admin-only; the
@@ -74,38 +85,54 @@ export default async function StaffAccessPage() {
         conversation if real duties call for them.
       </p>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3 text-sm">
-        <div className="rounded-lg bg-white border border-neutral-200 p-4">
-          <p className="font-bold mb-1">Registrar</p>
-          <p className="text-neutral-600">
+      {/* Explanation cards are collapsed by default (Lawrence, 2 Oct 2026): the
+          page is for doing, and the long explanations pushed the staff list below
+          the fold. <details> needs no client JS and keeps the text one click away. */}
+      <div className="mb-3 grid gap-3 sm:grid-cols-3 text-sm items-start">
+        <details className="group rounded-lg bg-white border border-neutral-200 p-4">
+          <summary className={SUMMARY}>
+            <span className="font-bold">Registrar</span>
+            <Chevron />
+          </summary>
+          <p className="text-neutral-600 mt-2">
             Registrations &amp; money for events: review and confirm sign-ups, edit families,
             record payments, rosters, check-in, tracked changes, exports.
           </p>
-        </div>
-        <div className="rounded-lg bg-white border border-neutral-200 p-4">
-          <p className="font-bold mb-1">Coordinator</p>
-          <p className="text-neutral-600">
+        </details>
+        <details className="group rounded-lg bg-white border border-neutral-200 p-4">
+          <summary className={SUMMARY}>
+            <span className="font-bold">Coordinator</span>
+            <Chevron />
+          </summary>
+          <p className="text-neutral-600 mt-2">
             Day-of and program duties: check-in at the door, activities and buddy assignments
             (as those pages arrive). No access to family edits or money.
           </p>
-        </div>
-        <div className="rounded-lg bg-white border border-neutral-200 p-4">
-          <p className="font-bold mb-1">Administrator</p>
-          <p className="text-neutral-600">
+        </details>
+        <details className="group rounded-lg bg-white border border-neutral-200 p-4">
+          <summary className={SUMMARY}>
+            <span className="font-bold">Administrator</span>
+            <Chevron />
+          </summary>
+          <p className="text-neutral-600 mt-2">
             Everything — including this page: an administrator can add and remove staff,
             change anyone&rsquo;s role, and <span className="font-semibold">grant or revoke
             administrator itself</span>. All administrators are equal (there is no
             &ldquo;super admin&rdquo;), and nobody can demote, deactivate, or remove
             themselves — that always takes another administrator, which is one reason to
-            have two. Also: event setup, accounts, and two-factor resets. Sensitive and
-            Giving are separate grants even for administrators — self-grantable, but
-            deliberately not automatic. Keep this list short.
+            have two. Also: event setup, accounts, two-factor resets, and each event&rsquo;s
+            medical contact. Sensitive and Giving are separate grants even for
+            administrators — self-grantable, but deliberately not automatic. Keep this
+            list short.
           </p>
-        </div>
+        </details>
       </div>
-      <div className="mb-6 rounded-lg bg-white border border-neutral-200 p-4 text-sm">
-        <p className="font-bold mb-1">Separate grants (any role can hold them)</p>
-        <p className="text-neutral-600">
+      <details className="group mb-6 rounded-lg bg-white border border-neutral-200 p-4 text-sm">
+        <summary className={SUMMARY}>
+          <span className="font-bold">Separate grants (any role can hold them)</span>
+          <Chevron />
+        </summary>
+        <p className="text-neutral-600 mt-2">
           <span className="font-semibold">Sensitive</span> — medical, dietary, and support
           details (Dietary, Medical &amp; Support pages, red flags at check-in).{' '}
           <span className="font-semibold">Giving</span> — donor gift records.{' '}
@@ -134,7 +161,7 @@ export default async function StaffAccessPage() {
           that seeing this data is a deliberate choice, not something that comes along
           with other duties.
         </p>
-      </div>
+      </details>
 
       <StaffManager members={members} selfId={staff.userId} accounts={pickable} />
     </div>

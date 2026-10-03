@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { eventWindow } from '@/lib/events';
+import { eventWindow, staffAssigns } from '@/lib/events';
 
 export const metadata = { title: 'Medical & Support — Staff Admin' };
 
@@ -19,7 +19,7 @@ export default async function MedicalPage({ searchParams }) {
   const [{ data: events }, { data: regs }] = await Promise.all([
     supabase
       .from('events')
-      .select('id, name, starts_on, ends_on, medical_contact_name, medical_contact_phone')
+      .select('id, name, event_type, starts_on, ends_on, medical_contact_name, medical_contact_phone')
       .order('starts_on'),
     supabase
       .from('registrations')
@@ -34,6 +34,8 @@ export default async function MedicalPage({ searchParams }) {
       ),
   ]);
 
+  // No buddy pill for a retreat: buddies are paired on arrival (2 Oct 2026).
+  const assignsBuddies = new Set((events ?? []).filter(staffAssigns).map((e) => e.id));
   const byEvent = new Map();
   for (const r of regs ?? []) {
     for (const p of r.registration_participants ?? []) {
@@ -55,7 +57,7 @@ export default async function MedicalPage({ searchParams }) {
         seizureDetail: s.seizure_detail,
         rescue: s.has_rescue_medication,
         rescueDetail: s.rescue_medication_detail,
-        buddy: s.buddy_required,
+        buddy: s.buddy_required && assignsBuddies.has(r.event_id),
         ecName: s.emergency_contact_name,
         ecPhone: s.emergency_contact_phone,
         ecRel: s.emergency_contact_relationship,

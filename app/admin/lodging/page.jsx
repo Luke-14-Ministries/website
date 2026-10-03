@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { eventWindow } from '@/lib/events';
+import { eventWindow, staffAssigns } from '@/lib/events';
 import LodgingBoard from './LodgingBoard';
 import LodgingSetup from './LodgingSetup';
 import EventFilter from '@/components/EventFilter';
@@ -21,10 +21,13 @@ export default async function LodgingPage({ searchParams }) {
 
   const supabase = await createClient();
 
-  const { data: events } = await supabase
+  const { data: allEvents } = await supabase
     .from('events')
-    .select('id, name, starts_on, ends_on, lodging_assignments_published_at')
+    .select('id, name, event_type, starts_on, ends_on, lodging_assignments_published_at')
     .order('starts_on');
+  // Retreats are sorted on arrival, not assigned here (2 Oct 2026; see
+  // staffAssigns in lib/events.js).
+  const events = (allEvents ?? []).filter(staffAssigns);
 
   // Current-and-upcoming decides what the page OPENS on; EventFilter reaches
   // everything else by search, so no page-level "show past" toggle any more.
@@ -34,7 +37,12 @@ export default async function LodgingPage({ searchParams }) {
   const visible = (events ?? []).filter(
     (e) => (e.ends_on ?? '9999') >= cutoff && (e.starts_on ?? '0000') <= horizonISO
   );
-  const selectedId = params?.event || visible[0]?.id || null;
+  // A retreat's id in the URL falls back to the first camp event rather than
+  // drawing a board for something that is sorted on arrival.
+  const selectedId =
+    (params?.event && (events ?? []).some((e) => e.id === params.event) ? params.event : null) ||
+    visible[0]?.id ||
+    null;
   const selected = (events ?? []).find((e) => e.id === selectedId) ?? null;
 
   // Every place on the event, inactive ones included: the board draws the

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getStaff, can, bounceNonStaff } from '@/lib/staff';
 import { createClient } from '@/lib/supabase/server';
-import { eventWindow } from '@/lib/events';
+import { eventWindow, staffAssigns } from '@/lib/events';
 import CheckinList from './CheckinList';
 import MedicalContact from './MedicalContact';
 
@@ -39,7 +39,7 @@ export default async function CheckinPage({ searchParams }) {
   const supabase = await createClient();
   const { data: events } = await supabase
     .from('events')
-    .select('id, name, starts_on, ends_on, medical_contact_name, medical_contact_phone')
+    .select('id, name, event_type, starts_on, ends_on, medical_contact_name, medical_contact_phone')
     .order('starts_on');
   // Check-In deliberately keeps a pill row rather than the searchable picker:
   // it is used standing at a door on a phone, and typing is the wrong
@@ -56,6 +56,9 @@ export default async function CheckinPage({ searchParams }) {
     typeof params?.event === 'string' && eventsList.some((e) => e.id === params.event)
       ? params.event
       : eventsList[0]?.id;
+
+  // A retreat pairs buddies on arrival, so no buddy pills at its door (2 Oct 2026).
+  const assignsBuddies = staffAssigns(eventsList.find((e) => e.id === eventId));
 
   let rows = [];
   if (eventId) {
@@ -139,7 +142,7 @@ export default async function CheckinPage({ searchParams }) {
         // "who?" is the question staff actually have. An unassigned one is
         // work outstanding -- amber. Sharing a colour is precisely what
         // would let a missing assignment hide among the finished ones.
-        if (s?.buddy_required) {
+        if (s?.buddy_required && assignsBuddies) {
           const names = buddyNamesOf.get(p.id) ?? [];
           if (names.length > 0) {
             flags.push({

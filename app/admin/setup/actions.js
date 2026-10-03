@@ -161,3 +161,80 @@ export async function updateEventDetails(
   revalidatePath('/account/dashboard');
   return { ok: true };
 }
+
+// Create an event (2 Oct 2026). Until now every event was a migration, so a
+// new camp week needed a developer. The work is one database function,
+// admin_create_event (0083), so the event, its two price options, its
+// agreements and -- when copying -- its activities and rooms all land in one
+// transaction or not at all. A half-made event (no price, no agreements) would
+// take registrations that sign nothing, which is worse than no event.
+//
+// Always created HIDDEN. Ticking "Visible" stays a separate, deliberate act.
+const parseDollars = (v) => {
+  const t = String(v ?? '').replace(/[$,\s]/g, '');
+  if (t === '') return null;
+  const n = Number.parseFloat(t);
+  return Number.isNaN(n) || n < 0 ? Number.NaN : Math.round(n * 100);
+};
+
+export async function createEvent({
+  name,
+  eventType,
+  startsOn,
+  endsOn,
+  feeDollars,
+  depositDollars,
+  capacity,
+  location,
+  copyFrom,
+}) {
+  const staff = await getStaff();
+  if (!can(staff, 'admin')) return { ok: false, error: 'Admins only.' };
+
+  const cleanName = String(name ?? '').trim();
+  if (!cleanName) return { ok: false, error: 'Give the event a name.' };
+  if (!['camp_week', 'retreat'].includes(eventType)) {
+    return { ok: false, error: 'Choose Camp or Retreat.' };
+  }
+  if (!startsOn || !endsOn) return { ok: false, error: 'An event needs a first and a last day.' };
+  if (endsOn < startsOn) {
+    return { ok: false, error: 'The last day is before the first day — check the two.' };
+  }
+
+  const fee = parseDollars(feeDollars);
+  if (fee == null || Number.isNaN(fee)) {
+    return { ok: false, error: 'The price has to be a dollar amount (0 is allowed).' };
+  }
+  const deposit = parseDollars(depositDollars);
+  if (Number.isNaN(deposit)) return { ok: false, error: 'The deposit has to be a dollar amount, or blank.' };
+  if ((deposit ?? 0) > fee) return { ok: false, error: 'The deposit cannot be more than the price.' };
+
+  let cap = null;
+  if (String(capacity ?? '').trim() !== '') {
+    cap = Number.parseInt(String(capacity).replace(/[^0-9-]/g, ''), 10);
+    if (Number.isNaN(cap) || cap < 0) {
+      return { ok: false, error: 'Places has to be a whole number, or blank for no limit.' };
+    }
+  }
+
+  const supabase = await createClient();
+  const { data: id, error } = await supabase.rpc('admin_create_event', {
+    p_name: cleanName,
+    p_event_type: eventType,
+    p_starts_on: startsOn,
+    p_ends_on: endsOn,
+    p_fee_cents: fee,
+    p_deposit_cents: deposit ?? 0,
+    p_capacity: cap,
+    p_location: String(location ?? '').trim() || null,
+    p_copy_from: copyFrom || null,
+  });
+  if (error) {
+    console.error('createEvent:', error.message);
+    return { ok: false, error: `Could not create the event: ${error.message}` };
+  }
+
+  revalidatePath('/admin/setup');
+  revalidatePath('/admin', 'layout');
+  return { ok: true, id };
+}

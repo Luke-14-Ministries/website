@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getStaff, can } from '@/lib/staff';
 import { getProgramLeadership } from '@/lib/programs';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
-import { sinceISO, ASSIGNED_ON_ARRIVAL_TYPES } from '@/lib/events';
+import { sinceISO, STAFF_ASSIGNED_TYPES } from '@/lib/events';
 import AdminNav from './AdminNav';
 
 export const metadata = { title: 'Staff Admin — Luke 14 Ministries' };
@@ -286,8 +286,8 @@ export default async function AdminLayout({ children }) {
         .neq('status', 'cancelled')
         .neq('camp_role', 'volunteer')
         .gte('registrations.events.ends_on', today)
-        // Retreats pair buddies on arrival (2 Oct 2026) -- not a queue here.
-        .not('registrations.events.event_type', 'in', `(${ASSIGNED_ON_ARRIVAL_TYPES.join(',')})`),
+        // Camps only: other events pair buddies on arrival (2-3 Oct 2026).
+        .in('registrations.events.event_type', STAFF_ASSIGNED_TYPES),
       supabase.from('buddy_assignments').select('camper_participant_id').is('ended_at', null),
     ]);
 
@@ -325,8 +325,8 @@ export default async function AdminLayout({ children }) {
       .is('program_id', null)
       .neq('status', 'cancelled')
       .gte('registrations.events.ends_on', today)
-      // Retreats have no programs to place people in (2 Oct 2026).
-      .not('registrations.events.event_type', 'in', `(${ASSIGNED_ON_ARRIVAL_TYPES.join(',')})`);
+      // Camps only: other events have no programs to place people in (2-3 Oct 2026).
+      .in('registrations.events.event_type', STAFF_ASSIGNED_TYPES);
     unplacedPeople = count ?? 0;
   }
 
